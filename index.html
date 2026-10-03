@@ -1,0 +1,2004 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body { margin: 0; } [hidden] { display: none !important; } img { max-width: 100%; }</style>
+<title>Math 3800 Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+:root {
+  --paper: #edf4ea;
+  --sheet: #f8fbf6;
+  --ink: #17241c;
+  --muted: #5a6a5f;
+  --rule: #2e7d4f;
+  --rule-soft: #cfe3d3;
+  --graphite: #343b36;
+  --on-graphite: #f8fbf6;
+  --gold: #c98407;
+  --gold-soft: #fbe7bc;
+  --red: #c8392f;
+  --red-soft: #f7dad6;
+  --green: #1d8a4b;
+  --green-soft: #d3eedb;
+  --shadow: 0 1px 0 rgba(23, 36, 28, 0.06), 0 8px 24px -12px rgba(23, 36, 28, 0.25);
+  --display: 'Big Shoulders Display', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+  --body: 'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #0f1612;
+    --sheet: #17211b;
+    --ink: #e4eee6;
+    --muted: #93a598;
+    --rule: #63c28a;
+    --rule-soft: #26392c;
+    --graphite: #dce5de;
+    --on-graphite: #17211b;
+    --gold: #f0b43a;
+    --gold-soft: #3b2f12;
+    --red: #ff7d71;
+    --red-soft: #3d1f1b;
+    --green: #5fd394;
+    --green-soft: #173523;
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #0f1612;
+  --sheet: #17211b;
+  --ink: #e4eee6;
+  --muted: #93a598;
+  --rule: #63c28a;
+  --rule-soft: #26392c;
+  --graphite: #dce5de;
+  --on-graphite: #17211b;
+  --gold: #f0b43a;
+  --gold-soft: #3b2f12;
+  --red: #ff7d71;
+  --red-soft: #3d1f1b;
+  --green: #5fd394;
+  --green-soft: #173523;
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.5;
+  /* faint scantron rule lines */
+  background-image: repeating-linear-gradient(to bottom, transparent 0 31px, var(--rule-soft) 31px 32px);
+}
+button { font: inherit; color: inherit; }
+button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule); outline-offset: 2px; }
+
+.app { max-width: 720px; margin: 0 auto; padding-inline: 16px; padding-block: 12px 64px; }
+
+/* ---------- heads-up bar ---------- */
+.hud {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 10px 0;
+  background: var(--paper);
+  border-bottom: 2px solid var(--rule);
+}
+.wordmark {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--rule);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  margin-right: auto;
+}
+.stat { display: flex; align-items: baseline; gap: 6px; font-family: var(--mono); font-size: 0.85rem; color: var(--muted); }
+.stat b { font-family: var(--display); font-size: 1.35rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+.lvl { display: grid; gap: 3px; min-width: 112px; }
+.lvl-bar { height: 6px; border-radius: 3px; background: var(--rule-soft); overflow: hidden; }
+.lvl-bar i { display: block; height: 100%; background: var(--gold); transition: width 0.5s ease; }
+.tools { display: flex; gap: 6px; }
+.tool {
+  border: 1.5px solid var(--rule);
+  background: var(--sheet);
+  color: var(--rule);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.tool[aria-pressed="true"] { background: var(--rule); color: var(--sheet); }
+
+/* ---------- map ---------- */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; margin: 22px 0 8px; }
+.hero h1 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(2rem, 7vw, 3.1rem);
+  line-height: 0.95;
+  text-transform: uppercase;
+  margin: 0 0 8px;
+  text-wrap: balance;
+}
+.hero p { margin: 0; color: var(--muted); max-width: 46ch; }
+.bell { width: 190px; max-width: 42vw; }
+.bell svg { width: 100%; height: auto; display: block; }
+.bell figcaption { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); text-align: center; margin-top: 2px; }
+.bell figcaption b { color: var(--ink); font-family: var(--display); font-size: 1.6rem; display: block; line-height: 1; }
+.cta {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; margin: 14px 0 6px; padding: 14px 18px;
+  border: 0; border-radius: 14px; cursor: pointer; text-align: left;
+  background: var(--rule); color: var(--sheet);
+  box-shadow: var(--shadow);
+}
+.cta small { display: block; font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85; }
+.cta strong { font-family: var(--display); font-size: 1.5rem; font-weight: 800; text-transform: uppercase; line-height: 1.05; }
+.cta .go { font-family: var(--display); font-size: 2rem; }
+
+.world { margin-top: 26px; }
+.world-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; border-bottom: 1.5px solid var(--rule); padding-bottom: 4px; margin-bottom: 10px; }
+.world-head h2 { font-family: var(--display); font-weight: 800; font-size: 1.5rem; text-transform: uppercase; margin: 0; color: var(--rule); letter-spacing: 0.02em; }
+.world-head span { font-size: 0.9rem; color: var(--muted); }
+.world-head em { font-style: normal; margin-left: auto; font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+.levels { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.level {
+  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 10px;
+  padding: 10px 12px; text-align: left; cursor: pointer;
+  background: var(--sheet); border: 1.5px solid var(--rule-soft); border-radius: 12px;
+}
+.level:hover { border-color: var(--rule); }
+.level .oval {
+  grid-row: span 2;
+  width: 30px; height: 40px; border-radius: 50%;
+  border: 2px solid var(--rule);
+  display: grid; place-items: center;
+  font-family: var(--mono); font-size: 0.8rem; font-weight: 600; color: var(--rule);
+}
+.level.cleared .oval { background: var(--graphite); border-color: var(--graphite); color: var(--on-graphite); }
+.level .name { font-weight: 700; line-height: 1.25; }
+.level .stars { font-family: var(--mono); font-size: 0.85rem; color: var(--gold); letter-spacing: 0.15em; }
+.level .stars .off { color: var(--rule-soft); }
+.level.next { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
+.level.next .oval { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.12); } }
+.boss {
+  display: grid; gap: 4px; width: 100%; margin-top: 26px; padding: 16px 18px; text-align: left; cursor: pointer;
+  background: var(--sheet); border: 2px dashed var(--gold); border-radius: 14px; color: var(--muted);
+}
+.boss:hover { border-style: solid; }
+.boss .boss-title { font-family: var(--display); font-weight: 800; font-size: 1.6rem; text-transform: uppercase; color: var(--gold); line-height: 1; }
+.boss b { color: var(--ink); }
+
+/* ---------- written answers: paper mode and the boss ---------- */
+.written { display: grid; gap: 6px; margin-top: 14px; }
+.written label { font-family: var(--mono); font-size: 0.74rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--rule); }
+.answer-input {
+  width: 100%; padding: 11px 13px; font: inherit; font-size: 1.1rem;
+  color: var(--ink); background: var(--paper);
+  border: 1.5px solid var(--rule-soft); border-radius: 10px;
+}
+.answer-input:focus { outline: 3px solid var(--rule); outline-offset: 1px; border-color: var(--rule); }
+.preview { min-height: 1.6em; color: var(--muted); font-size: 0.95rem; overflow-x: auto; }
+.paper-note { margin: 0; color: var(--muted); font-size: 0.95rem; }
+.verdict { margin-top: 12px; padding: 9px 13px; border-radius: 10px; font-weight: 700; }
+.verdict.ok { background: var(--green-soft); color: var(--green); }
+.verdict.bad { background: var(--red-soft); color: var(--red); }
+.reveal-box { margin-top: 12px; padding: 12px 14px; border-left: 4px solid var(--rule); background: var(--paper); border-radius: 0 10px 10px 0; }
+.reveal-box h3 { margin: 6px 0 2px; font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rule); }
+.reveal-box h3:first-child { margin-top: 0; }
+.reveal-box p { margin: 4px 0; }
+.mode { display: block; font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; opacity: 0.85; }
+.boss-nav { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
+.boss-nav button {
+  width: 30px; height: 36px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 2px solid var(--rule-soft); background: var(--sheet); color: var(--muted);
+  font-family: var(--mono); font-size: 0.7rem; font-weight: 600;
+}
+.boss-nav button.done { background: var(--graphite); border-color: var(--graphite); color: var(--on-graphite); }
+.boss-nav button.here { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft); }
+.clock { font-family: var(--display); font-size: 1.6rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink); }
+.toggle[aria-pressed="true"] { background: var(--graphite); border-color: var(--graphite); color: var(--on-graphite); }
+.review-item { padding: 16px 0; border-top: 1.5px dashed var(--rule-soft); }
+.review-item h4 { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rule); }
+.review-item h4 .mark { margin-left: auto; padding: 2px 9px; border-radius: 999px; font-size: 0.72rem; }
+.mark.ok { background: var(--green-soft); color: var(--green); }
+.mark.bad { background: var(--red-soft); color: var(--red); }
+.mark.todo { background: var(--gold-soft); color: var(--gold); }
+.wrote { font-family: var(--mono); font-size: 0.9rem; margin: 6px 0; }
+.score-line { position: sticky; top: 64px; z-index: 2; margin: 0 0 8px; padding: 8px 12px; border-radius: 10px; background: var(--gold-soft); color: var(--ink); font-weight: 700; }
+.redo { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+/* ---------- walk the tree ---------- */
+.trainer {
+  display: grid; gap: 4px; width: 100%; margin-top: 10px; padding: 14px 18px; text-align: left; cursor: pointer;
+  background: var(--sheet); border: 2px solid var(--rule); border-radius: 14px; color: var(--muted);
+}
+.trainer:hover { background: var(--green-soft); }
+.trainer .boss-title { color: var(--rule); }
+.outline ul { list-style: none; margin: 0 0 0 8px; padding: 0; }
+.outline ul li { position: relative; padding: 4px 0 4px 22px; }
+.outline ul li::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; border-left: 1.5px solid var(--rule-soft); }
+.outline ul li:last-child::before { bottom: auto; height: 16px; }
+.outline ul li::after { content: ''; position: absolute; left: 0; top: 16px; width: 14px; border-top: 1.5px solid var(--rule-soft); }
+.oq { display: inline-block; margin: 3px 0; padding: 2px 10px; border: 1.5px solid var(--rule); border-radius: 8px; font-weight: 700; color: var(--rule); }
+.oa { display: block; font-size: 0.95rem; color: var(--muted); }
+.oa b { color: var(--ink); }
+.oleaf { display: inline-block; margin-top: 3px; padding: 4px 10px; background: var(--paper); border-left: 3px solid var(--gold); font-size: 0.92rem; }
+.oleaf b { font-family: var(--display); font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 4px; font-size: 0.9rem; }
+.crumbs span { padding: 2px 9px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-weight: 700; }
+.crumbs i { color: var(--muted); font-style: normal; }
+.step-q { margin: 12px 0 2px; font-family: var(--display); font-size: 1.6rem; font-weight: 800; text-transform: uppercase; line-height: 1.05; }
+.clue { background: var(--gold-soft); color: var(--ink); border-bottom: 2px solid var(--gold); padding: 0 2px; }
+.leafcard { margin-top: 12px; padding: 12px 14px; border-left: 4px solid var(--gold); background: var(--paper); border-radius: 0 10px 10px 0; }
+.leafcard h3 { margin: 0 0 4px; font-family: var(--display); font-size: 1.7rem; text-transform: uppercase; line-height: 1; }
+.leafcard h3 small { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); margin-left: 8px; }
+.leafcard p { margin: 3px 0; }
+.leafcard p span { display: inline-block; min-width: 76px; color: var(--muted); font-family: var(--mono); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* ---------- the sheet (card, question, results) ---------- */
+.sheet {
+  position: relative;
+  margin-top: 18px;
+  background: var(--sheet);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 20px 20px 22px 38px;
+  overflow: hidden;
+}
+/* scantron timing marks down the left edge */
+.sheet::before {
+  content: '';
+  position: absolute; left: 12px; top: 18px; bottom: 18px; width: 10px;
+  background: repeating-linear-gradient(to bottom, var(--graphite) 0 6px, transparent 6px 22px);
+  opacity: 0.85;
+}
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rule); font-weight: 600; }
+.sheet h2 { font-family: var(--display); font-weight: 800; font-size: clamp(1.7rem, 5.5vw, 2.3rem); text-transform: uppercase; line-height: 1; margin: 6px 0 14px; text-wrap: balance; }
+.points { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.points li { padding-left: 26px; position: relative; max-width: 62ch; }
+.points li::before { content: ''; position: absolute; left: 0; top: 0.3em; width: 12px; height: 16px; border-radius: 50%; border: 2px solid var(--rule); }
+.row-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.btn {
+  border: 0; border-radius: 12px; padding: 12px 20px; cursor: pointer;
+  background: var(--rule); color: var(--sheet);
+  font-family: var(--display); font-weight: 800; font-size: 1.25rem; text-transform: uppercase; letter-spacing: 0.03em;
+}
+.btn.ghost { background: transparent; color: var(--rule); border: 2px solid var(--rule); }
+
+.qtop { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.progress { display: flex; gap: 5px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.progress i { width: 14px; height: 18px; border-radius: 50%; border: 2px solid var(--rule-soft); }
+.progress i.ok { background: var(--graphite); border-color: var(--graphite); }
+.progress i.bad { background: var(--red); border-color: var(--red); }
+.progress i.now { border-color: var(--rule); }
+.combo { display: flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+.combo span { padding: 2px 7px; border-radius: 999px; border: 1.5px solid var(--rule-soft); }
+.combo span.on { background: var(--gold); border-color: var(--gold); color: var(--sheet); }
+.combo strong { color: var(--ink); font-family: var(--display); font-size: 1.15rem; margin-right: 4px; }
+
+.ask { margin: 14px 0 4px; font-weight: 700; }
+.story { margin: 4px 0; max-width: 64ch; }
+.math-d { overflow-x: auto; overflow-y: hidden; padding: 6px 0; text-align: center; }
+.math-d mjx-container { margin: 0 !important; }
+.math-d mjx-container svg { max-width: none; }
+.choices { display: grid; gap: 8px; margin-top: 12px; }
+.choice {
+  position: relative;
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px;
+  width: 100%; padding: 10px 12px; text-align: left; cursor: pointer;
+  background: var(--sheet); border: 1.5px solid var(--rule-soft); border-radius: 12px;
+  min-height: 56px;
+}
+.choice:hover:not(:disabled) { border-color: var(--rule); }
+.choice:disabled { cursor: default; }
+.choice .oval {
+  width: 28px; height: 38px; border-radius: 50%;
+  border: 2px solid var(--rule); color: var(--rule);
+  display: grid; place-items: center;
+  font-family: var(--mono); font-weight: 600; font-size: 0.85rem;
+  transition: background 0.15s, color 0.15s;
+}
+.choice .val { overflow-x: auto; overflow-y: hidden; font-size: 1.05rem; padding-block: 2px; }
+.choice .val mjx-container { margin: 0 !important; }
+.choice.right { background: var(--green-soft); border-color: var(--green); }
+.choice.right .oval { background: var(--graphite); border-color: var(--graphite); color: var(--on-graphite); }
+.choice.wrong { background: var(--red-soft); border-color: var(--red); animation: shake 0.35s; }
+.choice.wrong .oval { background: var(--red); border-color: var(--red); color: var(--sheet); }
+.choice.reveal { border-color: var(--green); border-width: 2.5px; }
+.choice.reveal .oval { border-color: var(--green); color: var(--green); }
+@keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+.why { margin-top: 14px; padding: 12px 14px; border-left: 4px solid var(--red); background: var(--red-soft); border-radius: 0 10px 10px 0; }
+.why h3 { margin: 0 0 4px; font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--red); }
+.why p { margin: 4px 0; }
+.pop {
+  position: fixed; z-index: 30; pointer-events: none;
+  font-family: var(--display); font-weight: 800; font-size: 1.9rem; color: var(--gold);
+  text-shadow: 0 2px 0 var(--sheet);
+  animation: pop 0.9s ease-out forwards;
+}
+@keyframes pop { from { transform: translateY(0) scale(0.8); opacity: 1; } to { transform: translateY(-60px) scale(1.15); opacity: 0; } }
+.toast {
+  position: fixed; left: 50%; top: 30%; z-index: 30; transform: translateX(-50%);
+  padding: 12px 22px; border-radius: 14px; background: var(--gold); color: var(--sheet);
+  font-family: var(--display); font-weight: 800; font-size: 1.9rem; text-transform: uppercase; text-align: center;
+  box-shadow: var(--shadow); animation: toast 1.6s ease-out forwards; pointer-events: none;
+}
+@keyframes toast { 0% { opacity: 0; transform: translate(-50%, 12px) scale(0.9); } 15%, 75% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, -12px); } }
+
+.result-stars { font-size: 3rem; letter-spacing: 0.15em; color: var(--gold); margin: 4px 0 6px; }
+.result-stars .off { color: var(--rule-soft); }
+.result-stars span { display: inline-block; animation: starIn 0.4s backwards; }
+@keyframes starIn { from { transform: scale(0.2) rotate(-30deg); opacity: 0; } }
+.tally { display: flex; flex-wrap: wrap; gap: 8px 22px; font-family: var(--mono); color: var(--muted); font-size: 0.85rem; }
+.tally b { display: block; font-family: var(--display); font-size: 1.9rem; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
+
+/* ---------- overlays ---------- */
+.overlay { position: fixed; inset: 0; z-index: 20; background: var(--paper); overflow-y: auto; padding-inline: 16px; padding-block: calc(env(safe-area-inset-top, 0px) + 12px) 40px; }
+.overlay-inner { max-width: 820px; margin: 0 auto; }
+.overlay-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; position: sticky; top: 0; background: var(--paper); padding: 6px 0 10px; border-bottom: 2px solid var(--rule); z-index: 1; }
+.overlay-head .tool:last-child { margin-left: auto; }
+.table-wrap { overflow-x: auto; margin-top: 10px; }
+.ptable { border-collapse: collapse; font-family: var(--mono); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.ptable th, .ptable td { padding: 4px 7px; border: 1px solid var(--rule-soft); text-align: right; white-space: nowrap; }
+.ptable th { background: var(--sheet); color: var(--rule); position: sticky; }
+.ptable thead th { top: 0; }
+.ptable td { cursor: pointer; }
+.ptable .line { background: var(--gold-soft); }
+.ptable .here { background: var(--gold); color: var(--sheet); }
+.note { color: var(--muted); font-size: 0.9rem; margin: 8px 0 0; }
+.sheet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-top: 10px; }
+.formula { background: var(--sheet); border: 1.5px solid var(--rule-soft); border-radius: 12px; padding: 10px 12px; overflow-x: auto; }
+.formula p { margin: 0 0 4px; font-family: var(--mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--rule); }
+.overlay h3 { font-family: var(--display); text-transform: uppercase; font-size: 1.4rem; margin: 18px 0 0; }
+
+#fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 40; }
+.loading { color: var(--muted); font-family: var(--mono); font-size: 0.85rem; padding: 18px 0; }
+
+@media (max-width: 520px) {
+  .hero { grid-template-columns: 1fr; }
+  .bell { width: 220px; max-width: 70vw; justify-self: center; }
+  .sheet { padding: 16px 14px 18px 30px; }
+  .sheet::before { left: 9px; width: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="hud">
+    <button class="wordmark" id="home" type="button">Math 3800 Arcade</button>
+    <div class="stat lvl" title="XP: every right answer earns some, streaks earn more">
+      <span>LV <b id="lvl">1</b> · <span id="xp">0</span> XP</span>
+      <div class="lvl-bar"><i id="lvlbar" style="width:0%"></i></div>
+    </div>
+    <div class="stat" title="Days in a row you've played"><b id="days">0</b>day streak</div>
+    <div class="tools">
+      <button class="tool" id="open-tables" type="button">Tables</button>
+      <button class="tool" id="open-sheet" type="button">Formulas</button>
+      <button class="tool" id="sound" type="button" aria-pressed="true">Sound</button>
+    </div>
+  </header>
+  <main id="view"><p class="loading">Shuffling the deck…</p></main>
+</div>
+<div class="overlay" id="overlay" hidden></div>
+<canvas id="fx" aria-hidden="true"></canvas>
+
+<script>
+window.MathJax = {
+  startup: { typeset: false },
+  options: { enableMenu: false },
+  svg: { fontCache: 'local' },
+}
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg-full.js"></script>
+<script src="engine.js"></script>
+<script>
+;(() => {
+  const T2 = window.Test2
+  const unit = T2.unit
+  const lineByShort = Object.fromEntries(unit.guide.map(g => [g.short, g]))
+  const ROUND = 6
+
+  // ---------- the path: the review list, easiest points first ----------
+  const WORLDS = [
+    {
+      name: 'Free points',
+      blurb: 'Read a table, name the story. No algebra.',
+      levels: ['Which distribution?', 'Parameters and possible values', 'Normal table', 'Normal word problems', 'Binomial table', 'Chi-squared table'],
+    },
+    {
+      name: 'Plug it in',
+      blurb: 'Know the formula, put the numbers in.',
+      levels: ['Discrete probabilities', 'Uniform pdf', 'First event (exponential)', 'Continuous probabilities', 'Mean and variance from an MGF'],
+    },
+    {
+      name: 'The scripts',
+      blurb: 'Derivations that come out the same every time.',
+      levels: ['Geometric pdf', 'Geometric cdf', 'Geometric MGF', 'Derive the negative binomial pdf', 'Derive the discrete pdfs', 'Verify a pdf, or find the constant'],
+    },
+    {
+      name: 'Calculus',
+      blurb: 'Integrals and derivatives, one move at a time.',
+      levels: ['pdf ↔ cdf', 'Mean and variance from a pdf', 'Find an MGF from a pdf', 'Integration by parts, gamma integrals'],
+    },
+  ].map(w => ({ ...w, levels: w.levels.filter(s => lineByShort[s]) }))
+  const ORDER = WORLDS.flatMap(w => w.levels)
+
+  // ---------- power-up cards: the whole idea in plain words ----------
+  const CARDS = {
+    'Which distribution?': [
+      'No math needed here: every story gives itself away with a clue phrase.',
+      '"until the FIRST …" → geometric. "Callers until the first sale."',
+      '"until the 2nd, 3rd, 5th …" → negative binomial. "Wells drilled until the 3rd strike."',
+      '"out of the next 12", "flips a coin 20 times" (a fixed number of tries) → binomial.',
+      '"without replacement", "a 5-card hand", "from a group of 56" → hypergeometric.',
+      '"an average of 4 per hour", "per page", "in a 30-minute window" → Poisson.',
+    ],
+    'Parameters and possible values': [
+      'Binomial: n = number of tries, p = chance of success. X can be 0, 1, …, n.',
+      'Negative binomial: r = successes you need, p = chance of success. X can be r, r + 1, r + 2, … (no top).',
+      'Hypergeometric: N = group size, r = successes in the group, n = how many you grab. X runs from max(0, n − (N − r)) up to min(n, r).',
+      'Poisson: k = rate × amount. 4 per hour over 30 minutes: k = 4 × 0.5 = 2. X can be 0, 1, 2, … (no top).',
+    ],
+    'Normal table': [
+      'The table gives the area to the LEFT of z: P(Z < z).',
+      'Row = z to one decimal (1.2), column = the second decimal (0.05). Together: z = 1.25.',
+      'Area on the right: 1 − the table value. Between two z values: bigger value − smaller value.',
+      'Backwards: find the area inside the table, then read its z off the row and column.',
+    ],
+    'Normal word problems': [
+      'Turn x into z: z = (x − μ)/σ. Round z to 2 decimals.',
+      'Look z up: that is the area to the left, which is also the percentile.',
+      'IQ (μ = 100, σ = 15): a 139 gives z = 2.6, the table says 0.9953, so the 99.53rd percentile.',
+      'Backwards: area → z from the table → x = μ + zσ. The middle 95% is μ ± 1.96σ.',
+    ],
+    'Binomial table': [
+      'Pick the table for your n (19 or 20), the column for p, the row for x. The entry is P(X ≤ x).',
+      'Fewer than 8 means at most 7: read row 7. At least 8: 1 − row 7. More than 8: 1 − row 8.',
+      'Exactly 8: row 8 − row 7.',
+    ],
+    'Chi-squared table': [
+      'Rows: degrees of freedom γ. Columns: the area to the LEFT of the value.',
+      'χ² with r in the subscript has area r on the RIGHT, so read the column for 1 − r. χ²₀.₀₅ lives in the 0.95 column.',
+      'Given a value in a row, its column heading tells you the left area. The right area is 1 minus that.',
+    ],
+    'Discrete probabilities': [
+      'Name the distribution and its numbers first, then put x into its formula.',
+      'At most 2 = P(0) + P(1) + P(2). At least 1 = 1 − P(0).',
+      'Binomial: C(n, x)·pˣ·qⁿ⁻ˣ with q = 1 − p. Poisson: e⁻ᵏkˣ/x! (on the formula sheet).',
+    ],
+    'Uniform pdf': [
+      'Uniform on [A, B] means flat: every value is equally likely.',
+      'The rectangle from A to B must have area 1, so its height is 1/(B − A). That height is the pdf.',
+      'A probability is a length over the full length: P(c < X < d) = (d − c)/(B − A).',
+    ],
+    'First event (exponential)': [
+      'Events arrive at rate λ (like 3 per hour). The wait W for the first one has pdf f(x) = λe^(−λx).',
+      'P(W ≤ t) = 1 − e^(−λt). P(W > t) = e^(−λt).',
+      '"1 every 5 hours" means λ = 1/5. Put the rate and the time in the same unit first.',
+    ],
+    'Continuous probabilities': [
+      'For a continuous X, a probability is an area: P(a < X < b) = ∫ from a to b of f(x) dx.',
+      'Find an antiderivative, plug in b, subtract what you get at a.',
+      'A single point has probability 0, so < and ≤ give the same answer.',
+    ],
+    'Mean and variance from an MGF': [
+      'E(X) = m′(0): differentiate the MGF, then plug in t = 0.',
+      'E(X²) = m″(0). Variance = m″(0) − [m′(0)]².',
+      'Shortcuts: (1 − βt)^(−α) has mean αβ and variance αβ². e^(μt + σ²t²/2) has mean μ and variance σ².',
+    ],
+    'Geometric pdf': [
+      'X is the try on which the first success happens.',
+      'That means x − 1 failures (q each) and then a success (p): f(x) = q^(x−1)·p.',
+      'It sums to 1: a geometric series with a = p and r = q gives p/(1 − q) = p/p = 1.',
+    ],
+    'Geometric cdf': [
+      'F(x) = P(X ≤ x): add q^(k−1)·p from k = 1 up to x.',
+      'That is a finite geometric series (on the sheet): p(1 − qˣ)/(1 − q).',
+      '1 − q is p, so the p cancels: F(x) = 1 − qˣ.',
+    ],
+    'Geometric MGF': [
+      'm(t) = E(e^(tX)) = Σ e^(tx)·q^(x−1)·p.',
+      'Pull out p/q. What is left is Σ (qe^t)ˣ, a geometric series.',
+      'It sums to pe^t/(1 − qe^t), and only works when qe^t < 1.',
+    ],
+    'Derive the negative binomial pdf': [
+      'X = the number of tries needed for r successes, so the last try is a success.',
+      'f(x) = P(r − 1 successes in the first x − 1 tries) × p.',
+      '= C(x − 1, r − 1)·p^(r−1)·q^((x−1)−(r−1))·p = C(x − 1, r − 1)·pʳ·q^(x−r).',
+    ],
+    'Derive the discrete pdfs': [
+      'Binomial: one particular order of x successes has probability pˣqⁿ⁻ˣ, and there are C(n, x) orders.',
+      'Hypergeometric: good samples C(r, x)·C(N − r, n − x) over all samples C(N, n).',
+      'Negative binomial: r − 1 successes in x − 1 tries, then one more success.',
+    ],
+    'Verify a pdf, or find the constant': [
+      'A pdf needs two things: f(x) ≥ 0 everywhere, and a total of 1 (the sum, or the integral).',
+      'To find c: integrate with c out front, set the result equal to 1, solve for c.',
+      'Example: c·x² on [0, 3]. The integral is c·9, so c = 1/9.',
+    ],
+    'pdf ↔ cdf': [
+      'The cdf F(x) = P(X ≤ x): add up (discrete) or integrate (continuous) everything up to x.',
+      'Continuous: integrate f from the left end of its range up to x. Before the range F = 0, after it F = 1.',
+      'Going back: f(x) = F′(x). Discrete: f(x) is the jump F makes at x.',
+    ],
+    'Mean and variance from a pdf': [
+      'E(X) = Σ x·f(x), or ∫ x·f(x) dx for a continuous X.',
+      'E(X²) = Σ x²·f(x), or ∫ x²·f(x) dx.',
+      'Variance = E(X²) − [E(X)]². Gamma shortcut: mean αβ, variance αβ².',
+    ],
+    'Find an MGF from a pdf': [
+      'm(t) = E(e^(tX)) = Σ e^(tx)·f(x), or ∫ e^(tx)·f(x) dx.',
+      'From a table: one term per value, f(0) + f(1)e^t + f(2)e^(2t) + …',
+      'From e^(−x): ∫ from 0 to ∞ of e^(tx)e^(−x) dx = 1/(1 − t), for t < 1.',
+    ],
+    'Integration by parts, gamma integrals': [
+      '∫ u dv = uv − ∫ v du. For x·e^(ax): u = x, dv = e^(ax) dx.',
+      'Result: (x/a)e^(ax) − e^(ax)/a² + C. You only ever do this once on the test.',
+      'xⁿe^(−x) from 0 to ∞ is NOT by parts: it is Γ(n + 1) = n!. So x⁴e^(−x) gives 4! = 24.',
+    ],
+  }
+
+  // ---------- progress ----------
+  const LOCAL_KEY = 'math3800-arcade.v1'
+  const fresh = () => ({ v: 1, xp: 0, stars: {}, plays: {}, lastDay: null, days: 0, muted: false, answered: 0, correct: 0, boss: null, tree: null, updated: 0 })
+  let state = fresh()
+  try {
+    const s = JSON.parse(localStorage.getItem(LOCAL_KEY))
+    if (s && s.v === 1) state = { ...fresh(), ...s }
+  } catch {}
+
+  let remote = null // the viewer's own progress document, when the page can sync
+  let writing = Promise.resolve()
+  function save() {
+    state.updated = Date.now()
+    try { localStorage.setItem(LOCAL_KEY, JSON.stringify(state)) } catch {}
+    if (remote) {
+      const body = JSON.parse(JSON.stringify(state))
+      writing = writing.then(() => remote.set(body)).catch(() => {})
+    }
+  }
+  async function connect() {
+    try {
+      if (!window.claude?.use) return
+      const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')])
+      if (!db || !user) return
+      const id = await user.id()
+      if (!id) return
+      const ref = db.doc('data/users/' + id + '/arcade')
+      const snap = await ref.get()
+      remote = ref
+      const theirs = snap.exists ? snap.data() : null
+      if (theirs && theirs.v === 1 && (theirs.updated || 0) > (state.updated || 0)) {
+        state = { ...fresh(), ...JSON.parse(JSON.stringify(theirs)) }
+        try { localStorage.setItem(LOCAL_KEY, JSON.stringify(state)) } catch {}
+        hud()
+        if (screen === 'map') renderMap()
+      } else if (state.updated) save()
+    } catch {}
+  }
+
+  const XP_PER_LEVEL = 250
+  const level = xp => 1 + Math.floor(xp / XP_PER_LEVEL)
+  const readiness = () => ORDER.reduce((s, k) => s + Math.min(3, state.stars[k] || 0), 0) / (3 * ORDER.length)
+  const grade = r => (r >= 0.9 ? 'A' : r >= 0.8 ? 'B' : r >= 0.7 ? 'C' : r >= 0.6 ? 'D' : r > 0 ? 'F' : '–')
+  const today = () => new Date().toLocaleDateString('en-CA')
+  const nextUp = () => ORDER.find(k => (state.stars[k] || 0) < 2) ?? ORDER.find(k => (state.stars[k] || 0) < 3) ?? ORDER[0]
+
+  // ---------- sound ----------
+  let ac = null
+  function audio() {
+    if (state.muted) return null
+    try {
+      ac ??= new (window.AudioContext || window.webkitAudioContext)()
+      if (ac.state === 'suspended') ac.resume()
+      return ac
+    } catch { return null }
+  }
+  function tone(freq, at, dur, type = 'triangle', gain = 0.16) {
+    const a = audio()
+    if (!a) return
+    const t = a.currentTime + at
+    const o = a.createOscillator()
+    const g = a.createGain()
+    o.type = type
+    o.frequency.setValueAtTime(freq, t)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.015)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+    o.connect(g).connect(a.destination)
+    o.start(t)
+    o.stop(t + dur + 0.02)
+  }
+  const semis = (base, n) => base * Math.pow(2, n / 12)
+  const sfx = {
+    right(combo) {
+      const base = semis(523.25, Math.min(combo, 12))
+      tone(base, 0, 0.14)
+      tone(semis(base, 7), 0.07, 0.22)
+    },
+    wrong() {
+      tone(150, 0, 0.22, 'square', 0.07)
+      tone(110, 0.09, 0.28, 'square', 0.06)
+    },
+    clear() { [0, 4, 7, 12, 16].forEach((n, i) => tone(semis(523.25, n), i * 0.09, 0.3)) },
+    levelUp() { [0, 7, 12, 19, 24].forEach((n, i) => tone(semis(392, n), i * 0.07, 0.35, 'square', 0.06)) },
+  }
+
+  // ---------- confetti ----------
+  const fx = document.getElementById('fx')
+  const ctx = fx.getContext('2d')
+  let bits = []
+  const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  function burst(n = 120) {
+    if (reduced()) return
+    const cs = getComputedStyle(document.documentElement)
+    const colors = ['--gold', '--rule', '--green', '--red', '--graphite'].map(v => cs.getPropertyValue(v).trim())
+    const w = (fx.width = innerWidth * devicePixelRatio)
+    fx.height = innerHeight * devicePixelRatio
+    for (let i = 0; i < n; i++) {
+      bits.push({
+        x: w / 2 + (Math.random() - 0.5) * w * 0.3,
+        y: fx.height * 0.35,
+        vx: (Math.random() - 0.5) * 16 * devicePixelRatio,
+        vy: (-6 - Math.random() * 12) * devicePixelRatio,
+        r: (4 + Math.random() * 5) * devicePixelRatio,
+        c: colors[i % colors.length],
+        spin: Math.random() * 6,
+        life: 0,
+      })
+    }
+    if (bits.length === n) requestAnimationFrame(tick)
+  }
+  function tick() {
+    ctx.clearRect(0, 0, fx.width, fx.height)
+    bits = bits.filter(b => b.life < 160 && b.y < fx.height + 40)
+    for (const b of bits) {
+      b.life++
+      b.vy += 0.35 * devicePixelRatio
+      b.vx *= 0.99
+      b.x += b.vx
+      b.y += b.vy
+      ctx.save()
+      ctx.translate(b.x, b.y)
+      ctx.rotate(b.spin + b.life * 0.1)
+      ctx.fillStyle = b.c
+      ctx.beginPath()
+      ctx.ellipse(0, 0, b.r, b.r * 1.35, 0, 0, Math.PI * 2) // little filled-in bubbles
+      ctx.fill()
+      ctx.restore()
+    }
+    if (bits.length) requestAnimationFrame(tick)
+    else ctx.clearRect(0, 0, fx.width, fx.height)
+  }
+  function pop(text, el) {
+    const r = el.getBoundingClientRect()
+    const s = document.createElement('span')
+    s.className = 'pop'
+    s.textContent = text
+    s.style.left = Math.min(innerWidth - 90, r.right - 70) + 'px'
+    s.style.top = r.top - 6 + 'px'
+    document.body.append(s)
+    setTimeout(() => s.remove(), 950)
+  }
+  function toast(text) {
+    const s = document.createElement('div')
+    s.className = 'toast'
+    s.textContent = text
+    document.body.append(s)
+    setTimeout(() => s.remove(), 1650)
+  }
+
+  // ---------- math ----------
+  let mathReady = false
+  const mathBoot = (window.MathJax?.startup?.promise ?? Promise.reject(new Error('no MathJax')))
+    .then(() => {
+      // tex2svg skips typesetting, so add MathJax's own styles (they hide the screen-reader copy)
+      document.head.append(MathJax.svgStylesheet())
+      mathReady = true
+    })
+    .catch(() => {})
+  function tex(latex, display = true) {
+    const el = document.createElement(display ? 'div' : 'span')
+    el.className = display ? 'math-d' : 'math-i'
+    if (mathReady) {
+      try { el.append(MathJax.tex2svg(latex, { display })); return el } catch {}
+    }
+    el.textContent = latex
+    return el
+  }
+  const h = (tag, cls, text) => {
+    const el = document.createElement(tag)
+    if (cls) el.className = cls
+    if (text != null) el.textContent = text
+    return el
+  }
+
+  // ---------- heads-up ----------
+  function hud() {
+    document.getElementById('xp').textContent = state.xp.toLocaleString()
+    document.getElementById('lvl').textContent = level(state.xp)
+    document.getElementById('lvlbar').style.width = ((state.xp % XP_PER_LEVEL) / XP_PER_LEVEL) * 100 + '%'
+    document.getElementById('days').textContent = state.days
+    const snd = document.getElementById('sound')
+    snd.setAttribute('aria-pressed', String(!state.muted))
+    snd.textContent = state.muted ? 'Muted' : 'Sound'
+  }
+
+  // the readiness bell: the shaded left area under a normal curve is the share of stars earned
+  function invPhi(p) {
+    // Acklam's rational approximation
+    const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239]
+    const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572]
+    const c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783]
+    const d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416]
+    const lo = 0.02425
+    if (p < lo) {
+      const q = Math.sqrt(-2 * Math.log(p))
+      return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+    }
+    if (p > 1 - lo) return -invPhi(1 - p)
+    const q = p - 0.5
+    const r = q * q
+    return ((((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q) / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
+  }
+  function bellSvg(frac) {
+    const W = 200, H = 96, base = 84, top = 10
+    const X = z => ((z + 3.2) / 6.4) * W
+    const Y = z => base - (base - top) * Math.exp(-(z * z) / 2)
+    const pts = []
+    for (let z = -3.2; z <= 3.2001; z += 0.1) pts.push([X(z), Y(z)])
+    const curve = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ')
+    let shade = ''
+    if (frac > 0) {
+      const zc = frac >= 0.999 ? 3.2 : Math.max(-3.2, Math.min(3.2, invPhi(frac)))
+      const sp = pts.filter(p => p[0] <= X(zc))
+      sp.push([X(zc), Y(zc)])
+      shade = `<path d="M${X(-3.2)} ${base} ${sp.map(p => 'L' + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ')} L${X(zc).toFixed(1)} ${base} Z" fill="var(--gold)" opacity="0.85"/>
+        <line x1="${X(zc).toFixed(1)}" y1="${base}" x2="${X(zc).toFixed(1)}" y2="${(Y(zc) - 6).toFixed(1)}" stroke="var(--ink)" stroke-width="1.5"/>`
+    }
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Readiness ${Math.round(frac * 100)} percent">
+      ${shade}
+      <path d="${curve}" fill="none" stroke="var(--rule)" stroke-width="2.5"/>
+      <line x1="0" y1="${base}" x2="${W}" y2="${base}" stroke="var(--rule)" stroke-width="1.5"/>
+      ${[-2, -1, 0, 1, 2].map(z => `<line x1="${X(z)}" y1="${base}" x2="${X(z)}" y2="${base + 5}" stroke="var(--rule)" stroke-width="1.2"/>`).join('')}
+    </svg>`
+  }
+
+  // ---------- screens ----------
+  const view = document.getElementById('view')
+  let screen = 'map'
+  let round = null
+
+  function starsText(n, total = 3) {
+    const wrap = h('span', 'stars')
+    for (let i = 0; i < total; i++) {
+      const s = h('span', i < n ? '' : 'off', '★')
+      wrap.append(s)
+    }
+    return wrap
+  }
+
+  function renderMap() {
+    screen = 'map'
+    round = null
+    stopClock()
+    view.replaceChildren()
+    const r = readiness()
+    const hero = h('section', 'hero')
+    const words = h('div')
+    words.append(h('h1', '', 'Test 2, one bubble at a time'))
+    words.append(h('p', '', 'Every level is a line from the study guide and the review notes. Clear it with 2 or 3 stars and your readiness curve fills in.'))
+    const fig = h('figure', 'bell')
+    fig.innerHTML = bellSvg(r)
+    const cap = h('figcaption')
+    cap.append(h('b', '', grade(r)))
+    cap.append(document.createTextNode(`Readiness ${Math.round(r * 100)}%`))
+    fig.append(cap)
+    hero.append(words, fig)
+    view.append(hero)
+
+    const next = nextUp()
+    const cta = h('button', 'cta')
+    cta.type = 'button'
+    const ctaText = h('span')
+    ctaText.append(h('small', '', (state.stars[next] || 0) ? 'Go for 3 stars' : 'Next up'), h('strong', '', next))
+    cta.append(ctaText, h('span', 'go', '→'))
+    cta.addEventListener('click', () => openCard(next))
+    view.append(cta)
+
+    // the tree trainer: which distribution, for every chapter
+    const trainer = h('button', 'trainer')
+    trainer.type = 'button'
+    trainer.append(
+      h('span', 'boss-title', 'Walk the tree'),
+      h('span', '', 'Which distribution is it? For every chapter: answer the tree’s questions one at a time and land on the right one.'),
+    )
+    if (state.tree) {
+      const t = h('span')
+      t.append(starsText(state.tree.stars), document.createTextNode(` · ${state.tree.plays} ${state.tree.plays === 1 ? 'run' : 'runs'}`))
+      trainer.append(t)
+    }
+    trainer.addEventListener('click', openTreeCard)
+    view.append(trainer)
+
+    WORLDS.forEach((w, wi) => {
+      const sec = h('section', 'world')
+      const head = h('div', 'world-head')
+      const got = w.levels.reduce((s, k) => s + Math.min(3, state.stars[k] || 0), 0)
+      head.append(h('h2', '', `World ${wi + 1} · ${w.name}`), h('span', '', w.blurb), h('em', '', `${got}/${w.levels.length * 3} ★`))
+      const grid = h('div', 'levels')
+      w.levels.forEach((k, i) => {
+        const s = state.stars[k] || 0
+        const b = h('button', 'level' + (s ? ' cleared' : '') + (k === next ? ' next' : ''))
+        b.type = 'button'
+        b.append(h('span', 'oval', String(i + 1)), h('span', 'name', k), starsText(s))
+        b.addEventListener('click', () => openCard(k))
+        grid.append(b)
+      })
+      sec.append(head, grid)
+      view.append(sec)
+    })
+    const bossCard = h('button', 'boss')
+    bossCard.type = 'button'
+    bossCard.append(
+      h('span', 'boss-title', 'Final boss'),
+      h('span', '', 'One question from every level, 21 in all, written like the real test: no choices, a clock running, answers only after you hand it in.'),
+    )
+    if (state.boss) {
+      const best = h('span')
+      best.append(document.createTextNode('Best so far: '), h('b', '', `${state.boss.best}/21`), document.createTextNode(` · ${state.boss.runs} ${state.boss.runs === 1 ? 'run' : 'runs'}`))
+      bossCard.append(best)
+    }
+    bossCard.addEventListener('click', startBoss)
+    view.append(bossCard)
+    window.scrollTo({ top: 0 })
+  }
+
+  function openCard(short) {
+    screen = 'card'
+    view.replaceChildren()
+    const sheet = h('section', 'sheet')
+    const wi = WORLDS.findIndex(w => w.levels.includes(short))
+    sheet.append(h('div', 'eyebrow', `World ${wi + 1} · Power-up`))
+    sheet.append(h('h2', '', short))
+    const ul = h('ul', 'points')
+    for (const line of CARDS[short] ?? [lineByShort[short].text]) ul.append(h('li', '', line))
+    sheet.append(ul)
+    const acts = h('div', 'row-actions')
+    const go = h('button', 'btn', `Start · ${ROUND} questions`)
+    go.type = 'button'
+    go.addEventListener('click', () => startRound(short))
+    // the real test is written: same questions, no choices, double XP
+    const paper = h('button', 'btn ghost')
+    paper.type = 'button'
+    paper.append(document.createTextNode('Paper mode'), h('span', 'mode', 'no choices · ×2 XP'))
+    paper.addEventListener('click', () => startRound(short, true))
+    const back = h('button', 'btn ghost', 'Map')
+    back.type = 'button'
+    back.addEventListener('click', renderMap)
+    acts.append(go, paper, back)
+    sheet.append(acts)
+    view.append(sheet)
+    go.focus()
+    window.scrollTo({ top: 0 })
+  }
+
+  async function startRound(short, paper = false) {
+    view.replaceChildren(h('p', 'loading', 'Shuffling the deck…'))
+    await mathBoot
+    const topics = T2.guideTopics(unit, lineByShort[short])
+    const weights = topics.map(t => t.templates.length)
+    const total = weights.reduce((a, b) => a + b, 0)
+    const pick = T2.createFreshPicker()
+    const queue = []
+    for (let i = 0; i < ROUND; i++) {
+      let r = Math.random() * total
+      let t = topics[topics.length - 1]
+      for (let j = 0; j < topics.length; j++) {
+        r -= weights[j]
+        if (r <= 0) { t = topics[j]; break }
+      }
+      queue.push({ p: pick(t), seen: 0, missed: false })
+    }
+    round = { short, paper, queue, at: 0, combo: 0, best: 0, misses: 0, gained: 0, marks: [] }
+    showQuestion()
+  }
+
+  const comboTier = c => (c >= 10 ? 3 : c >= 6 ? 2 : c >= 3 ? 1 : 0)
+  const MULT = [1, 1.5, 2, 3]
+
+  function choicesFor(p) {
+    return T2.buildChoices(p).map(c => {
+      if (p.options) {
+        const o = p.options['abcdefgh'.indexOf(c.label)]
+        return typeof o === 'string' ? { correct: c.correct, text: o } : { correct: c.correct, tex: o.latex }
+      }
+      if (p.expr) return { correct: c.correct, tex: T2.toLatex(c.label, p.expr.vars) ?? c.label }
+      return { correct: c.correct, text: c.label }
+    })
+  }
+
+  function showQuestion() {
+    screen = 'question'
+    const q = round.queue[round.at]
+    q.seen++
+    const p = q.p
+    view.replaceChildren()
+    const sheet = h('section', 'sheet')
+    const top = h('div', 'qtop')
+    const prog = h('div', 'progress')
+    round.queue.forEach((x, i) => {
+      const mark = round.marks[i]
+      prog.append(h('i', mark === 'ok' ? 'ok' : mark === 'bad' ? 'bad' : i === round.at ? 'now' : ''))
+    })
+    const combo = h('div', 'combo')
+    combo.append(h('strong', '', `${round.combo}×`))
+    ;['1σ', '2σ', '3σ'].forEach((s, i) => combo.append(h('span', comboTier(round.combo) > i ? 'on' : '', s)))
+    combo.title = 'Answer streak: 3 in a row is 1σ (×1.5 XP), 6 is 2σ (×2), 10 is 3σ (×3)'
+    top.append(prog, combo)
+    sheet.append(top)
+    sheet.append(h('div', 'eyebrow', round.short + (round.paper ? ' · paper mode' : '') + (q.seen > 1 ? ' · second chance' : '')))
+    if (p.ask) sheet.append(h('p', 'ask', p.ask))
+    if (p.text) sheet.append(h('p', 'story', p.text))
+    sheet.append(tex(p.latex))
+    if (round.paper) {
+      paperQuestion(p, sheet)
+      return
+    }
+    const list = h('div', 'choices')
+    const opts = choicesFor(p)
+    const buttons = opts.map((o, i) => {
+      const b = h('button', 'choice')
+      b.type = 'button'
+      const val = h('span', 'val')
+      if (o.tex) val.append(tex(o.tex, false))
+      else val.textContent = o.text
+      b.append(h('span', 'oval', 'ABCD'[i]), val)
+      b.addEventListener('click', () => answer(i, opts, buttons, sheet))
+      list.append(b)
+      return b
+    })
+    sheet.append(list)
+    view.append(sheet)
+    window.scrollTo({ top: 0 })
+  }
+
+  // XP, streak, sounds and the progress mark for a right answer
+  function award(base, anchor) {
+    state.answered++
+    state.correct++
+    round.combo++
+    round.best = Math.max(round.best, round.combo)
+    const before = level(state.xp)
+    const tier = comboTier(round.combo)
+    const gain = Math.round(base * MULT[tier])
+    state.xp += gain
+    round.gained += gain
+    round.marks[round.at] = 'ok'
+    pop('+' + gain, anchor)
+    sfx.right(round.combo)
+    if (round.combo === 3 || round.combo === 6 || round.combo === 10) toast(`${tier}σ streak · ×${MULT[tier]}`)
+    if (level(state.xp) > before) setTimeout(() => { toast(`Level ${level(state.xp)}!`); sfx.levelUp(); burst(80) }, 300)
+    hud()
+  }
+  // a miss: the streak resets, and the question comes back at the end of the round (up to twice)
+  function miss(q) {
+    state.answered++
+    round.combo = 0
+    if (!q.missed) {
+      q.missed = true
+      round.misses++
+    }
+    round.marks[round.at] = 'bad'
+    if (q.seen < 3) round.queue.push(q)
+    sfx.wrong()
+    hud()
+  }
+  function gotIt(q) {
+    const acts = h('div', 'row-actions')
+    const cont = h('button', 'btn', q.seen < 3 ? 'Got it · it comes back later' : 'Got it')
+    cont.type = 'button'
+    cont.addEventListener('click', advance)
+    acts.append(cont)
+    return { acts, cont }
+  }
+
+  function answer(i, opts, buttons, sheet) {
+    if (round.locked) return
+    round.locked = true
+    buttons.forEach(b => (b.disabled = true))
+    const q = round.queue[round.at]
+    if (opts[i].correct) {
+      buttons[i].classList.add('right')
+      award(10, buttons[i])
+      setTimeout(advance, 850)
+      return
+    }
+    miss(q)
+    buttons[i].classList.add('wrong')
+    const good = opts.findIndex(o => o.correct)
+    buttons[good].classList.add('reveal')
+    const why = h('div', 'why')
+    why.append(h('h3', '', 'How it works'))
+    const p = q.p
+    if (p.hint?.latex) why.append(tex(p.hint.latex))
+    if (p.hint?.text) why.append(h('p', '', p.hint.text))
+    const shown = T2.answerDisplay(p)
+    if (!p.options && shown) {
+      why.append(h('p', '', 'Worked answer:'))
+      why.append(tex(shown))
+    } else why.append(h('p', '', `The right bubble is ${'ABCD'[good]}.`))
+    const { acts, cont } = gotIt(q)
+    why.append(acts)
+    sheet.append(why)
+    cont.focus({ preventScroll: true })
+    why.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+  }
+
+  // ---------- written answers: paper mode and the boss ----------
+  const typeable = p => !p.options
+  // the right answer and how to get it
+  function solution(p) {
+    const box = h('div', 'reveal-box')
+    box.append(h('h3', '', 'Answer'))
+    if (p.options) {
+      const o = p.options['abcdefgh'.indexOf(p.answer)]
+      box.append(typeof o === 'string' ? h('p', '', o) : tex(o.latex))
+    } else box.append(tex(T2.answerDisplay(p)))
+    if (p.hint?.latex || p.hint?.text) {
+      box.append(h('h3', '', 'How it works'))
+      if (p.hint.latex) box.append(tex(p.hint.latex))
+      if (p.hint.text) box.append(h('p', '', p.hint.text))
+    }
+    return box
+  }
+  // a typed answer (formulas preview as you type), or a note to answer on paper
+  // when the question only makes sense with its options
+  function answerBox(p, onEnter) {
+    const wrap = h('div', 'written')
+    if (!typeable(p)) {
+      wrap.append(h('p', 'paper-note', 'Write your answer on paper (the real test has no choices), then check it.'))
+      return { el: wrap, input: null, value: () => '' }
+    }
+    const id = 'answer-' + Math.random().toString(36).slice(2, 8)
+    const label = h('label', '', 'Your final answer (work it on paper first)')
+    label.htmlFor = id
+    const input = h('input', 'answer-input')
+    input.id = id
+    input.autocomplete = 'off'
+    input.setAttribute('autocapitalize', 'none')
+    input.spellcheck = false
+    input.placeholder = p.placeholder ?? 'answer'
+    input.enterKeyHint = 'go'
+    wrap.append(label, input)
+    if (p.expr) {
+      const letters = p.expr.vars.join(', ')
+      const hintText = `a formula in ${letters}: use ^ for powers, e^(...), C(n,k)`
+      const preview = h('div', 'preview')
+      let timer
+      input.addEventListener('input', () => {
+        clearTimeout(timer)
+        timer = setTimeout(() => {
+          const raw = input.value.trim()
+          const l = raw ? T2.toLatex(raw, p.expr.vars) : null
+          preview.replaceChildren(l ? tex(l, false) : document.createTextNode(raw ? `that doesn't read as a formula in ${letters} yet` : hintText))
+        }, 200)
+      })
+      preview.textContent = hintText
+      wrap.append(preview)
+    }
+    if (!p.expr && typeof p.answer === 'string' && p.choices?.length) {
+      wrap.append(h('p', 'paper-note', 'Answer with one of: ' + [p.answer, ...p.choices].sort().join(', ')))
+    }
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        onEnter?.()
+      }
+    })
+    return { el: wrap, input, value: () => input.value.trim() }
+  }
+
+  function paperQuestion(p, sheet) {
+    const q = round.queue[round.at]
+    const acts = h('div', 'row-actions')
+    const box = answerBox(p, () => check.click())
+    const check = h('button', 'btn', 'Check')
+    check.type = 'button'
+    const show = h('button', 'btn ghost', typeable(p) ? 'Show answer' : 'Check my answer')
+    show.type = 'button'
+    const settle = (right, revealed) => {
+      if (round.locked) return
+      round.locked = true
+      acts.remove()
+      if (box.input) box.input.disabled = true
+      if (right) {
+        sheet.append(h('div', 'verdict ok', revealed ? 'Counted. Nice.' : 'Correct!'))
+        award(20, sheet.querySelector('.verdict.ok'))
+        setTimeout(advance, revealed ? 600 : 1100)
+        return
+      }
+      miss(q)
+      sheet.append(h('div', 'verdict bad', revealed ? 'No problem: that is what practice is for.' : 'Not quite.'))
+      if (!revealed) sheet.append(solution(p))
+      const { acts: next, cont } = gotIt(q)
+      sheet.append(next)
+      cont.focus({ preventScroll: true })
+      next.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+    }
+    check.addEventListener('click', () => {
+      const raw = box.value()
+      if (!raw) return box.input?.focus()
+      settle(T2.checkAnswer(raw, p), false)
+    })
+    show.addEventListener('click', () => {
+      // look at the answer, then be honest about it
+      acts.replaceChildren()
+      sheet.insertBefore(solution(p), acts)
+      const yes = h('button', 'btn', 'I had it')
+      yes.type = 'button'
+      yes.addEventListener('click', () => settle(true, true))
+      const no = h('button', 'btn ghost', "I didn't")
+      no.type = 'button'
+      no.addEventListener('click', () => settle(false, true))
+      acts.append(yes, no)
+    })
+    if (typeable(p)) acts.append(check)
+    acts.append(show)
+    sheet.append(box.el, acts)
+    view.append(sheet)
+    window.scrollTo({ top: 0 })
+    box.input?.focus({ preventScroll: true })
+  }
+
+  function advance() {
+    if (!round || screen !== 'question') return
+    round.locked = false
+    round.at++
+    if (round.at >= round.queue.length) finish()
+    else showQuestion()
+  }
+
+  function finish() {
+    screen = 'results'
+    const r = round
+    const stars = r.misses === 0 ? 3 : r.misses <= 2 ? 2 : 1
+    const before = level(state.xp)
+    const bonus = 25 * stars
+    state.xp += bonus
+    const prev = state.stars[r.short] || 0
+    state.stars[r.short] = Math.max(prev, stars)
+    state.plays[r.short] = (state.plays[r.short] || 0) + 1
+    markDay()
+    save()
+    hud()
+
+    view.replaceChildren()
+    const sheet = h('section', 'sheet')
+    sheet.append(h('div', 'eyebrow', r.paper ? 'Level cleared · paper mode' : 'Level cleared'))
+    sheet.append(h('h2', '', r.short))
+    const st = h('div', 'result-stars')
+    for (let i = 0; i < 3; i++) {
+      const s = h('span', i < stars ? '' : 'off', '★')
+      s.style.animationDelay = i * 0.25 + 's'
+      st.append(s)
+    }
+    sheet.append(st)
+    const tally = h('div', 'tally')
+    const cell = (label, value) => {
+      const c = h('div')
+      c.append(h('b', '', value), document.createTextNode(label))
+      return c
+    }
+    tally.append(cell('XP this round', '+' + (r.gained + bonus)), cell('best streak', String(r.best)), cell('first-try misses', String(r.misses)))
+    sheet.append(tally)
+    const msg = stars === 3 ? 'Clean sheet. Every bubble right the first time.' : stars === 2 ? 'Solid. One clean run gets the third star.' : 'Cleared. Run it again: the questions change every time.'
+    sheet.append(h('p', 'note', msg + (stars > prev && prev ? ' New best!' : '')))
+    const acts = h('div', 'row-actions')
+    const i = ORDER.indexOf(r.short)
+    const nextShort = ORDER[(i + 1) % ORDER.length]
+    const again = h('button', stars < 3 ? 'btn' : 'btn ghost', 'Run it again')
+    again.type = 'button'
+    again.addEventListener('click', () => startRound(r.short))
+    const nxt = h('button', stars < 3 ? 'btn ghost' : 'btn', 'Next level')
+    nxt.type = 'button'
+    nxt.addEventListener('click', () => openCard(nextShort))
+    const map = h('button', 'btn ghost', 'Map')
+    map.type = 'button'
+    map.addEventListener('click', renderMap)
+    acts.append(again, nxt, map)
+    sheet.append(acts)
+    view.append(sheet)
+    window.scrollTo({ top: 0 })
+    setTimeout(() => {
+      sfx.clear()
+      burst(stars === 3 ? 160 : 90)
+      if (level(state.xp) > before) setTimeout(() => { toast(`Level ${level(state.xp)}!`); sfx.levelUp() }, 700)
+    }, 150)
+    round = null
+  }
+
+  function markDay() {
+    const d = today()
+    if (state.lastDay === d) return
+    const y = new Date(Date.now() - 864e5).toLocaleDateString('en-CA')
+    state.days = state.lastDay === y ? state.days + 1 : 1
+    state.lastDay = d
+  }
+
+  // ---------- the final boss: 21 written questions, graded after hand-in ----------
+  let boss = null
+  let clockTimer = null
+  const mmss = ms => {
+    const s = Math.floor(ms / 1000)
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+  }
+  function stopClock() {
+    clearInterval(clockTimer)
+    clockTimer = null
+  }
+
+  async function startBoss() {
+    view.replaceChildren(h('p', 'loading', 'Summoning the boss…'))
+    await mathBoot
+    const pick = T2.createFreshPicker()
+    const items = ORDER.map(short => {
+      const topics = T2.guideTopics(unit, lineByShort[short])
+      // a question that can be answered without its options, when the level has one
+      let p
+      for (let k = 0; k < 12; k++) {
+        p = pick(topics[Math.floor(Math.random() * topics.length)])
+        if (typeable(p)) break
+      }
+      return { short, p, raw: '', paper: false, result: null }
+    })
+    boss = { items, at: 0, start: Date.now(), end: null }
+    stopClock()
+    clockTimer = setInterval(() => {
+      const el = document.getElementById('boss-clock')
+      if (el && boss && !boss.end) el.textContent = mmss(Date.now() - boss.start)
+    }, 1000)
+    showBoss()
+  }
+
+  const bossDone = it => Boolean(it.raw || it.paper)
+  function showBoss(confirming = false) {
+    screen = 'boss'
+    const it = boss.items[boss.at]
+    const p = it.p
+    view.replaceChildren()
+    const sheet = h('section', 'sheet')
+    const top = h('div', 'qtop')
+    const nav = h('nav', 'boss-nav')
+    nav.setAttribute('aria-label', 'questions')
+    boss.items.forEach((x, i) => {
+      const b = h('button', (bossDone(x) ? 'done' : '') + (i === boss.at ? ' here' : ''), String(i + 1))
+      b.type = 'button'
+      b.setAttribute('aria-label', `question ${i + 1}: ${x.short}`)
+      b.addEventListener('click', () => { boss.at = i; showBoss() })
+      nav.append(b)
+    })
+    const clock = h('div', 'clock', mmss(Date.now() - boss.start))
+    clock.id = 'boss-clock'
+    top.append(nav, clock)
+    sheet.append(top, h('div', 'eyebrow', `Final boss · ${boss.at + 1} of ${boss.items.length} · ${it.short}`))
+    if (p.ask) sheet.append(h('p', 'ask', p.ask))
+    if (p.text) sheet.append(h('p', 'story', p.text))
+    sheet.append(tex(p.latex))
+    const last = boss.at === boss.items.length - 1
+    const box = answerBox(p, () => (last ? showBoss(true) : go(1)))
+    if (box.input) {
+      box.input.value = it.raw
+      box.input.addEventListener('input', () => {
+        it.raw = box.input.value.trim()
+        nav.children[boss.at].classList.toggle('done', bossDone(it))
+      })
+    }
+    sheet.append(box.el)
+    const onPaper = h('button', 'tool toggle', 'Done on paper')
+    onPaper.type = 'button'
+    onPaper.setAttribute('aria-pressed', String(it.paper))
+    onPaper.addEventListener('click', () => {
+      it.paper = !it.paper
+      onPaper.setAttribute('aria-pressed', String(it.paper))
+      nav.children[boss.at].classList.toggle('done', bossDone(it))
+    })
+    const mark = h('div', 'row-actions')
+    mark.append(onPaper)
+    sheet.append(mark)
+
+    const go = d => { boss.at += d; showBoss() }
+    const acts = h('div', 'row-actions')
+    if (boss.at > 0) {
+      const back = h('button', 'btn ghost', 'Back')
+      back.type = 'button'
+      back.addEventListener('click', () => go(-1))
+      acts.append(back)
+    }
+    if (!last) {
+      const next = h('button', 'btn', 'Next')
+      next.type = 'button'
+      next.addEventListener('click', () => go(1))
+      acts.append(next)
+    }
+    if (confirming) {
+      const left = boss.items.filter(x => !bossDone(x)).length
+      acts.append(h('span', 'paper-note', `${left ? `${left} not done yet. ` : ''}Hand it in?`))
+      const yes = h('button', 'btn', 'Hand it in')
+      yes.type = 'button'
+      yes.addEventListener('click', handIn)
+      const no = h('button', 'btn ghost', 'Keep working')
+      no.type = 'button'
+      no.addEventListener('click', () => showBoss())
+      acts.append(yes, no)
+    } else {
+      const hand = h('button', last ? 'btn' : 'btn ghost', 'Hand in')
+      hand.type = 'button'
+      hand.addEventListener('click', () => showBoss(true))
+      acts.append(hand)
+    }
+    sheet.append(acts)
+    view.append(sheet)
+    window.scrollTo({ top: 0 })
+    box.input?.focus({ preventScroll: true })
+  }
+
+  function handIn() {
+    boss.end = Date.now()
+    stopClock()
+    for (const it of boss.items) {
+      if (it.raw && typeable(it.p)) it.result = T2.checkAnswer(it.raw, it.p) ? 'ok' : 'bad'
+    }
+    renderReview()
+  }
+
+  function renderReview() {
+    screen = 'boss-review'
+    view.replaceChildren()
+    const sheet = h('section', 'sheet')
+    sheet.append(h('div', 'eyebrow', `Final boss · handed in after ${mmss(boss.end - boss.start)}`))
+    sheet.append(h('h2', '', 'Check your work'))
+    sheet.append(h('p', 'paper-note', 'Typed answers are graded for you. For the rest, compare with your paper and be honest.'))
+    const score = h('p', 'score-line')
+    const finishBtn = h('button', 'btn', 'See my score')
+    finishBtn.type = 'button'
+    finishBtn.addEventListener('click', bossResults)
+    const update = () => {
+      const ok = boss.items.filter(x => x.result === 'ok').length
+      const left = boss.items.filter(x => !x.result).length
+      score.textContent = left ? `${ok} right so far · ${left} left to mark` : `${ok} / ${boss.items.length} right · all marked`
+      finishBtn.disabled = left > 0
+    }
+    sheet.append(score)
+    boss.items.forEach((it, i) => {
+      const row = h('article', 'review-item')
+      const head = h('h4', '', `${i + 1}. ${it.short}`)
+      const badge = h('span', 'mark')
+      const paint = () => {
+        badge.className = 'mark ' + (it.result === 'ok' ? 'ok' : it.result === 'bad' ? 'bad' : 'todo')
+        badge.textContent = it.result === 'ok' ? 'right' : it.result === 'bad' ? 'missed' : 'to mark'
+      }
+      paint()
+      head.append(badge)
+      row.append(head)
+      if (it.p.ask) row.append(h('p', 'ask', it.p.ask))
+      if (it.p.text) row.append(h('p', 'story', it.p.text))
+      row.append(tex(it.p.latex))
+      if (it.raw) row.append(h('p', 'wrote', 'You typed: ' + it.raw))
+      row.append(solution(it.p))
+      if (!it.result) {
+        const acts = h('div', 'row-actions')
+        const yes = h('button', 'btn', 'I had it')
+        yes.type = 'button'
+        const no = h('button', 'btn ghost', "I didn't")
+        no.type = 'button'
+        const decide = r => {
+          it.result = r
+          acts.remove()
+          paint()
+          update()
+        }
+        yes.addEventListener('click', () => decide('ok'))
+        no.addEventListener('click', () => decide('bad'))
+        acts.append(yes, no)
+        row.append(acts)
+      }
+      sheet.append(row)
+    })
+    const end = h('div', 'row-actions')
+    end.append(finishBtn)
+    sheet.append(end)
+    update()
+    view.append(sheet)
+    window.scrollTo({ top: 0 })
+  }
+
+  function bossResults() {
+    screen = 'boss-results'
+    const n = boss.items.length
+    const ok = boss.items.filter(x => x.result === 'ok').length
+    const r = ok / n
+    const before = level(state.xp)
+    const gain = 15 * ok + (r >= 0.9 ? 150 : r >= 0.7 ? 75 : 0)
+    state.xp += gain
+    state.boss = { best: Math.max(state.boss?.best ?? 0, ok), runs: (state.boss?.runs ?? 0) + 1, last: ok }
+    markDay()
+    save()
+    hud()
+    view.replaceChildren()
+    const sheet = h('section', 'sheet')
+    sheet.append(h('div', 'eyebrow', 'Final boss'))
+    sheet.append(h('h2', '', `${ok} / ${n} · ${grade(r)}`))
+    const tally = h('div', 'tally')
+    const cell = (label, value) => {
+      const c = h('div')
+      c.append(h('b', '', value), document.createTextNode(label))
+      return c
+    }
+    tally.append(cell('XP', '+' + gain), cell('time', mmss(boss.end - boss.start)), cell('best ever', `${state.boss.best}/${n}`))
+    sheet.append(tally)
+    const missed = boss.items.filter(x => x.result !== 'ok')
+    sheet.append(
+      h('p', 'note', r >= 0.9 ? 'That is test-ready. Run it once more Monday night to be sure.' : r >= 0.7 ? 'Close. Clear the levels below once each, then fight it again.' : 'The boss won this round. Each level below is about 5 minutes: clear them, then come back.'),
+    )
+    if (missed.length) {
+      const redo = h('div', 'redo')
+      for (const it of missed) {
+        const b = h('button', 'tool', it.short)
+        b.type = 'button'
+        b.addEventListener('click', () => openCard(it.short))
+        redo.append(b)
+      }
+      sheet.append(h('h3', '', 'Redo these levels'), redo)
+    }
+    const acts = h('div', 'row-actions')
+    const again = h('button', 'btn', 'Fight again')
+    again.type = 'button'
+    again.addEventListener('click', startBoss)
+    const map = h('button', 'btn ghost', 'Map')
+    map.type = 'button'
+    map.addEventListener('click', renderMap)
+    acts.append(again, map)
+    sheet.append(acts)
+    view.append(sheet)
+    window.scrollTo({ top: 0 })
+    setTimeout(() => {
+      if (r >= 0.7) {
+        sfx.clear()
+        burst(r >= 0.9 ? 200 : 110)
+      } else sfx.right(0)
+      if (level(state.xp) > before) setTimeout(() => { toast(`Level ${level(state.xp)}!`); sfx.levelUp() }, 700)
+    }, 150)
+    boss = null
+  }
+
+  // ---------- walk the tree: which distribution, every chapter ----------
+  const LEAVES = {
+    poisson: { name: 'Poisson', sec: '§3.8', use: 'calls to a help desk in a 30-minute window', x: 'a count: 0, 1, 2, …', key: 'k = rate × amount (4/hr × ½ hr = 2)' },
+    hyper: { name: 'Hypergeometric', sec: '§3.7', use: '10 laptops, 3 bad, you test 4', x: 'successes grabbed: max(0, n − (N − r)) … min(n, r)', key: 'N in the group, r successes in it, n grabbed' },
+    binomial: { name: 'Binomial', sec: '§3.5', use: 'guessing on all 12 questions of a quiz', x: 'successes: 0, 1, …, n', key: 'C(n, x)·pˣ·qⁿ⁻ˣ · tables for n = 19, 20' },
+    geometric: { name: 'Geometric', sec: '§3.4', use: 'calling customers until the first sale', x: 'tries: 1, 2, 3, …', key: 'f(x) = qˣ⁻¹p · F(x) = 1 − qˣ' },
+    negbin: { name: 'Negative binomial', sec: '§3.6', use: 'making lots until the 3rd defective one', x: 'tries: r, r + 1, …', key: '(r − 1 successes in x − 1 tries) × p' },
+    uniform: { name: 'Uniform', sec: '§4.1', use: 'a bus shows up anytime in the next 10 minutes', x: 'anywhere in [A, B]', key: 'f(x) = 1/(B − A) · probability = length ÷ length' },
+    exponential: { name: 'Exponential', sec: '§4.3', use: 'the wait for the first call at 3 per hour', x: 'a wait, any time > 0', key: 'f(x) = λe^(−λx) · P(W > t) = e^(−λt)' },
+    gamma: { name: 'Gamma', sec: '§4.3', use: 'the wait for the 3rd call', x: 'a wait, any time > 0', key: 'mean αβ, variance αβ² · Γ(n + 1) = n!' },
+    chi: { name: 'Chi-squared', sec: '§4.3', use: 'find χ²₀.₀₅ with γ = 10 (it is 18.3)', x: 'a χ² value > 0', key: 'gamma with α = γ/2, β = 2 · read the table' },
+    normal: { name: 'Normal', sec: '§4.4', use: 'IQ: μ = 100, σ = 15, what percentile is 139?', x: 'any number', key: 'z = (x − μ)/σ → z-table → left area' },
+  }
+  // each branch: the answer, why it fits, and where it leads
+  const TREE = {
+    q: 'What is X doing?',
+    branches: [
+      {
+        a: 'Counting', more: 'whole numbers 0, 1, 2, … (Ch 3)',
+        why: 'X answers “how many”, so it is a whole number: Chapter 3.',
+        node: {
+          q: 'What’s the story?',
+          branches: [
+            { a: 'Events at a rate', more: '“4 per hour”, “per page”', why: 'An average rate over time or space, with no separate tries: Poisson.', leaf: 'poisson' },
+            { a: 'Grab from a group', more: 'no putting back', why: 'A fixed group, and what you take is not put back: hypergeometric.', leaf: 'hyper' },
+            {
+              a: 'Repeated tries', more: 'same chance p each try',
+              why: 'Separate tries that each succeed with the same chance p.',
+              node: {
+                q: 'What’s fixed?',
+                branches: [
+                  { a: 'The number of tries', more: '“out of 12”, “20 times”', why: 'The tries are set in advance and X counts successes: binomial.', leaf: 'binomial' },
+                  {
+                    a: 'The number of successes', more: 'keep going “until …”',
+                    why: 'You keep going until a success happens, and X counts the tries.',
+                    node: {
+                      q: 'Which success ends it?',
+                      branches: [
+                        { a: 'The first', more: '“until the first …”', why: 'It stops at the first success: geometric.', leaf: 'geometric' },
+                        { a: 'The r-th', more: '“until the 3rd …”', why: 'It stops at the 2nd, 3rd, … success: negative binomial.', leaf: 'negbin' },
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      {
+        a: 'Measuring', more: 'any decimal in a range (Ch 4)',
+        why: 'X is a time, a height, a score: it can be any decimal, so Chapter 4.',
+        node: {
+          q: 'What’s the story?',
+          branches: [
+            { a: 'Every value equally likely', more: '“anywhere from 0 to 10”', why: 'Flat: every value in an interval is equally likely: uniform.', leaf: 'uniform' },
+            {
+              a: 'A waiting time', more: 'events arrive at rate λ',
+              why: 'X is how long you wait for events that arrive at a rate: the gamma family.',
+              node: {
+                q: 'Waiting for which event?',
+                branches: [
+                  { a: 'The first', more: '“until the first call”', why: 'The wait for the first event: exponential (gamma with α = 1).', leaf: 'exponential' },
+                  { a: 'The α-th', more: '“until the 3rd call”', why: 'The wait for the 2nd, 3rd, … event: gamma.', leaf: 'gamma' },
+                ],
+              },
+            },
+            { a: 'A χ² value', more: 'or “the chi-squared table”', why: 'The question names χ² or its degrees of freedom: chi-squared.', leaf: 'chi' },
+            { a: 'A bell curve', more: '“normally distributed”, μ and σ', why: 'Normal, with a mean μ and a standard deviation σ: normal.', leaf: 'normal' },
+          ],
+        },
+      },
+    ],
+  }
+  // the branches that lead to a leaf, top to bottom
+  function pathTo(leaf, node = TREE) {
+    for (const b of node.branches) {
+      if (b.leaf === leaf) return [{ node, b }]
+      if (b.node) {
+        const rest = pathTo(leaf, b.node)
+        if (rest) return [{ node, b }, ...rest]
+      }
+    }
+    return null
+  }
+
+  const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1))
+  const pickOne = arr => arr[Math.floor(Math.random() * arr.length)]
+  const ord = n => n + (n === 2 ? 'nd' : n === 3 ? 'rd' : 'th')
+  // stories for each leaf: the text, and the phrase that decides it
+  const STORIES = {
+    binomial: [
+      () => { const n = ri(8, 20); return { text: `A quiz has ${n} multiple-choice questions with 4 choices each, and you guess on every one. X is how many you get right.`, clue: `${n} multiple-choice questions` } },
+      () => { const n = ri(8, 20), p = pickOne(['0.6', '0.7', '0.75', '0.8']); return { text: `A basketball player makes each free throw with probability ${p}. She takes ${n} free throws. X is how many she makes.`, clue: `She takes ${n} free throws` } },
+      () => { const n = ri(5, 12); return { text: `A card is drawn from a deck, its suit is noted, and the card is put back. This is done ${n} times. X is the number of hearts drawn.`, clue: 'the card is put back' } },
+    ],
+    geometric: [
+      () => { const p = pickOne(['0.1', '0.2', '0.25', '0.3']); return { text: `A salesperson calls customers one at a time, and each call ends in a sale with probability ${p}. X is the number of calls until the first sale.`, clue: 'until the first sale' } },
+      () => ({ text: 'You roll a die until the first six shows up. X is the number of rolls.', clue: 'until the first six' }),
+      () => { const p = pickOne(['0.05', '0.1', '0.2']); return { text: `Each chip off a line is defective with probability ${p}. An inspector tests chips until the first defective one. X is the number of chips tested.`, clue: 'until the first defective one' } },
+    ],
+    negbin: [
+      () => { const r = ri(2, 5), p = pickOne(['0.2', '0.3', '0.4']); return { text: `Each well an oil company drills strikes oil with probability ${p}. X is the number of wells drilled until the ${ord(r)} strike.`, clue: `until the ${ord(r)} strike` } },
+      () => { const r = ri(2, 4), pct = pickOne([5, 10, 20]); return { text: `${pct}% of the lots a factory makes are defective. Lots are made until the ${ord(r)} defective lot. X is the number of lots made.`, clue: `until the ${ord(r)} defective lot` } },
+      () => { const r = ri(2, 5); return { text: `A player shoots free throws until she makes ${r} of them. X is the number of shots she takes.`, clue: `until she makes ${r} of them` } },
+    ],
+    hyper: [
+      () => { const N = ri(15, 40), r = ri(3, 8), n = ri(3, 6); return { text: `A shipment of ${N} parts has ${r} defective ones. An inspector picks ${n} parts at random, without replacement. X is the number of defective parts picked.`, clue: 'without replacement' } },
+      () => { const n = pickOne([5, 7, 13]); return { text: `You are dealt a ${n}-card hand from a standard 52-card deck. X is the number of hearts in your hand.`, clue: `dealt a ${n}-card hand` } },
+      () => { const n = ri(3, 6), W = ri(5, 12), M = ri(5, 12); return { text: `A committee of ${n} is chosen at random from a club of ${W} women and ${M} men. X is the number of women on it.`, clue: `A committee of ${n} is chosen` } },
+    ],
+    poisson: [
+      () => { const l = ri(3, 12), m = pickOne([10, 15, 20, 30]); return { text: `A help desk gets an average of ${l} calls per hour. X is the number of calls in the next ${m} minutes.`, clue: `an average of ${l} calls per hour` } },
+      () => { const l = pickOne(['0.2', '0.5', '1.5']), s = ri(4, 12); return { text: `A textbook averages ${l} typos per page. X is the number of typos in a ${s}-page chapter.`, clue: `averages ${l} typos per page` } },
+      () => { const l = ri(2, 6), s = ri(2, 5); return { text: `A road has an average of ${l} potholes per mile. X is the number of potholes in a ${s}-mile stretch.`, clue: `an average of ${l} potholes per mile` } },
+    ],
+    uniform: [
+      () => { const b = pickOne([10, 15, 20, 30]); return { text: `A bus is equally likely to arrive at any moment in the next ${b} minutes. X is when it arrives.`, clue: 'equally likely to arrive at any moment' } },
+      () => { const a = ri(0, 5), b = a + ri(4, 10); return { text: `A program picks a number X between ${a} and ${b}, with every value equally likely.`, clue: 'every value equally likely' } },
+      () => { const b = pickOne([30, 50, 100]); return { text: `A ${b} cm rod is cut at a point chosen uniformly along its length. X is where it is cut.`, clue: 'chosen uniformly' } },
+    ],
+    exponential: [
+      () => { const l = ri(3, 12); return { text: `Customers walk into a coffee shop at an average rate of ${l} per hour. X is the time until the first customer arrives.`, clue: 'the time until the first customer' } },
+      () => { const l = ri(2, 8); return { text: `A Geiger counter clicks ${l} times a minute on average. X is the wait for the first click.`, clue: 'the wait for the first click' } },
+      () => { const m = ri(2, 10); return { text: `A server crashes on average once every ${m} days. X is the time until its next crash.`, clue: 'the time until its next crash' } },
+    ],
+    gamma: [
+      () => { const l = ri(3, 10), a = ri(2, 5); return { text: `Calls reach a help desk at an average rate of ${l} per hour. X is the time until the ${ord(a)} call.`, clue: `the time until the ${ord(a)} call` } },
+      () => { const l = ri(4, 12), a = ri(2, 5); return { text: `Emails arrive at an average of ${l} per hour. X is how long it takes for ${a} emails to arrive.`, clue: `how long it takes for ${a} emails` } },
+    ],
+    chi: [
+      () => { const g = ri(3, 20); return { text: `X has a chi-squared distribution with ${g} degrees of freedom. Find the value with area 0.05 to its right.`, clue: `chi-squared distribution with ${g} degrees of freedom` } },
+      () => { const g = ri(3, 20); return { text: `Use the χ² table with γ = ${g} to find the value of X that cuts off the top 1%.`, clue: 'the χ² table' } },
+    ],
+    normal: [
+      () => ({ text: 'IQ scores are normally distributed with mean 100 and standard deviation 15. X is a random person’s IQ.', clue: 'normally distributed' }),
+      () => { const m = pickOne([63, 64, 65]); return { text: `Heights of adult women follow a bell curve with mean ${m} inches and standard deviation 2.5 inches. X is a random woman’s height.`, clue: 'follow a bell curve' } },
+      () => { const m = ri(65, 78), sd = ri(6, 10); return { text: `Exam scores are normal with μ = ${m} and σ = ${sd}. X is a random student’s score.`, clue: `normal with μ = ${m}` } },
+    ],
+  }
+
+  // the story with its deciding phrase highlighted (or plain, before the end)
+  function storyEl(sc, lit) {
+    const p = h('p', 'story')
+    const at = lit ? sc.text.indexOf(sc.clue) : -1
+    if (at < 0) {
+      p.textContent = sc.text
+      return p
+    }
+    p.append(document.createTextNode(sc.text.slice(0, at)), h('mark', 'clue', sc.clue), document.createTextNode(sc.text.slice(at + sc.clue.length)))
+    return p
+  }
+  function leafCard(key) {
+    const L = LEAVES[key]
+    const c = h('div', 'leafcard')
+    const t = h('h3', '', L.name)
+    t.append(h('small', '', L.sec))
+    const row = (label, text) => {
+      const r = h('p')
+      r.append(h('span', '', label), document.createTextNode(text))
+      return r
+    }
+    c.append(t, row('Use case', L.use), row('X is', L.x), row('Key', L.key))
+    return c
+  }
+  // the whole tree as an outline: questions, the answers that branch, the leaves
+  function outline(node) {
+    const wrap = h('div')
+    wrap.append(h('span', 'oq', node.q))
+    const ul = h('ul')
+    for (const b of node.branches) {
+      const li = h('li')
+      const a = h('span', 'oa')
+      a.append(h('b', '', b.a), document.createTextNode(' · ' + b.more))
+      li.append(a)
+      if (b.leaf) {
+        const L = LEAVES[b.leaf]
+        const lf = h('span', 'oleaf')
+        lf.append(h('b', '', L.name), document.createTextNode(` ${L.sec} · ${L.use}`))
+        li.append(lf)
+      } else li.append(outline(b.node))
+      ul.append(li)
+    }
+    wrap.append(ul)
+    return wrap
+  }
+
+  function openTreeCard() {
+    screen = 'card'
+    view.replaceChildren()
+    const sheet = h('section', 'sheet')
+    sheet.append(h('div', 'eyebrow', 'Walk the tree · power-up'))
+    sheet.append(h('h2', '', 'Which distribution?'))
+    sheet.append(h('p', 'paper-note', 'Every question on the test starts here. Read the tree top to bottom once, then walk it for 8 stories.'))
+    const o = h('div', 'outline')
+    o.append(outline(TREE))
+    sheet.append(o)
+    const acts = h('div', 'row-actions')
+    const go = h('button', 'btn', 'Walk it · 8 stories')
+    go.type = 'button'
+    go.addEventListener('click', startTree)
+    const back = h('button', 'btn ghost', 'Map')
+    back.type = 'button'
+    back.addEventListener('click', renderMap)
+    acts.append(go, back)
+    sheet.append(acts)
+    view.append(sheet)
+    window.scrollTo({ top: 0 })
+  }
+
+  let walk = null
+  function startTree() {
+    // 8 different leaves, a fresh story for each
+    const keys = Object.keys(LEAVES).sort(() => Math.random() - 0.5).slice(0, 8)
+    const items = keys.map(k => ({ leaf: k, sc: pickOne(STORIES[k])(), path: pathTo(k), step: 0, missed: false }))
+    walk = { items, at: 0, combo: 0, best: 0, misses: 0, gained: 0, marks: [] }
+    // reuse the round bookkeeping for XP and streak sounds
+    round = { short: 'Walk the tree', combo: 0, best: 0, misses: 0, gained: 0, marks: [], queue: items, at: 0 }
+    showStep()
+  }
+
+  function showStep() {
+    screen = 'tree'
+    const it = walk.items[walk.at]
+    view.replaceChildren()
+    const sheet = h('section', 'sheet')
+    const top = h('div', 'qtop')
+    const prog = h('div', 'progress')
+    walk.items.forEach((x, i) => prog.append(h('i', walk.marks[i] === 'ok' ? 'ok' : walk.marks[i] === 'bad' ? 'bad' : i === walk.at ? 'now' : '')))
+    const combo = h('div', 'combo')
+    combo.append(h('strong', '', `${round.combo}×`))
+    ;['1σ', '2σ', '3σ'].forEach((s, i) => combo.append(h('span', comboTier(round.combo) > i ? 'on' : '', s)))
+    top.append(prog, combo)
+    sheet.append(top, h('div', 'eyebrow', `Walk the tree · story ${walk.at + 1} of ${walk.items.length}`))
+    const done = it.step >= it.path.length
+    sheet.append(storyEl(it.sc, done || it.missedHere))
+    // the path so far
+    const crumbs = h('div', 'crumbs')
+    it.path.slice(0, it.step).forEach((s, i) => {
+      if (i) crumbs.append(h('i', '', '→'))
+      crumbs.append(h('span', '', s.b.a))
+    })
+    if (it.step) sheet.append(crumbs)
+
+    if (done) {
+      sheet.append(leafCard(it.leaf))
+      const acts = h('div', 'row-actions')
+      const next = h('button', 'btn', walk.at + 1 < walk.items.length ? 'Next story' : 'Finish')
+      next.type = 'button'
+      next.addEventListener('click', () => {
+        walk.at++
+        round.at = walk.at
+        if (walk.at < walk.items.length) showStep()
+        else finishTree()
+      })
+      acts.append(next)
+      sheet.append(acts)
+      view.append(sheet)
+      next.focus({ preventScroll: true })
+      window.scrollTo({ top: 0 })
+      return
+    }
+
+    const { node, b: right } = it.path[it.step]
+    sheet.append(h('div', 'step-q', node.q))
+    const list = h('div', 'choices')
+    const note = h('div')
+    node.branches.forEach((b, i) => {
+      const btn = h('button', 'choice')
+      btn.type = 'button'
+      const val = h('span', 'val')
+      val.append(h('b', '', b.a), document.createTextNode(' · ' + b.more))
+      btn.append(h('span', 'oval', 'ABCD'[i]), val)
+      btn.addEventListener('click', () => {
+        if (btn.disabled) return
+        if (b === right) {
+          list.querySelectorAll('button').forEach(x => (x.disabled = true))
+          btn.classList.add('right')
+          state.answered++
+          state.correct++
+          const gain = Math.round(5 * MULT[comboTier(round.combo)])
+          state.xp += gain
+          walk.gained += gain
+          pop('+' + gain, btn)
+          sfx.right(round.combo + it.step)
+          hud()
+          it.step++
+          if (it.step >= it.path.length) {
+            // a clean walk builds the streak
+            if (!it.missed) {
+              round.combo++
+              round.best = Math.max(round.best, round.combo)
+              const tier = comboTier(round.combo)
+              if (round.combo === 3 || round.combo === 6) toast(`${tier}σ streak · ×${MULT[tier]}`)
+            }
+            walk.marks[walk.at] = it.missed ? 'bad' : 'ok'
+          }
+          setTimeout(showStep, 650)
+          return
+        }
+        // wrong branch: say why, light up the clue, try again
+        btn.disabled = true
+        btn.classList.add('wrong')
+        state.answered++
+        if (!it.missed) {
+          it.missed = true
+          walk.misses++
+        }
+        round.combo = 0
+        sfx.wrong()
+        hud()
+        note.replaceChildren()
+        const why = h('div', 'why')
+        why.append(h('h3', '', 'Not that branch'), h('p', '', right.why))
+        why.append(h('p', '', 'The phrase that decides it is highlighted in the story. Pick again.'))
+        note.append(why)
+        it.missedHere = true
+        const story = sheet.querySelector('.story')
+        story.replaceWith(storyEl(it.sc, true))
+      })
+      list.append(btn)
+    })
+    sheet.append(list, note)
+    view.append(sheet)
+    window.scrollTo({ top: 0 })
+  }
+
+  function finishTree() {
+    screen = 'results'
+    const stars = walk.misses === 0 ? 3 : walk.misses <= 2 ? 2 : 1
+    const before = level(state.xp)
+    const bonus = 25 * stars
+    state.xp += bonus
+    state.tree = { stars: Math.max(state.tree?.stars ?? 0, stars), plays: (state.tree?.plays ?? 0) + 1 }
+    markDay()
+    save()
+    hud()
+    view.replaceChildren()
+    const sheet = h('section', 'sheet')
+    sheet.append(h('div', 'eyebrow', 'Walk the tree · cleared'), h('h2', '', 'Which distribution?'))
+    const st = h('div', 'result-stars')
+    for (let i = 0; i < 3; i++) {
+      const s = h('span', i < stars ? '' : 'off', '★')
+      s.style.animationDelay = i * 0.25 + 's'
+      st.append(s)
+    }
+    sheet.append(st)
+    const tally = h('div', 'tally')
+    const cell = (label, value) => {
+      const c = h('div')
+      c.append(h('b', '', value), document.createTextNode(label))
+      return c
+    }
+    tally.append(cell('XP', '+' + (walk.gained + bonus)), cell('best streak', String(round.best)), cell('wrong turns', String(walk.misses)))
+    sheet.append(tally)
+    sheet.append(h('p', 'note', stars === 3 ? 'Every story walked straight to its leaf. That is the skill.' : 'Run it again: the stories change, the tree does not.'))
+    const acts = h('div', 'row-actions')
+    const again = h('button', 'btn', 'Walk it again')
+    again.type = 'button'
+    again.addEventListener('click', startTree)
+    const tree = h('button', 'btn ghost', 'See the tree')
+    tree.type = 'button'
+    tree.addEventListener('click', openTreeCard)
+    const map = h('button', 'btn ghost', 'Map')
+    map.type = 'button'
+    map.addEventListener('click', renderMap)
+    acts.append(again, tree, map)
+    sheet.append(acts)
+    view.append(sheet)
+    window.scrollTo({ top: 0 })
+    setTimeout(() => {
+      sfx.clear()
+      burst(stars === 3 ? 150 : 80)
+      if (level(state.xp) > before) setTimeout(() => { toast(`Level ${level(state.xp)}!`); sfx.levelUp() }, 700)
+    }, 150)
+    walk = null
+    round = null
+  }
+
+  // ---------- tables and formula sheet ----------
+  const overlay = document.getElementById('overlay')
+  const TAB_NAMES = { binomial19: 'Binomial n = 19', binomial: 'Binomial n = 20', normal: 'Normal z', chi2: 'Chi-squared' }
+  let tables = null
+  function closeOverlay() {
+    overlay.hidden = true
+    overlay.replaceChildren()
+    document.body.style.overflow = ''
+  }
+  function openTables(which = unit.tables[0]) {
+    tables ??= unit.printedTables()
+    overlay.replaceChildren()
+    const inner = h('div', 'overlay-inner')
+    const head = h('div', 'overlay-head')
+    for (const name of unit.tables) {
+      const b = h('button', 'tool', TAB_NAMES[name] ?? name)
+      b.type = 'button'
+      b.setAttribute('aria-pressed', String(name === which))
+      b.addEventListener('click', () => openTables(name))
+      head.append(b)
+    }
+    const close = h('button', 'tool', 'Close')
+    close.type = 'button'
+    close.addEventListener('click', closeOverlay)
+    head.append(close)
+    inner.append(head)
+    const t = tables[which]
+    inner.append(h('h3', '', t.title), h('p', 'note', t.note))
+    const wrap = h('div', 'table-wrap')
+    const table = h('table', 'ptable')
+    const thead = h('thead')
+    const hr = h('tr')
+    hr.append(h('th', '', t.corner))
+    t.cols.forEach(c => hr.append(h('th', '', c)))
+    thead.append(hr)
+    const tbody = h('tbody')
+    t.rows.forEach(row => {
+      const tr = h('tr')
+      tr.append(h('th', '', row.label))
+      row.values.forEach(v => tr.append(h('td', '', v)))
+      tbody.append(tr)
+    })
+    table.append(thead, tbody)
+    // tap a cell to light up its row and column, like a finger on the paper
+    table.addEventListener('click', e => {
+      const td = e.target.closest('td')
+      if (!td) return
+      const ri = td.parentElement.rowIndex
+      const ci = td.cellIndex
+      table.querySelectorAll('.line, .here').forEach(x => x.classList.remove('line', 'here'))
+      for (const tr of table.rows) {
+        if (tr.rowIndex === ri) for (const c of tr.cells) c.classList.add('line')
+        else if (tr.cells[ci]) tr.cells[ci].classList.add('line')
+      }
+      td.classList.remove('line')
+      td.classList.add('here')
+    })
+    wrap.append(table)
+    inner.append(wrap)
+    overlay.append(inner)
+    overlay.hidden = false
+    document.body.style.overflow = 'hidden'
+  }
+  async function openSheet() {
+    await mathBoot
+    overlay.replaceChildren()
+    const inner = h('div', 'overlay-inner')
+    const head = h('div', 'overlay-head')
+    head.append(h('strong', '', 'Formula sheet'))
+    const close = h('button', 'tool', 'Close')
+    close.type = 'button'
+    close.addEventListener('click', closeOverlay)
+    head.append(close)
+    inner.append(head)
+    const group = (title, lines) => {
+      inner.append(h('h3', '', title))
+      const grid = h('div', 'sheet-grid')
+      for (const f of lines) {
+        const card = h('div', 'formula')
+        card.append(h('p', '', f.label), tex(f.latex))
+        grid.append(card)
+      }
+      inner.append(grid)
+    }
+    group('Printed on the sheet: you get these', unit.sheet.given)
+    group('Might be on the sheet, might not: learn to build these yourself', unit.sheet.maybe)
+    group('Never on the sheet: memorize these', unit.sheet.know)
+    overlay.append(inner)
+    overlay.hidden = false
+    document.body.style.overflow = 'hidden'
+  }
+
+  // ---------- wiring ----------
+  document.getElementById('home').addEventListener('click', () => {
+    closeOverlay()
+    renderMap()
+  })
+  document.getElementById('open-tables').addEventListener('click', () => openTables())
+  document.getElementById('open-sheet').addEventListener('click', openSheet)
+  document.getElementById('sound').addEventListener('click', () => {
+    state.muted = !state.muted
+    save()
+    hud()
+    if (!state.muted) sfx.right(0)
+  })
+  document.addEventListener('keydown', e => {
+    if (!overlay.hidden) {
+      if (e.key === 'Escape') closeOverlay()
+      return
+    }
+    if ((screen !== 'question' && screen !== 'tree') || e.metaKey || e.ctrlKey || e.altKey) return
+    const k = e.key.toLowerCase()
+    const idx = '1234'.indexOf(k) >= 0 ? '1234'.indexOf(k) : 'abcd'.indexOf(k)
+    const btns = [...view.querySelectorAll('.choice')]
+    if (idx >= 0 && btns[idx] && !btns[idx].disabled) btns[idx].click()
+  })
+
+  hud()
+  renderMap()
+  connect()
+})()
+</script>
+
+</body>
+</html>
