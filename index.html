@@ -329,6 +329,9 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .choice.reveal .oval { border-color: var(--green); color: var(--green); }
 @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
 /* plug it in: the story's numbers fly into the formula */
+:root { --pen-blue: #1d4ed8; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --pen-blue: #60a5fa; } }
+:root[data-theme="dark"] { --pen-blue: #60a5fa; }
 :root { --pv0: #c2410c; --pv1: #1d4ed8; --pv2: #9333ea; --pv3: #be185d; --pv4: #0f766e; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) { --pv0: #fb923c; --pv1: #60a5fa; --pv2: #c084fc; --pv3: #f472b6; --pv4: #2dd4bf; }
@@ -1066,6 +1069,8 @@ window.MathJax = {
   const inkCtx = ink.getContext('2d')
   const inkClear = document.getElementById('ink-tools')
   const inkEraseBtn = document.getElementById('ink-erase')
+  // the pen writes in blue (a lighter blue on the dark theme)
+  const penColor = () => getComputedStyle(document.documentElement).getPropertyValue('--pen-blue').trim() || '#1d4ed8'
   // the on-screen eraser, for when the side button is taken (Air Command)
   let inkEraseMode = false
   const setEraseMode = on => {
@@ -1169,7 +1174,7 @@ window.MathJax = {
     e.preventDefault()
     const erase = inkEraseMode || inkErase || sideButton(e)
     inkCtx.globalCompositeOperation = erase ? 'destination-out' : 'source-over'
-    inkCtx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#17241c'
+    inkCtx.strokeStyle = penColor()
     inkCtx.lineWidth = erase ? 26 : e.pressure > 0 ? 0.6 + e.pressure * 3 : 2
     inkCtx.beginPath()
     inkCtx.moveTo(inkLast.x, inkLast.y)
