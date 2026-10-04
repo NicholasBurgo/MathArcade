@@ -313,6 +313,9 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
   transition: background 0.15s, color 0.15s;
 }
 .choice .val { overflow-x: auto; overflow-y: hidden; font-size: 1.05rem; padding-block: 2px; }
+.choice .val .choice-name { display: block; margin-bottom: 2px; }
+.oleaf .math-i { display: block; margin-top: 2px; }
+.leafcard .math-i { font-size: 1.05rem; }
 .choice .val mjx-container { margin: 0 !important; }
 .choice.right { background: var(--green-soft); border-color: var(--green); }
 .choice.right .oval { background: var(--graphite); border-color: var(--graphite); color: var(--on-graphite); }
@@ -395,9 +398,9 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .oops .critter { animation: oops 0.5s ease-in-out; }
 .evolving .critter { animation: evolve 1.2s ease-out; }
 @media (max-width: 520px) { .pet { grid-template-columns: 1fr; justify-items: center; text-align: center; } .meters { width: 100%; } .pet-name { justify-content: center; } }
+.ink-tools { position: fixed; z-index: 26; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; }
+.ink-clear[aria-pressed="true"] { background: var(--rule); color: var(--sheet); }
 .ink-clear {
-  position: fixed; z-index: 26;
-  right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   padding: 8px 14px; border-radius: 999px; cursor: pointer;
   border: 1.5px solid var(--rule); background: var(--sheet); color: var(--rule);
   font-family: var(--mono); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
@@ -436,7 +439,10 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 <div class="overlay" id="overlay" hidden></div>
 <canvas id="fx" aria-hidden="true"></canvas>
 <canvas id="ink" aria-hidden="true"></canvas>
-<button class="ink-clear" id="ink-clear" type="button" hidden>Clear ink</button>
+<div class="ink-tools" id="ink-tools" hidden>
+  <button class="ink-clear" id="ink-erase" type="button" aria-pressed="false">Eraser</button>
+  <button class="ink-clear" id="ink-clear" type="button">Clear ink</button>
+</div>
 <div class="buddy" id="buddy" aria-hidden="true" hidden></div>
 
 <script>
@@ -456,6 +462,11 @@ window.MathJax = {
   const ROUND = 6
   // a level of its own (not a study-guide line): name the distribution, every chapter
   const TREE_LEVEL = 'Which distribution? (all chapters)'
+  // every kind of question a level has (its templates, across its topics)
+  const levelKinds = short => (short === TREE_LEVEL ? [] : T2.guideTopics(unit, lineByShort[short]).flatMap(t => t.templates.map(tp => ({ t, tp }))))
+  // a round shows every kind at least once, and never fewer than ROUND questions;
+  // naming the distribution is quick, so its rounds run twice as long
+  const roundSize = short => (short === TREE_LEVEL ? ROUND * 2 : Math.max(ROUND, levelKinds(short).length))
 
   // ---------- the path: the review list, easiest points first ----------
   const WORLDS = [
@@ -975,7 +986,15 @@ window.MathJax = {
   // when the screen changes. The pen's side button (or eraser end) erases.
   const ink = document.getElementById('ink')
   const inkCtx = ink.getContext('2d')
-  const inkClear = document.getElementById('ink-clear')
+  const inkClear = document.getElementById('ink-tools')
+  const inkEraseBtn = document.getElementById('ink-erase')
+  // the on-screen eraser, for when the side button is taken (Air Command)
+  let inkEraseMode = false
+  const setEraseMode = on => {
+    inkEraseMode = on
+    inkEraseBtn.setAttribute('aria-pressed', String(on))
+  }
+  inkEraseBtn.addEventListener('click', () => setEraseMode(!inkEraseMode))
   let inking = false
   let inkLast = null
   let inkErase = false
@@ -1009,6 +1028,7 @@ window.MathJax = {
     inkLast = null
     sizeInk(false)
     inkClear.hidden = true
+    setEraseMode(false)
   }
   const onControl = e => e.target instanceof Element && e.target.closest('button, input, a, select, textarea, label')
   const sideButton = e => (e.buttons & 34) !== 0 || e.button === 2 || e.button === 5
@@ -1026,7 +1046,7 @@ window.MathJax = {
   window.addEventListener('pointermove', e => {
     if (!inking || e.pointerType !== 'pen') return
     e.preventDefault()
-    const erase = inkErase || sideButton(e)
+    const erase = inkEraseMode || inkErase || sideButton(e)
     inkCtx.globalCompositeOperation = erase ? 'destination-out' : 'source-over'
     inkCtx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#17241c'
     inkCtx.lineWidth = erase ? 26 : e.pressure > 0 ? 0.6 + e.pressure * 3 : 2
@@ -1053,7 +1073,7 @@ window.MathJax = {
   // side-button drags open the context menu; keep that quiet away from controls
   window.addEventListener('contextmenu', e => { if ((inking || e.pointerType === 'pen') && !onControl(e)) e.preventDefault() })
   window.addEventListener('resize', () => sizeInk(true))
-  inkClear.addEventListener('click', clearInk)
+  document.getElementById('ink-clear').addEventListener('click', clearInk)
 
   // ---------- math ----------
   let mathReady = false
@@ -1217,6 +1237,7 @@ window.MathJax = {
     sheet.append(h('h2', '', short))
     const ul = h('ul', 'points')
     if (short === TREE_LEVEL) {
+      if (!mathReady) mathBoot.then(() => { if (screen === 'card' && mathReady) openCard(short) })
       sheet.append(h('p', 'paper-note', 'Every question starts here. Read the tree top to bottom, then name the distribution for each story.'))
       const o = h('div', 'outline')
       o.append(outline(TREE))
@@ -1226,7 +1247,7 @@ window.MathJax = {
       sheet.append(ul)
     }
     const acts = h('div', 'row-actions')
-    const go = h('button', 'btn', `Start · ${ROUND} questions`)
+    const go = h('button', 'btn', `Start · ${roundSize(short)} questions`)
     go.type = 'button'
     go.addEventListener('click', () => startRound(short))
     // the real test is written: same questions, no choices, double XP
@@ -1249,13 +1270,26 @@ window.MathJax = {
     await mathBoot
     const queue = []
     if (short === TREE_LEVEL) {
-      for (const leaf of Object.keys(LEAVES).sort(() => Math.random() - 0.5).slice(0, ROUND)) queue.push({ p: treeProblem(leaf), seen: 0, missed: false })
+      // every distribution once, then repeats, never the same one twice in a row
+      const shuffled = () => Object.keys(LEAVES).sort(() => Math.random() - 0.5)
+      const order = []
+      while (order.length < roundSize(short)) {
+        const next = shuffled()
+        if (next[0] === order[order.length - 1]) next.push(next.shift())
+        order.push(...next)
+      }
+      for (const leaf of order.slice(0, roundSize(short))) queue.push({ p: treeProblem(leaf), seen: 0, missed: false })
     }
     const topics = short === TREE_LEVEL ? [] : T2.guideTopics(unit, lineByShort[short])
     const weights = topics.map(t => t.templates.length)
     const total = weights.reduce((a, b) => a + b, 0)
     const pick = T2.createFreshPicker()
-    for (let i = 0; i < (short === TREE_LEVEL ? 0 : ROUND); i++) {
+    // one of every kind first, in a random order
+    if (short !== TREE_LEVEL) {
+      for (const { tp } of levelKinds(short).sort(() => Math.random() - 0.5)) queue.push({ p: tp.generate(), seen: 0, missed: false })
+    }
+    // then fill up to the round size with picks weighted toward the bigger topics
+    for (let i = queue.length; i < (short === TREE_LEVEL ? 0 : roundSize(short)); i++) {
       let r = Math.random() * total
       let t = topics[topics.length - 1]
       for (let j = 0; j < topics.length; j++) {
@@ -1275,7 +1309,8 @@ window.MathJax = {
     return T2.buildChoices(p).map(c => {
       if (p.options) {
         const o = p.options['abcdefgh'.indexOf(c.label)]
-        return typeof o === 'string' ? { correct: c.correct, text: o } : { correct: c.correct, tex: o.latex }
+        if (typeof o === 'string') return { correct: c.correct, text: o }
+        return o.name ? { correct: c.correct, name: o.name, tex: o.latex } : { correct: c.correct, tex: o.latex }
       }
       if (p.expr) return { correct: c.correct, tex: T2.toLatex(c.label, p.expr.vars) ?? c.label }
       return { correct: c.correct, text: c.label }
@@ -1315,7 +1350,8 @@ window.MathJax = {
       const b = h('button', 'choice')
       b.type = 'button'
       const val = h('span', 'val')
-      if (o.tex) val.append(tex(o.tex, false))
+      if (o.name) val.append(h('b', 'choice-name', o.name), tex(o.tex, false))
+      else if (o.tex) val.append(tex(o.tex, false))
       else val.textContent = o.text
       b.append(h('span', 'oval', 'ABCD'[i]), val)
       b.addEventListener('click', () => answer(i, opts, buttons, sheet))
@@ -1852,16 +1888,16 @@ window.MathJax = {
 
   // ---------- the tree: which distribution, every chapter ----------
   const LEAVES = {
-    poisson: { name: 'Poisson', sec: '§3.8', use: 'calls to a help desk in a 30-minute window', x: 'a count: 0, 1, 2, …', key: 'k = rate × amount (4/hr × ½ hr = 2)' },
-    hyper: { name: 'Hypergeometric', sec: '§3.7', use: '10 laptops, 3 bad, you test 4', x: 'successes grabbed: max(0, n − (N − r)) … min(n, r)', key: 'N in the group, r successes in it, n grabbed' },
-    binomial: { name: 'Binomial', sec: '§3.5', use: 'guessing on all 12 questions of a quiz', x: 'successes: 0, 1, …, n', key: 'C(n, x)·pˣ·qⁿ⁻ˣ · tables for n = 19, 20' },
-    geometric: { name: 'Geometric', sec: '§3.4', use: 'calling customers until the first sale', x: 'tries: 1, 2, 3, …', key: 'f(x) = qˣ⁻¹p · F(x) = 1 − qˣ' },
-    negbin: { name: 'Negative binomial', sec: '§3.6', use: 'making lots until the 3rd defective one', x: 'tries: r, r + 1, …', key: '(r − 1 successes in x − 1 tries) × p' },
-    uniform: { name: 'Uniform', sec: '§4.1', use: 'a bus shows up anytime in the next 10 minutes', x: 'anywhere in [A, B]', key: 'f(x) = 1/(B − A) · probability = length ÷ length' },
-    exponential: { name: 'Exponential', sec: '§4.3', use: 'the wait for the first call at 3 per hour', x: 'a wait, any time > 0', key: 'f(x) = λe^(−λx) · P(W > t) = e^(−λt)' },
-    gamma: { name: 'Gamma', sec: '§4.3', use: 'the wait for the 3rd call', x: 'a wait, any time > 0', key: 'mean αβ, variance αβ² · Γ(n + 1) = n!' },
-    chi: { name: 'Chi-squared', sec: '§4.3', use: 'find χ²₀.₀₅ with γ = 10 (it is 18.3)', x: 'a χ² value > 0', key: 'gamma with α = γ/2, β = 2 · read the table' },
-    normal: { name: 'Normal', sec: '§4.4', use: 'IQ: μ = 100, σ = 15, what percentile is 139?', x: 'any number', key: 'z = (x − μ)/σ → z-table → left area' },
+    poisson: { name: 'Poisson', sec: '§3.8', tex: '\\displaystyle f(x) = \\frac{e^{-k}k^{x}}{x!}', use: 'calls to a help desk in a 30-minute window', x: 'a count: 0, 1, 2, …', key: 'k = rate × amount (4/hr × ½ hr = 2)' },
+    hyper: { name: 'Hypergeometric', sec: '§3.7', tex: '\\displaystyle f(x) = \\frac{\\binom{r}{x}\\binom{N-r}{n-x}}{\\binom{N}{n}}', use: '10 laptops, 3 bad, you test 4', x: 'successes grabbed: max(0, n − (N − r)) … min(n, r)', key: 'N in the group, r successes in it, n grabbed' },
+    binomial: { name: 'Binomial', sec: '§3.5', tex: '\\displaystyle f(x) = \\binom{n}{x}p^{x}q^{\\,n-x}', use: 'guessing on all 12 questions of a quiz', x: 'successes: 0, 1, …, n', key: 'C(n, x)·pˣ·qⁿ⁻ˣ · tables for n = 19, 20' },
+    geometric: { name: 'Geometric', sec: '§3.4', tex: '\\displaystyle f(x) = q^{\\,x-1}p', use: 'calling customers until the first sale', x: 'tries: 1, 2, 3, …', key: 'f(x) = qˣ⁻¹p · F(x) = 1 − qˣ' },
+    negbin: { name: 'Negative binomial', sec: '§3.6', tex: '\\displaystyle f(x) = \\binom{x-1}{r-1}p^{r}q^{\\,x-r}', use: 'making lots until the 3rd defective one', x: 'tries: r, r + 1, …', key: '(r − 1 successes in x − 1 tries) × p' },
+    uniform: { name: 'Uniform', sec: '§4.1', tex: '\\displaystyle f(x) = \\frac{1}{B-A}', use: 'a bus shows up anytime in the next 10 minutes', x: 'anywhere in [A, B]', key: 'f(x) = 1/(B − A) · probability = length ÷ length' },
+    exponential: { name: 'Exponential', sec: '§4.3', tex: '\\displaystyle f(x) = \\lambda e^{-\\lambda x}', use: 'the wait for the first call at 3 per hour', x: 'a wait, any time > 0', key: 'f(x) = λe^(−λx) · P(W > t) = e^(−λt)' },
+    gamma: { name: 'Gamma', sec: '§4.3', tex: '\\displaystyle f(x) = \\frac{x^{\\alpha-1}e^{-x/\\beta}}{\\Gamma(\\alpha)\\,\\beta^{\\alpha}}', use: 'the wait for the 3rd call', x: 'a wait, any time > 0', key: 'mean αβ, variance αβ² · Γ(n + 1) = n!' },
+    chi: { name: 'Chi-squared', sec: '§4.3', tex: '\\displaystyle \\text{gamma with } \\alpha = \\tfrac{\\gamma}{2},\\ \\beta = 2', use: 'find χ²₀.₀₅ with γ = 10 (it is 18.3)', x: 'a χ² value > 0', key: 'gamma with α = γ/2, β = 2 · read the table' },
+    normal: { name: 'Normal', sec: '§4.4', tex: '\\displaystyle f(x) = \\frac{1}{\\sqrt{2\\pi}\\,\\sigma}e^{-(x-\\mu)^2/2\\sigma^2}', use: 'IQ: μ = 100, σ = 15, what percentile is 139?', x: 'any number', key: 'z = (x − μ)/σ → z-table → left area' },
   }
   // each branch: the answer, why it fits, and where it leads
   const TREE = {
@@ -2012,7 +2048,9 @@ window.MathJax = {
       r.append(h('span', '', label), document.createTextNode(text))
       return r
     }
-    c.append(t, row('Use case', L.use), row('X is', L.x), row('Key', L.key))
+    const pdf = h('p')
+    pdf.append(h('span', '', L.name === 'Chi-squared' ? 'Is' : 'pdf'), tex(L.tex, false))
+    c.append(t, pdf, row('Use case', L.use), row('X is', L.x), row('Key', L.key))
     return c
   }
   // the whole tree as an outline: questions, the answers that branch, the leaves
@@ -2028,7 +2066,7 @@ window.MathJax = {
       if (b.leaf) {
         const L = LEAVES[b.leaf]
         const lf = h('span', 'oleaf')
-        lf.append(h('b', '', L.name), document.createTextNode(` ${L.sec} · ${L.use}`))
+        lf.append(h('b', '', L.name), document.createTextNode(` ${L.sec} · ${L.use}`), tex(L.tex, false))
         li.append(lf)
       } else li.append(outline(b.node))
       ul.append(li)
@@ -2059,7 +2097,7 @@ window.MathJax = {
       ask: 'Which distribution does X have?',
       text: sc.text,
       latex: 'X \\sim \\,?',
-      options: names.map(k => LEAVES[k].name),
+      options: names.map(k => ({ name: LEAVES[k].name, latex: LEAVES[k].tex })),
       answer: 'abcd'[names.indexOf(leaf)],
       placeholder: 'a, b, c or d',
       hint: { text: `${path.map(x => x.b.a).join(' → ')}. ${path[path.length - 1].b.why}` },
