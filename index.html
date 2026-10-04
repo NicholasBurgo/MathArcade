@@ -610,7 +610,7 @@ window.MathJax = {
   const isWorld0 = short => isTree(short) || isMgf(short)
   const REVIEW_NAMES = { 'World 1 review': 1, 'World 2 review': 1, 'World 3 review': 1, 'World 4 review': 1, Everything: 1 }
   // every kind of question a level has (its templates, across its topics)
-  const levelKinds = short => (isWorld0(short) || short in REVIEW_NAMES ? [] : T2.guideTopics(unit, lineByShort[short]).flatMap(t => t.templates.map(tp => ({ t, tp }))))
+  const levelKinds = short => (isWorld0(short) || short in REVIEW_NAMES ? [] : topicsOf(short).flatMap(t => t.templates.map(tp => ({ t, tp }))))
   // a round shows every kind at least once, and never fewer than ROUND questions;
   // naming the distribution is quick, so its rounds run twice as long
   const roundSize = short => (short === 'Everything' ? REVIEW.Everything.length : short in REVIEW_NAMES ? 12 : isTree(short) ? ROUND * 2 : isMgf(short) ? 10 : Math.max(ROUND, levelKinds(short).length))
@@ -658,6 +658,17 @@ window.MathJax = {
   WORLDS.push({ num: 5, name: 'Everything', blurb: 'Every world mixed: one question from every level, World 0 included.', levels: ['Everything'] })
   REVIEW.Everything = WORLDS.filter(w => w.num <= 4).flatMap(w => w.levels.filter(s => !REVIEW[s]))
   const isReview = short => short in REVIEW
+  const DROP = {
+    'Continuous probabilities': ['exponential:at-most', 'exponential:units', 'exponential:more-than', 'exponential:between', 'continuous-pdf:find-c-prob'],
+    'pdf ↔ cdf': ['geometric-derive:cdf-series', 'geometric-derive:cdf-result', 'geometric-derive:cdf-numbers'],
+    'Geometric cdf': ['geometric:cdf'],
+    'Geometric pdf': ['geometric-derive:show-pdf'],
+  }
+  // a level's topics, without the kinds it leaves to another level
+  const topicsOf = short =>
+    T2.guideTopics(unit, lineByShort[short])
+      .map(t => ({ ...t, templates: t.templates.filter(tp => !DROP[short]?.includes(`${t.id}:${tp.id}`)) }))
+      .filter(t => t.templates.length)
   // the story-and-table levels, where each given number has one role (for the work's links)
   const WORLD1_LEVELS = new Set([...WORLDS.find(w => w.num === 1).levels, 'Parameters and possible values'])
   const ORDER = WORLDS.flatMap(w => w.levels)
@@ -1431,7 +1442,7 @@ window.MathJax = {
       for (const leaf of order.slice(0, roundSize(short))) queue.push({ p: treeProblem(leaf, true), seen: 0, missed: false })
     }
     if (isMgf(short)) for (const p of mgfRound(roundSize(short))) queue.push({ p, seen: 0, missed: false })
-    const topics = isWorld0(short) ? [] : T2.guideTopics(unit, lineByShort[short])
+    const topics = isWorld0(short) ? [] : topicsOf(short)
     const weights = topics.map(t => t.templates.length)
     const total = weights.reduce((a, b) => a + b, 0)
     const pick = T2.createFreshPicker()
@@ -2051,7 +2062,7 @@ window.MathJax = {
     const items = BOSS_ORDER.map(short => {
       if (isTree(short)) return { short, p: treeProblem(undefined, true), raw: '', paper: false, result: null }
       if (isMgf(short)) return { short, p: mgfProblem('final'), raw: '', paper: false, result: null }
-      const topics = T2.guideTopics(unit, lineByShort[short])
+      const topics = topicsOf(short)
       // a question that can be answered without its options, when the level has one
       let p
       for (let k = 0; k < 12; k++) {
