@@ -7,12 +7,21 @@ import functools
 import http.server
 import pathlib
 import sys
+import urllib.parse
 
 
 class NoCache(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header('Cache-Control', 'no-cache')
         super().end_headers()
+
+    def send_head(self):
+        # never hand out .git or other dotfiles to the network
+        path = urllib.parse.unquote(self.path.split('?', 1)[0].split('#', 1)[0])
+        if any(part.startswith('.') for part in path.replace('\\', '/').split('/') if part):
+            self.send_error(404)
+            return None
+        return super().send_head()
 
 
 port = int(sys.argv[1]) if len(sys.argv) > 1 else 8380
