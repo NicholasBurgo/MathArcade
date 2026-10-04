@@ -526,6 +526,17 @@ mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); bor
 .formula p { margin: 0 0 4px; font-family: var(--mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--rule); }
 .overlay h3 { font-family: var(--display); text-transform: uppercase; font-size: 1.4rem; margin: 18px 0 0; }
 
+.ready-overall { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 10px 0 4px; font-size: 1.05rem; }
+.ready-overall b { font-family: var(--display); font-size: 2.2rem; line-height: 1; }
+.ready-list { display: grid; gap: 10px; margin: 12px 0 28px; }
+.ready-row { padding: 10px 14px; border: 1.5px solid var(--rule-soft); border-radius: 10px; background: var(--sheet); }
+.ready-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.ready-pct { font-family: var(--mono); font-weight: 700; font-size: 1.05rem; }
+.ready-bar { height: 8px; margin: 6px 0 8px; border-radius: 4px; background: var(--rule-soft); overflow: hidden; }
+.ready-bar i { display: block; height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+.ready-levels { display: flex; flex-wrap: wrap; gap: 6px; }
+.rb-good { color: var(--green); } .rb-mid { color: var(--gold); } .rb-low { color: var(--red); }
+.ready-bar i.rb-good { background: var(--green); } .ready-bar i.rb-mid { background: var(--gold); } .ready-bar i.rb-low { background: var(--red); }
 /* the calculator floats over everything but the confetti, and stays where it is dragged */
 .calc { position: fixed; z-index: 35; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: min(300px, calc(100vw - 32px)); padding: 10px; border: 2px solid var(--rule); border-radius: 14px; background: var(--sheet); box-shadow: var(--shadow); }
 .calc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -2px 0 8px; cursor: grab; touch-action: none; user-select: none; }
@@ -573,9 +584,9 @@ mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); bor
 <div class="app">
   <header class="hud">
     <button class="wordmark" id="home" type="button">Math 3800 Arcade</button>
-    <div class="stat" title="Days in a row you've played"><b id="days">0</b>day streak</div>
     <div class="tools">
       <button class="tool" id="open-calc" type="button" aria-pressed="false">Calc</button>
+      <button class="tool" id="open-ready" type="button">Ready</button>
       <button class="tool" id="open-tables" type="button">Tables</button>
       <button class="tool" id="open-sheet" type="button">Formulas</button>
       <button class="tool" id="sound" type="button" aria-pressed="true">Sound</button>
@@ -772,11 +783,10 @@ window.MathJax = {
 
   // ---------- progress ----------
   const LOCAL_KEY = 'math3800-arcade.v1'
-  const fresh = () => ({ v: 1, stars: {}, plays: {}, lastDay: null, days: 0, muted: false, answered: 0, correct: 0, boss: null, updated: 0 })
-  // progress saved before XP and the pet were taken out still carries them
+  const fresh = () => ({ v: 1, stars: {}, plays: {}, recent: {}, practice: {}, muted: false, answered: 0, correct: 0, boss: null, updated: 0 })
+  // progress saved before XP, the pet and the day streak were taken out still carries them
   const tidy = s => {
-    delete s.xp
-    delete s.pet
+    for (const k of ['xp', 'pet', 'days', 'lastDay']) delete s[k]
     return s
   }
   let state = fresh()
@@ -815,9 +825,41 @@ window.MathJax = {
     } catch {}
   }
 
-  const readiness = () => BOSS_ORDER.reduce((s, k) => s + Math.min(3, state.stars[k] || 0), 0) / (3 * BOSS_ORDER.length)
+  // ---------- readiness: every topic on the review list, and the levels that drill it ----------
+  const TOPICS = [
+    { name: 'Name the distribution from a story', levels: [TREE_LEVEL] },
+    { name: 'Its numbers (p, r, n, N, k) and the values X can take', levels: [PARAM_LEVEL] },
+    { name: 'MGFs: derive one, and name a given one', levels: [MGF_LEVEL] },
+    { name: 'Mean and variance from an MGF', levels: ['Mean and variance from an MGF'] },
+    { name: 'Mean and variance from a pdf', levels: ['Mean and variance from a pdf'] },
+    { name: 'Geometric: derive the pdf, cdf and MGF', levels: ['Geometric pdf', 'Geometric cdf', MGF_LEVEL] },
+    { name: 'Derive the binomial, negative binomial and hypergeometric pdfs', levels: ['Derive the discrete pdfs'] },
+    { name: 'Verify a pdf, or find the constant', levels: ['Verify a pdf, or find the constant'] },
+    { name: 'pdf ↔ cdf', levels: ['pdf ↔ cdf', 'Geometric cdf'] },
+    { name: 'Discrete probabilities: P(1) + P(2) + …', levels: ['Discrete probabilities'] },
+    { name: 'Continuous probabilities: ∫ f(x) dx', levels: ['Continuous probabilities'] },
+    { name: 'Uniform: the pdf from A and B', levels: ['Uniform pdf'] },
+    { name: 'Time of the first event (exponential)', levels: ['First event (exponential)'] },
+    { name: 'Normal table and word problems', levels: ['Normal table', 'Normal word problems'] },
+    { name: 'Binomial table', levels: ['Binomial table'] },
+    { name: 'Chi-squared table', levels: ['Chi-squared table'] },
+    { name: 'Integration by parts, gamma integrals', levels: ['Integration by parts, gamma integrals'] },
+  ]
+  // How ready one level is, 0 to 1: its best round (stars), its last 12 first tries
+  // (counted as if two more had been missed, so a lucky pair isn't 100%), and its
+  // question on the last practice test. Nothing played yet is 0.
+  function levelReady(k) {
+    const parts = []
+    if (state.stars[k] || state.plays[k]) parts.push([(state.stars[k] || 0) / 3, 1])
+    const r = state.recent?.[k]
+    if (r?.length) parts.push([r.reduce((a, b) => a + b, 0) / (r.length + 2), 1])
+    if (k in (state.practice ?? {})) parts.push([state.practice[k] ? 1 : 0, 0.5])
+    const w = parts.reduce((t, [, x]) => t + x, 0)
+    return w ? parts.reduce((t, [v, x]) => t + v * x, 0) / w : 0
+  }
+  const topicReady = t => t.levels.reduce((a, k) => a + levelReady(k), 0) / t.levels.length
+  const readiness = () => TOPICS.reduce((a, t) => a + topicReady(t), 0) / TOPICS.length
   const grade = r => (r >= 0.9 ? 'A' : r >= 0.8 ? 'B' : r >= 0.7 ? 'C' : r >= 0.6 ? 'D' : r > 0 ? 'F' : '–')
-  const today = () => new Date().toLocaleDateString('en-CA')
   const nextUp = () => ORDER.find(k => (state.stars[k] || 0) < 2) ?? ORDER.find(k => (state.stars[k] || 0) < 3) ?? ORDER[0]
 
   // ---------- sound ----------
@@ -1106,7 +1148,6 @@ window.MathJax = {
 
   // ---------- heads-up ----------
   function hud() {
-    document.getElementById('days').textContent = state.days
     const snd = document.getElementById('sound')
     snd.setAttribute('aria-pressed', String(!state.muted))
     snd.textContent = state.muted ? 'Muted' : 'Sound'
@@ -1175,7 +1216,7 @@ window.MathJax = {
     const hero = h('section', 'hero')
     const words = h('div')
     words.append(h('h1', '', 'Test 2'))
-    words.append(h('p', '', 'Every level is a line from the study guide and the review notes. Clear it with 2 or 3 stars and your readiness curve fills in.'))
+    words.append(h('p', '', 'Every level is a line from the study guide and the review notes. Your readiness curve fills in as you clear levels and get first tries right. Tap Ready to see it topic by topic.'))
     const fig = h('figure', 'bell')
     fig.innerHTML = bellSvg(r)
     const cap = h('figcaption')
@@ -1456,8 +1497,18 @@ window.MathJax = {
     window.scrollTo({ top: 0 })
   }
 
+  // the last 12 first tries on each level, for readiness
+  function track(right) {
+    const q = round.queue[round.at]
+    if (q.seen !== 1) return
+    const r = (state.recent[q.level ?? round.short] ??= [])
+    r.push(right ? 1 : 0)
+    if (r.length > 12) r.shift()
+    save()
+  }
   // the streak, a sound and the progress mark for a right answer
   function award() {
+    track(true)
     state.answered++
     state.correct++
     round.combo++
@@ -1468,6 +1519,7 @@ window.MathJax = {
   }
   // a miss: the streak resets, and the question comes back at the end of the round (up to twice)
   function miss(q) {
+    track(false)
     state.answered++
     round.combo = 0
     if (!q.missed) {
@@ -1837,7 +1889,6 @@ window.MathJax = {
     const prev = state.stars[r.short] || 0
     state.stars[r.short] = Math.max(prev, stars)
     state.plays[r.short] = (state.plays[r.short] || 0) + 1
-    markDay()
     save()
     hud()
 
@@ -1883,14 +1934,6 @@ window.MathJax = {
       burst(stars === 3 ? 160 : 90)
     }, 150)
     round = null
-  }
-
-  function markDay() {
-    const d = today()
-    if (state.lastDay === d) return
-    const y = new Date(Date.now() - 864e5).toLocaleDateString('en-CA')
-    state.days = state.lastDay === y ? state.days + 1 : 1
-    state.lastDay = d
   }
 
   // ---------- the practice test: one written question per level, graded after hand-in ----------
@@ -2089,7 +2132,7 @@ window.MathJax = {
     const ok = boss.items.filter(x => x.result === 'ok').length
     const r = ok / n
     state.boss = { best: Math.max(state.boss?.best ?? 0, ok), runs: (state.boss?.runs ?? 0) + 1, last: ok }
-    markDay()
+    for (const it of boss.items) state.practice[it.short] = it.result === 'ok'
     save()
     hud()
     view.replaceChildren()
@@ -5152,6 +5195,53 @@ window.MathJax = {
     document.body.style.overflow = 'hidden'
   }
 
+  // every topic on the review list, weakest first, with the levels that drill it
+  function openReady() {
+    overlay.replaceChildren()
+    const inner = h('div', 'overlay-inner')
+    const head = h('div', 'overlay-head')
+    head.append(h('strong', '', 'How ready you are'))
+    const close = h('button', 'tool', 'Close')
+    close.type = 'button'
+    close.addEventListener('click', closeOverlay)
+    head.append(close)
+    inner.append(head)
+    const pct = v => Math.round(v * 100) + '%'
+    const band = v => (v >= 0.8 ? 'rb-good' : v >= 0.5 ? 'rb-mid' : 'rb-low')
+    const all = readiness()
+    const overall = h('p', 'ready-overall')
+    overall.append(h('b', band(all), pct(all)), 'ready overall, across every topic on the review list.')
+    inner.append(overall, h('p', 'paper-note', 'Each level counts its best round (stars), your last 12 first tries on it, and its question on the last practice test. Weakest first: tap a level to practise it.'))
+    const list = h('div', 'ready-list')
+    for (const { t, v } of TOPICS.map(t => ({ t, v: topicReady(t) })).sort((a, b) => a.v - b.v)) {
+      const row = h('div', 'ready-row')
+      const top = h('div', 'ready-top')
+      top.append(h('b', '', t.name), h('span', 'ready-pct ' + band(v), pct(v)))
+      const bar = h('div', 'ready-bar')
+      const fill = h('i', band(v))
+      fill.style.width = Math.round(v * 100) + '%'
+      bar.append(fill)
+      const lv = h('div', 'ready-levels')
+      for (const k of t.levels) {
+        const stars = state.stars[k] || 0
+        const b = h('button', 'tool', `${k} ${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`)
+        b.type = 'button'
+        b.title = `${k}: ${pct(levelReady(k))}`
+        b.addEventListener('click', () => {
+          closeOverlay()
+          openCard(k)
+        })
+        lv.append(b)
+      }
+      row.append(top, bar, lv)
+      list.append(row)
+    }
+    inner.append(list)
+    overlay.append(inner)
+    overlay.hidden = false
+    document.body.style.overflow = 'hidden'
+  }
+
   // ---------- wiring ----------
   document.getElementById('home').addEventListener('click', () => {
     closeOverlay()
@@ -5159,6 +5249,7 @@ window.MathJax = {
   })
   document.getElementById('open-tables').addEventListener('click', () => openTables())
   document.getElementById('open-sheet').addEventListener('click', openSheet)
+  document.getElementById('open-ready').addEventListener('click', openReady)
 
   // ---------- calculator: a pop-up for the arithmetic ----------
   // A small parser, not eval: + − × ÷ ^, brackets, x!, C(n, k), √, ln, log, eˣ, π, e

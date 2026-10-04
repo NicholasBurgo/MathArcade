@@ -48,6 +48,10 @@ a right answer plays an animation that works the problem out.
 - **World 5 · Everything** — one question from every level.
 - **Practice test** — one written question per level, timed, graded after you hand it in.
 - **Paper mode** — every level without choices, as on the real test.
+- **Ready** — every topic on the review list, weakest first, with how ready you are for
+  it and the levels that drill it (tap one to practise). A level counts its best round
+  (stars), your last 12 first tries on it, and its question on the last practice test; the
+  map's readiness curve is the same number across all topics.
 - **Calc** — a pop-up calculator from the header: + − × ÷, powers, x!, C(n, k), √, ln, eˣ,
   π, e and Ans, with 2(3) read as times. Drag it by its title bar out of the way; it stays
   there, and it floats over the tables so you can look up and work at once.
