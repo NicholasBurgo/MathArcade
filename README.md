@@ -44,6 +44,9 @@ a right answer plays an animation that works the problem out.
 - **World 5 · Everything** — one question from every level.
 - **Practice test** — one written question per level, timed, graded after you hand it in.
 - **Paper mode** — every level without choices, as on the real test.
+- **Calc** — a pop-up calculator from the header: + − × ÷, powers, x!, C(n, k), √, ln, eˣ,
+  π, e and Ans, with 2(3) read as times. Drag it by its title bar out of the way; it stays
+  there, and it floats over the tables so you can look up and work at once.
 - **S Pen ink** — write anywhere with the pen; fingers still scroll. Hold the side button
   to erase; let go to write again. Samsung Internet reports the held button directly;
   Chrome only sends a right click as it goes down, so there the stroke it lands in erases.
