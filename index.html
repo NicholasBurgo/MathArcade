@@ -230,13 +230,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .score-line { position: sticky; top: 64px; z-index: 2; margin: 0 0 8px; padding: 8px 12px; border-radius: 10px; background: var(--gold-soft); color: var(--ink); font-weight: 700; }
 .redo { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
-/* ---------- walk the tree ---------- */
-.trainer {
-  display: grid; gap: 4px; width: 100%; margin-top: 10px; padding: 14px 18px; text-align: left; cursor: pointer;
-  background: var(--sheet); border: 2px solid var(--rule); border-radius: 14px; color: var(--muted);
-}
-.trainer:hover { background: var(--green-soft); }
-.trainer .boss-title { color: var(--rule); }
+/* ---------- the tree: outline, story clues, distribution cards ---------- */
 .outline ul { list-style: none; margin: 0 0 0 8px; padding: 0; }
 .outline ul li { position: relative; padding: 4px 0 4px 22px; }
 .outline ul li::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; border-left: 1.5px solid var(--rule-soft); }
@@ -247,15 +241,12 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .oa b { color: var(--ink); }
 .oleaf { display: inline-block; margin-top: 3px; padding: 4px 10px; background: var(--paper); border-left: 3px solid var(--gold); font-size: 0.92rem; }
 .oleaf b { font-family: var(--display); font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.02em; }
-.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 4px; font-size: 0.9rem; }
-.crumbs span { padding: 2px 9px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-weight: 700; }
-.crumbs i { color: var(--muted); font-style: normal; }
-.step-q { margin: 12px 0 2px; font-family: var(--display); font-size: 1.6rem; font-weight: 800; text-transform: uppercase; line-height: 1.05; }
 .clue { background: var(--gold-soft); color: var(--ink); border-bottom: 2px solid var(--gold); padding: 0 2px; }
 .leafcard { margin-top: 12px; padding: 12px 14px; border-left: 4px solid var(--gold); background: var(--paper); border-radius: 0 10px 10px 0; }
 .leafcard h3 { margin: 0 0 4px; font-family: var(--display); font-size: 1.7rem; text-transform: uppercase; line-height: 1; }
 .leafcard h3 small { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); margin-left: 8px; }
 .leafcard p { margin: 3px 0; }
+.why .leafcard h3, .reveal-box .leafcard h3 { margin: 0 0 4px; font-family: var(--display); font-size: 1.7rem; letter-spacing: 0; text-transform: uppercase; color: var(--ink); line-height: 1; }
 .leafcard p span { display: inline-block; min-width: 76px; color: var(--muted); font-family: var(--mono); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
 
 /* ---------- the sheet (card, question, results) ---------- */
@@ -423,30 +414,42 @@ window.MathJax = {
   const unit = T2.unit
   const lineByShort = Object.fromEntries(unit.guide.map(g => [g.short, g]))
   const ROUND = 6
+  // a level of its own (not a study-guide line): name the distribution, every chapter
+  const TREE_LEVEL = 'Which distribution? (all chapters)'
 
   // ---------- the path: the review list, easiest points first ----------
   const WORLDS = [
     {
+      num: 0,
+      name: 'The tree',
+      blurb: 'Which distribution is it? Every chapter, 3.4 to 4.4.',
+      levels: [TREE_LEVEL],
+    },
+    {
+      num: 1,
       name: 'Free points',
       blurb: 'Read a table, name the story. No algebra.',
       levels: ['Which distribution?', 'Parameters and possible values', 'Normal table', 'Normal word problems', 'Binomial table', 'Chi-squared table'],
     },
     {
+      num: 2,
       name: 'Plug it in',
       blurb: 'Know the formula, put the numbers in.',
       levels: ['Discrete probabilities', 'Uniform pdf', 'First event (exponential)', 'Continuous probabilities', 'Mean and variance from an MGF'],
     },
     {
+      num: 3,
       name: 'The scripts',
       blurb: 'Derivations that come out the same every time.',
       levels: ['Geometric pdf', 'Geometric cdf', 'Geometric MGF', 'Derive the negative binomial pdf', 'Derive the discrete pdfs', 'Verify a pdf, or find the constant'],
     },
     {
+      num: 4,
       name: 'Calculus',
       blurb: 'Integrals and derivatives, one move at a time.',
       levels: ['pdf ↔ cdf', 'Mean and variance from a pdf', 'Find an MGF from a pdf', 'Integration by parts, gamma integrals'],
     },
-  ].map(w => ({ ...w, levels: w.levels.filter(s => lineByShort[s]) }))
+  ].map(w => ({ ...w, levels: w.levels.filter(s => s === TREE_LEVEL || lineByShort[s]) }))
   const ORDER = WORLDS.flatMap(w => w.levels)
 
   // ---------- power-up cards: the whole idea in plain words ----------
@@ -566,7 +569,7 @@ window.MathJax = {
 
   // ---------- progress ----------
   const LOCAL_KEY = 'math3800-arcade.v1'
-  const fresh = () => ({ v: 1, xp: 0, stars: {}, plays: {}, lastDay: null, days: 0, muted: false, answered: 0, correct: 0, boss: null, tree: null, updated: 0 })
+  const fresh = () => ({ v: 1, xp: 0, stars: {}, plays: {}, lastDay: null, days: 0, muted: false, answered: 0, correct: 0, boss: null, updated: 0 })
   let state = fresh()
   try {
     const s = JSON.parse(localStorage.getItem(LOCAL_KEY))
@@ -832,26 +835,12 @@ window.MathJax = {
     cta.addEventListener('click', () => openCard(next))
     view.append(cta)
 
-    // the tree trainer: which distribution, for every chapter
-    const trainer = h('button', 'trainer')
-    trainer.type = 'button'
-    trainer.append(
-      h('span', 'boss-title', 'Walk the tree'),
-      h('span', '', 'Which distribution is it? For every chapter: answer the tree’s questions one at a time and land on the right one.'),
-    )
-    if (state.tree) {
-      const t = h('span')
-      t.append(starsText(state.tree.stars), document.createTextNode(` · ${state.tree.plays} ${state.tree.plays === 1 ? 'run' : 'runs'}`))
-      trainer.append(t)
-    }
-    trainer.addEventListener('click', openTreeCard)
-    view.append(trainer)
 
     WORLDS.forEach((w, wi) => {
       const sec = h('section', 'world')
       const head = h('div', 'world-head')
       const got = w.levels.reduce((s, k) => s + Math.min(3, state.stars[k] || 0), 0)
-      head.append(h('h2', '', `World ${wi + 1} · ${w.name}`), h('span', '', w.blurb), h('em', '', `${got}/${w.levels.length * 3} ★`))
+      head.append(h('h2', '', `World ${WORLDS[wi].num} · ${w.name}`), h('span', '', w.blurb), h('em', '', `${got}/${w.levels.length * 3} ★`))
       const grid = h('div', 'levels')
       w.levels.forEach((k, i) => {
         const s = state.stars[k] || 0
@@ -868,11 +857,11 @@ window.MathJax = {
     bossCard.type = 'button'
     bossCard.append(
       h('span', 'boss-title', 'Final boss'),
-      h('span', '', 'One question from every level, 21 in all, written like the real test: no choices, a clock running, answers only after you hand it in.'),
+      h('span', '', `One question from every level, ${ORDER.length} in all, written like the real test: no choices, a clock running, answers only after you hand it in.`),
     )
     if (state.boss) {
       const best = h('span')
-      best.append(document.createTextNode('Best so far: '), h('b', '', `${state.boss.best}/21`), document.createTextNode(` · ${state.boss.runs} ${state.boss.runs === 1 ? 'run' : 'runs'}`))
+      best.append(document.createTextNode('Best so far: '), h('b', '', `${state.boss.best}/${ORDER.length}`), document.createTextNode(` · ${state.boss.runs} ${state.boss.runs === 1 ? 'run' : 'runs'}`))
       bossCard.append(best)
     }
     bossCard.addEventListener('click', startBoss)
@@ -885,11 +874,18 @@ window.MathJax = {
     view.replaceChildren()
     const sheet = h('section', 'sheet')
     const wi = WORLDS.findIndex(w => w.levels.includes(short))
-    sheet.append(h('div', 'eyebrow', `World ${wi + 1} · Power-up`))
+    sheet.append(h('div', 'eyebrow', `World ${WORLDS[wi].num} · Power-up`))
     sheet.append(h('h2', '', short))
     const ul = h('ul', 'points')
-    for (const line of CARDS[short] ?? [lineByShort[short].text]) ul.append(h('li', '', line))
-    sheet.append(ul)
+    if (short === TREE_LEVEL) {
+      sheet.append(h('p', 'paper-note', 'Every question starts here. Read the tree top to bottom, then name the distribution for each story.'))
+      const o = h('div', 'outline')
+      o.append(outline(TREE))
+      sheet.append(o)
+    } else {
+      for (const line of CARDS[short] ?? [lineByShort[short].text]) ul.append(h('li', '', line))
+      sheet.append(ul)
+    }
     const acts = h('div', 'row-actions')
     const go = h('button', 'btn', `Start · ${ROUND} questions`)
     go.type = 'button'
@@ -912,12 +908,15 @@ window.MathJax = {
   async function startRound(short, paper = false) {
     view.replaceChildren(h('p', 'loading', 'Shuffling the deck…'))
     await mathBoot
-    const topics = T2.guideTopics(unit, lineByShort[short])
+    const queue = []
+    if (short === TREE_LEVEL) {
+      for (const leaf of Object.keys(LEAVES).sort(() => Math.random() - 0.5).slice(0, ROUND)) queue.push({ p: treeProblem(leaf), seen: 0, missed: false })
+    }
+    const topics = short === TREE_LEVEL ? [] : T2.guideTopics(unit, lineByShort[short])
     const weights = topics.map(t => t.templates.length)
     const total = weights.reduce((a, b) => a + b, 0)
     const pick = T2.createFreshPicker()
-    const queue = []
-    for (let i = 0; i < ROUND; i++) {
+    for (let i = 0; i < (short === TREE_LEVEL ? 0 : ROUND); i++) {
       let r = Math.random() * total
       let t = topics[topics.length - 1]
       for (let j = 0; j < topics.length; j++) {
@@ -1054,6 +1053,8 @@ window.MathJax = {
       why.append(h('p', '', 'Worked answer:'))
       why.append(tex(shown))
     } else why.append(h('p', '', `The right bubble is ${'ABCD'[good]}.`))
+    if (p.clue) sheet.querySelector('.story')?.replaceWith(storyEl({ text: p.text, clue: p.clue }, true))
+    if (p.leaf) why.append(leafCard(p.leaf))
     const { acts, cont } = gotIt(q)
     why.append(acts)
     sheet.append(why)
@@ -1065,6 +1066,11 @@ window.MathJax = {
   const typeable = p => !p.options
   // the right answer and how to get it
   function solution(p) {
+    if (p.leaf) {
+      const box = h('div', 'reveal-box')
+      box.append(h('h3', '', 'Answer'), leafCard(p.leaf), h('h3', '', 'How the tree gets there'), h('p', '', p.hint.text))
+      return box
+    }
     const box = h('div', 'reveal-box')
     box.append(h('h3', '', 'Answer'))
     if (p.options) {
@@ -1269,6 +1275,7 @@ window.MathJax = {
     await mathBoot
     const pick = T2.createFreshPicker()
     const items = ORDER.map(short => {
+      if (short === TREE_LEVEL) return { short, p: treeProblem(), raw: '', paper: false, result: null }
       const topics = T2.guideTopics(unit, lineByShort[short])
       // a question that can be answered without its options, when the level has one
       let p
@@ -1498,7 +1505,7 @@ window.MathJax = {
     boss = null
   }
 
-  // ---------- walk the tree: which distribution, every chapter ----------
+  // ---------- the tree: which distribution, every chapter ----------
   const LEAVES = {
     poisson: { name: 'Poisson', sec: '§3.8', use: 'calls to a help desk in a 30-minute window', x: 'a count: 0, 1, 2, …', key: 'k = rate × amount (4/hr × ½ hr = 2)' },
     hyper: { name: 'Hypergeometric', sec: '§3.7', use: '10 laptops, 3 bad, you test 4', x: 'successes grabbed: max(0, n − (N − r)) … min(n, r)', key: 'N in the group, r successes in it, n grabbed' },
@@ -1685,196 +1692,35 @@ window.MathJax = {
     return wrap
   }
 
-  function openTreeCard() {
-    screen = 'card'
-    view.replaceChildren()
-    const sheet = h('section', 'sheet')
-    sheet.append(h('div', 'eyebrow', 'Walk the tree · power-up'))
-    sheet.append(h('h2', '', 'Which distribution?'))
-    sheet.append(h('p', 'paper-note', 'Every question on the test starts here. Read the tree top to bottom once, then walk it for 8 stories.'))
-    const o = h('div', 'outline')
-    o.append(outline(TREE))
-    sheet.append(o)
-    const acts = h('div', 'row-actions')
-    const go = h('button', 'btn', 'Walk it · 8 stories')
-    go.type = 'button'
-    go.addEventListener('click', startTree)
-    const back = h('button', 'btn ghost', 'Map')
-    back.type = 'button'
-    back.addEventListener('click', renderMap)
-    acts.append(go, back)
-    sheet.append(acts)
-    view.append(sheet)
-    window.scrollTo({ top: 0 })
+  // the distributions a story is most often mistaken for
+  const CONFUSED = {
+    binomial: ['hyper', 'negbin', 'poisson', 'geometric'],
+    geometric: ['negbin', 'binomial', 'exponential', 'poisson'],
+    negbin: ['geometric', 'binomial', 'gamma', 'hyper'],
+    hyper: ['binomial', 'poisson', 'negbin', 'geometric'],
+    poisson: ['binomial', 'exponential', 'geometric', 'hyper'],
+    uniform: ['normal', 'exponential', 'binomial', 'chi'],
+    exponential: ['gamma', 'poisson', 'geometric', 'uniform'],
+    gamma: ['exponential', 'negbin', 'chi', 'poisson'],
+    chi: ['gamma', 'normal', 'exponential', 'uniform'],
+    normal: ['uniform', 'chi', 'binomial', 'exponential'],
   }
-
-  let walk = null
-  function startTree() {
-    // 8 different leaves, a fresh story for each
-    const keys = Object.keys(LEAVES).sort(() => Math.random() - 0.5).slice(0, 8)
-    const items = keys.map(k => ({ leaf: k, sc: pickOne(STORIES[k])(), path: pathTo(k), step: 0, missed: false }))
-    walk = { items, at: 0, combo: 0, best: 0, misses: 0, gained: 0, marks: [] }
-    // reuse the round bookkeeping for XP and streak sounds
-    round = { short: 'Walk the tree', combo: 0, best: 0, misses: 0, gained: 0, marks: [], queue: items, at: 0 }
-    showStep()
-  }
-
-  function showStep() {
-    screen = 'tree'
-    const it = walk.items[walk.at]
-    view.replaceChildren()
-    const sheet = h('section', 'sheet')
-    const top = h('div', 'qtop')
-    const prog = h('div', 'progress')
-    walk.items.forEach((x, i) => prog.append(h('i', walk.marks[i] === 'ok' ? 'ok' : walk.marks[i] === 'bad' ? 'bad' : i === walk.at ? 'now' : '')))
-    const combo = h('div', 'combo')
-    combo.append(h('strong', '', `${round.combo}×`))
-    ;['1σ', '2σ', '3σ'].forEach((s, i) => combo.append(h('span', comboTier(round.combo) > i ? 'on' : '', s)))
-    top.append(prog, combo)
-    sheet.append(top, h('div', 'eyebrow', `Walk the tree · story ${walk.at + 1} of ${walk.items.length}`))
-    const done = it.step >= it.path.length
-    sheet.append(storyEl(it.sc, done || it.missedHere))
-    // the path so far
-    const crumbs = h('div', 'crumbs')
-    it.path.slice(0, it.step).forEach((s, i) => {
-      if (i) crumbs.append(h('i', '', '→'))
-      crumbs.append(h('span', '', s.b.a))
-    })
-    if (it.step) sheet.append(crumbs)
-
-    if (done) {
-      sheet.append(leafCard(it.leaf))
-      const acts = h('div', 'row-actions')
-      const next = h('button', 'btn', walk.at + 1 < walk.items.length ? 'Next story' : 'Finish')
-      next.type = 'button'
-      next.addEventListener('click', () => {
-        walk.at++
-        round.at = walk.at
-        if (walk.at < walk.items.length) showStep()
-        else finishTree()
-      })
-      acts.append(next)
-      sheet.append(acts)
-      view.append(sheet)
-      next.focus({ preventScroll: true })
-      window.scrollTo({ top: 0 })
-      return
+  // a story, four distribution names, and the tree path as the explanation
+  function treeProblem(leaf = pickOne(Object.keys(LEAVES))) {
+    const sc = pickOne(STORIES[leaf])()
+    const path = pathTo(leaf)
+    const names = [leaf, ...CONFUSED[leaf].sort(() => Math.random() - 0.5).slice(0, 3)].sort(() => Math.random() - 0.5)
+    return {
+      ask: 'Which distribution does X have?',
+      text: sc.text,
+      latex: 'X \\sim \\,?',
+      options: names.map(k => LEAVES[k].name),
+      answer: 'abcd'[names.indexOf(leaf)],
+      placeholder: 'a, b, c or d',
+      hint: { text: `${path.map(x => x.b.a).join(' → ')}. ${path[path.length - 1].b.why}` },
+      clue: sc.clue,
+      leaf,
     }
-
-    const { node, b: right } = it.path[it.step]
-    sheet.append(h('div', 'step-q', node.q))
-    const list = h('div', 'choices')
-    const note = h('div')
-    node.branches.forEach((b, i) => {
-      const btn = h('button', 'choice')
-      btn.type = 'button'
-      const val = h('span', 'val')
-      val.append(h('b', '', b.a), document.createTextNode(' · ' + b.more))
-      btn.append(h('span', 'oval', 'ABCD'[i]), val)
-      btn.addEventListener('click', () => {
-        if (btn.disabled) return
-        if (b === right) {
-          list.querySelectorAll('button').forEach(x => (x.disabled = true))
-          btn.classList.add('right')
-          state.answered++
-          state.correct++
-          const gain = Math.round(5 * MULT[comboTier(round.combo)])
-          state.xp += gain
-          walk.gained += gain
-          pop('+' + gain, btn)
-          sfx.right(round.combo + it.step)
-          hud()
-          it.step++
-          if (it.step >= it.path.length) {
-            // a clean walk builds the streak
-            if (!it.missed) {
-              round.combo++
-              round.best = Math.max(round.best, round.combo)
-              const tier = comboTier(round.combo)
-              if (round.combo === 3 || round.combo === 6) toast(`${tier}σ streak · ×${MULT[tier]}`)
-            }
-            walk.marks[walk.at] = it.missed ? 'bad' : 'ok'
-          }
-          setTimeout(showStep, 650)
-          return
-        }
-        // wrong branch: say why, light up the clue, try again
-        btn.disabled = true
-        btn.classList.add('wrong')
-        state.answered++
-        if (!it.missed) {
-          it.missed = true
-          walk.misses++
-        }
-        round.combo = 0
-        sfx.wrong()
-        hud()
-        note.replaceChildren()
-        const why = h('div', 'why')
-        why.append(h('h3', '', 'Not that branch'), h('p', '', right.why))
-        why.append(h('p', '', 'The phrase that decides it is highlighted in the story. Pick again.'))
-        note.append(why)
-        it.missedHere = true
-        const story = sheet.querySelector('.story')
-        story.replaceWith(storyEl(it.sc, true))
-      })
-      list.append(btn)
-    })
-    sheet.append(list, note)
-    view.append(sheet)
-    window.scrollTo({ top: 0 })
-  }
-
-  function finishTree() {
-    screen = 'results'
-    const stars = walk.misses === 0 ? 3 : walk.misses <= 2 ? 2 : 1
-    const before = level(state.xp)
-    const bonus = 25 * stars
-    state.xp += bonus
-    state.tree = { stars: Math.max(state.tree?.stars ?? 0, stars), plays: (state.tree?.plays ?? 0) + 1 }
-    markDay()
-    save()
-    hud()
-    view.replaceChildren()
-    const sheet = h('section', 'sheet')
-    sheet.append(h('div', 'eyebrow', 'Walk the tree · cleared'), h('h2', '', 'Which distribution?'))
-    const st = h('div', 'result-stars')
-    for (let i = 0; i < 3; i++) {
-      const s = h('span', i < stars ? '' : 'off', '★')
-      s.style.animationDelay = i * 0.25 + 's'
-      st.append(s)
-    }
-    sheet.append(st)
-    const tally = h('div', 'tally')
-    const cell = (label, value) => {
-      const c = h('div')
-      c.append(h('b', '', value), document.createTextNode(label))
-      return c
-    }
-    tally.append(cell('XP', '+' + (walk.gained + bonus)), cell('best streak', String(round.best)), cell('wrong turns', String(walk.misses)))
-    sheet.append(tally)
-    sheet.append(h('p', 'note', stars === 3 ? 'Every story walked straight to its leaf. That is the skill.' : 'Run it again: the stories change, the tree does not.'))
-    const acts = h('div', 'row-actions')
-    const again = h('button', 'btn', 'Walk it again')
-    again.type = 'button'
-    again.addEventListener('click', startTree)
-    const tree = h('button', 'btn ghost', 'See the tree')
-    tree.type = 'button'
-    tree.addEventListener('click', openTreeCard)
-    const map = h('button', 'btn ghost', 'Map')
-    map.type = 'button'
-    map.addEventListener('click', renderMap)
-    acts.append(again, tree, map)
-    sheet.append(acts)
-    view.append(sheet)
-    window.scrollTo({ top: 0 })
-    setTimeout(() => {
-      sfx.clear()
-      burst(stars === 3 ? 150 : 80)
-      if (level(state.xp) > before) setTimeout(() => { toast(`Level ${level(state.xp)}!`); sfx.levelUp() }, 700)
-    }, 150)
-    walk = null
-    round = null
   }
 
   // ---------- tables and formula sheet ----------
@@ -1987,7 +1833,7 @@ window.MathJax = {
       if (e.key === 'Escape') closeOverlay()
       return
     }
-    if ((screen !== 'question' && screen !== 'tree') || e.metaKey || e.ctrlKey || e.altKey) return
+    if (screen !== 'question' || e.metaKey || e.ctrlKey || e.altKey) return
     const k = e.key.toLowerCase()
     const idx = '1234'.indexOf(k) >= 0 ? '1234'.indexOf(k) : 'abcd'.indexOf(k)
     const btns = [...view.querySelectorAll('.choice')]
