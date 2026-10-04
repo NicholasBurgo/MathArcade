@@ -79,6 +79,9 @@ body {
   background-image: repeating-linear-gradient(to bottom, transparent 0 31px, var(--rule-soft) 31px 32px);
 }
 button { font: inherit; color: inherit; }
+/* nothing here is meant to be selected: the S Pen side button drags would highlight text */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea { -webkit-user-select: text; user-select: text; }
 button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule); outline-offset: 2px; }
 
 .app { max-width: 720px; margin: 0 auto; padding-inline: 16px; padding-block: 12px 64px; }
@@ -1029,6 +1032,8 @@ window.MathJax = {
     inkLast = null
     sizeInk(false)
     inkClear.hidden = true
+    sideArmed = false
+    armedStroke = false
     setEraseMode(false)
   }
   const onControl = e => e.target instanceof Element && e.target.closest('button, input, a, select, textarea, label')
@@ -1040,6 +1045,24 @@ window.MathJax = {
   // a stroke starts, follow that pointer to the end whatever it is called.
   let inkPointer = null
   const penLike = e => e.pointerType === 'pen' || (e.pointerType === 'mouse' && sideButton(e))
+  // On Samsung the side button usually arrives as a right click (a context menu,
+  // or a button-2 press), not as a held button. A right click arms the eraser:
+  // the pen's next stroke erases, then it goes back to writing. Pressed during a
+  // stroke, the rest of that stroke erases.
+  let sideArmed = false
+  let armedStroke = false
+  function armEraser(e) {
+    if (onControl(e)) return
+    e.preventDefault()
+    window.getSelection()?.removeAllRanges()
+    sideArmed = true
+    if (inking) {
+      inkErase = true
+      armedStroke = true
+    }
+    inkEraseBtn.setAttribute('aria-pressed', 'true')
+    inkClear.hidden = false
+  }
   window.addEventListener('pointerdown', e => {
     penCheck(e)
     if (!penLike(e) || onControl(e)) return
@@ -1047,7 +1070,8 @@ window.MathJax = {
     if (Math.abs(parseFloat(ink.style.width) - w) > 1 || parseFloat(ink.style.height) < h) sizeInk(true)
     inking = true
     inkPointer = e.pointerId
-    inkErase = sideButton(e)
+    inkErase = sideButton(e) || sideArmed
+    armedStroke = sideArmed
     inkLast = onPage(e)
     e.preventDefault()
   }, { passive: false })
@@ -1069,6 +1093,12 @@ window.MathJax = {
   }, { passive: false })
   const inkUp = e => {
     penCheck(e)
+    // a stroke made with the eraser armed by the side button uses it up
+    if (inking && armedStroke) {
+      sideArmed = false
+      armedStroke = false
+      inkEraseBtn.setAttribute('aria-pressed', String(inkEraseMode))
+    }
     inking = false
     inkErase = false
     inkLast = null
@@ -1082,8 +1112,11 @@ window.MathJax = {
     if (inking || [...e.touches].some(t => t.touchType === 'stylus')) e.preventDefault()
   }, { passive: false })
   // side-button drags open the context menu or start selecting text; keep both quiet away from controls
-  window.addEventListener('contextmenu', e => { if ((inking || e.pointerType === 'pen') && !onControl(e)) e.preventDefault() })
-  window.addEventListener('selectstart', e => { if (inking) e.preventDefault() })
+  window.addEventListener('contextmenu', armEraser)
+  window.addEventListener('mousedown', e => { if (e.button === 2) armEraser(e) })
+  window.addEventListener('selectstart', e => {
+    if (inking || sideArmed || !(e.target instanceof Element && e.target.closest('input, textarea'))) e.preventDefault()
+  })
 
   // Pen check: open the page with #pen and a small box shows what the tablet
   // reports for each pen event, side button included. Off otherwise.
