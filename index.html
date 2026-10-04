@@ -1017,8 +1017,6 @@ window.MathJax = {
   inkEraseBtn.addEventListener('click', () => setEraseMode(!inkEraseMode))
   let inking = false
   let inkLast = null
-  let inkErase = false
-  let stroke = null // { wasOn, side, travel, at } for the stroke in progress
   const pageSize = () => ({ w: document.documentElement.clientWidth, h: Math.max(document.documentElement.scrollHeight, innerHeight) })
   // keep = copy the strokes across (rotation, the page growing below them)
   function sizeInk(keep) {
@@ -1045,7 +1043,6 @@ window.MathJax = {
     if (snap) inkCtx.drawImage(snap, 0, 0, snap.width / dpr, snap.height / dpr)
   }
   function clearInk() {
-    stroke = null
     inking = false
     inkLast = null
     sizeInk(false)
@@ -1061,28 +1058,38 @@ window.MathJax = {
   // a stroke starts, follow that pointer to the end whatever it is called.
   let inkPointer = null
   const penLike = e => e.pointerType === 'pen' || (e.pointerType === 'mouse' && sideButton(e))
-  // On Samsung the side button usually arrives as a right click (a context menu,
-  // or a button-2 press), not as a held button, and the browser can cut a long
-  // drag short. So the side button toggles the eraser and it stays on across
-  // strokes. It turns on the moment it is clicked (mid-stroke, the rest of the
-  // stroke erases). It turns off on a click with the pen lifted, or a tap with
-  // the button pressed; a drag with the button pressed keeps erasing. Repeat
-  // clicks the browser fires during one press are ignored.
-  let toggledAt = 0
-  let taps = [] // { t, at } of the pen taps (no drag) in a row, for triple taps
-  function sideToggle(e) {
+  // Hold to erase: a stroke erases while the side button is held and writes again
+  // once it is let go. Browsers report a held button in two ways:
+  //  - the standard one: the pointer's buttons bit 2 (barrel) or 32 (eraser end) on
+  //    every event while it is held (Samsung Internet);
+  //  - only a right click as it goes down (Chrome): then the stroke it belongs to
+  //    erases to its end, including what it drew before the click arrived.
+  // Chrome can also cut a held-button drag short; if the pen keeps moving with the
+  // button held, erasing picks back up.
+  let heldAt = 0 // when the last right click from the side button arrived
+  let strokeHeld = false // a right click came during (or just before) this stroke
+  let strokePts = [] // this stroke's points, to wipe if it turns out to be an erase
+  const held = e => sideButton(e) || strokeHeld
+  const wipe = pts => {
+    if (pts.length < 2) return
+    inkCtx.save()
+    inkCtx.globalCompositeOperation = 'destination-out'
+    inkCtx.lineWidth = 26
+    inkCtx.beginPath()
+    inkCtx.moveTo(pts[0].x, pts[0].y)
+    for (const pt of pts.slice(1)) inkCtx.lineTo(pt.x, pt.y)
+    inkCtx.stroke()
+    inkCtx.restore()
+  }
+  function sidePress(e) {
     if (onControl(e)) return
     e.preventDefault()
     window.getSelection()?.removeAllRanges()
-    const now = Date.now()
-    if (stroke) stroke.side = true
-    if (!inkEraseMode) {
-      setEraseMode(true)
-      toggledAt = now
-      if (inking) inkErase = true
-    } else if (!inking && now - toggledAt > 800) {
-      setEraseMode(false)
-      toggledAt = now
+    // during a stroke it belongs to that stroke; with the pen up, to the next touch
+    if (!inking) heldAt = Date.now()
+    else if (!strokeHeld) {
+      strokeHeld = true
+      wipe(strokePts)
     }
   }
   window.addEventListener('pointerdown', e => {
@@ -1092,23 +1099,24 @@ window.MathJax = {
     if (Math.abs(parseFloat(ink.style.width) - w) > 1 || parseFloat(ink.style.height) < h) sizeInk(true)
     inking = true
     inkPointer = e.pointerId
-    inkErase = sideButton(e)
+    // a right click just before the pen touched means the button is down
+    strokeHeld = Date.now() - heldAt < 700
     inkLast = onPage(e)
-    stroke = { wasOn: inkEraseMode, side: false, travel: 0, at: inkLast }
+    strokePts = [inkLast]
     e.preventDefault()
   }, { passive: false })
   window.addEventListener('pointermove', e => {
     penCheck(e)
-    // the browser cut the stroke short but the pen is still down: pick it back up
-    if (!inking && inkEraseMode && penLike(e) && e.buttons !== 0 && !onControl(e)) {
+    // the browser cut a held-button stroke short, but the pen is down with the button still held
+    if (!inking && penLike(e) && (e.buttons & 34) !== 0 && !onControl(e)) {
       inking = true
       inkPointer = e.pointerId
       inkLast = onPage(e)
-      stroke = { wasOn: true, side: false, travel: 0, at: inkLast }
+      strokePts = [inkLast]
     }
     if (!inking || e.pointerId !== inkPointer) return
     e.preventDefault()
-    const erase = inkEraseMode || inkErase || sideButton(e)
+    const erase = inkEraseMode || held(e)
     inkCtx.globalCompositeOperation = erase ? 'destination-out' : 'source-over'
     inkCtx.strokeStyle = penColor()
     inkCtx.lineWidth = erase ? 26 : e.pressure > 0 ? 0.6 + e.pressure * 3 : 2
@@ -1117,41 +1125,15 @@ window.MathJax = {
     const at = onPage(e)
     inkCtx.lineTo(at.x, at.y)
     inkCtx.stroke()
-    if (stroke) stroke.travel += Math.hypot(at.x - inkLast.x, at.y - inkLast.y)
     inkLast = at
+    strokePts.push(at)
     if (!erase) inkClear.hidden = false
   }, { passive: false })
   const inkUp = e => {
     penCheck(e)
-    // a tap with the side button pressed, eraser already on: switch back to writing
-    if (stroke?.side && stroke.wasOn && stroke.travel < 12 && Date.now() - toggledAt > 800) {
-      setEraseMode(false)
-      toggledAt = Date.now()
-    } else if (stroke && !stroke.side && stroke.travel < 12 && e.type === 'pointerup') {
-      // three quick taps in one spot with the pen tip flip the eraser, on or off
-      const now = Date.now()
-      const at = stroke.at
-      const prev = taps[taps.length - 1]
-      if (prev && now - prev.t < 400 && Math.hypot(at.x - taps[0].at.x, at.y - taps[0].at.y) < 40) taps.push({ t: now, at })
-      else taps = [{ t: now, at }]
-      if (taps.length === 3) {
-        // turning it on: wipe the dots the taps left
-        if (!inkEraseMode) for (const dot of taps.map(x => x.at)) {
-          inkCtx.save()
-          inkCtx.globalCompositeOperation = 'destination-out'
-          inkCtx.beginPath()
-          inkCtx.arc(dot.x, dot.y, 12, 0, Math.PI * 2)
-          inkCtx.fill()
-          inkCtx.restore()
-        }
-        setEraseMode(!inkEraseMode)
-        toggledAt = now
-        taps = []
-      }
-    }
-    stroke = null
     inking = false
-    inkErase = false
+    strokeHeld = false
+    strokePts = []
     inkLast = null
     inkPointer = null
   }
@@ -1162,9 +1144,9 @@ window.MathJax = {
   window.addEventListener('touchmove', e => {
     if (inking || [...e.touches].some(t => t.touchType === 'stylus')) e.preventDefault()
   }, { passive: false })
-  // side-button drags open the context menu or start selecting text; keep both quiet away from controls
-  window.addEventListener('contextmenu', sideToggle)
-  window.addEventListener('mousedown', e => { if (e.button === 2) sideToggle(e) })
+  // the side button as a right click: no context menu, no text selection, just erasing
+  window.addEventListener('contextmenu', sidePress)
+  window.addEventListener('mousedown', e => { if (e.button === 2) sidePress(e) })
   window.addEventListener('selectstart', e => {
     if (inking || inkEraseMode || !(e.target instanceof Element && e.target.closest('input, textarea'))) e.preventDefault()
   })
@@ -1176,7 +1158,7 @@ window.MathJax = {
     if (!penBox) return
     penBox.textContent =
       `event    ${e.type}\ntype     ${e.pointerType || '(none)'}\nbutton   ${e.button}\nbuttons  ${e.buttons}\npressure ${e.pressure?.toFixed?.(2) ?? '-'}\n` +
-      `eraser   ${inkEraseMode ? 'ON' : 'off'}\nerasing  ${inking && (inkEraseMode || inkErase || sideButton(e)) ? 'YES' : 'no'}`
+      `button   ${(e.buttons & 34) !== 0 ? 'held' : '-'}${Date.now() - heldAt < 1500 ? ' (right click)' : ''}\nerasing  ${inking && (inkEraseMode || held(e)) ? 'YES' : 'no'}`
   }
   window.addEventListener('contextmenu', e => penBox && (penBox.textContent += `\ncontextmenu (${e.pointerType || 'no type'})`), true)
   window.addEventListener('resize', () => sizeInk(true))

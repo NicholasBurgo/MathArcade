@@ -25,9 +25,11 @@ a right answer plays an animation that works the problem out.
 - **World 5 · Everything** — one question from every level.
 - **Final boss** — one written question per level, graded after you hand it in.
 - **Paper mode** — every level without choices, for double XP.
-- **S Pen ink** — write anywhere with the pen; fingers still scroll. Click the side button
-  (or tap three times in one spot) to switch to the eraser and back. Open the page with
-  `#pen` to see what the pen reports.
+- **S Pen ink** — write anywhere with the pen; fingers still scroll. Hold the side button
+  to erase; let go to write again. Samsung Internet reports the held button directly;
+  Chrome only sends a right click as it goes down, so there the stroke it lands in erases.
+  If the button opens Air Command instead, turn Air Command off in the S Pen settings.
+  Open the page with `#pen` to see what the pen reports.
 
 ## Files
 
