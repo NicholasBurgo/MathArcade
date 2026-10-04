@@ -344,6 +344,10 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .plug-chip small { color: var(--muted); font-family: var(--body); font-weight: 400; font-size: 0.8rem; }
 .plug-line { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
 .plug-line .math-d { margin: 4px 0; }
+.work-rows mjx-container[display="true"] { text-align: left !important; }
+.work-rule { color: var(--muted); }
+.work-rule.enter { animation: line-in 0.35s ease-out; }
+.work-why { margin-top: 8px; }
 .plug-line.work { opacity: 0.92; font-size: 0.92em; border-left: 2px dashed var(--rule-soft); padding-left: 10px; }
 .plug-line.enter { animation: line-in 0.35s ease-out; }
 .plug-line.bump { animation: bump 0.35s ease-out; }
@@ -1507,7 +1511,9 @@ window.MathJax = {
     sheet.append(h('div', 'eyebrow', round.short + (round.paper ? ' · paper mode' : '') + (q.seen > 1 ? ' · second chance' : '')))
     if (p.ask) sheet.append(h('p', 'ask', p.ask))
     if (p.text) sheet.append(h('p', 'story', p.text))
-    sheet.append(tex(p.latex))
+    const qMath = tex(p.latex)
+    qMath.classList.add('q-math')
+    sheet.append(qMath)
     if (round.paper) {
       paperQuestion(p, sheet)
       return
@@ -1590,6 +1596,16 @@ window.MathJax = {
         next.type = 'button'
         next.addEventListener('click', advance)
         const panel = plugPanel(p, { sheet, auto: true, next })
+        sheet.append(panel)
+        next.focus({ preventScroll: true })
+        panel.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+        return
+      }
+      if (WORK_LEVELS.has(round.short) && (p.answerLatex || p.hint)) {
+        const next = h('button', 'btn', 'Next')
+        next.type = 'button'
+        next.addEventListener('click', advance)
+        const panel = workPanel(p, { sheet, auto: true, next })
         sheet.append(panel)
         next.focus({ preventScroll: true })
         panel.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
@@ -2591,6 +2607,273 @@ window.MathJax = {
     }
   }
 
+  // ---------- show the work: World 1's worked answers, step by step ----------
+  // The class app's worked answer (answerLatex) is split into rows and steps, and
+  // every number in it that comes from the question flies in from a chip.
+  const WORK_LEVELS = new Set(WORLDS.find(w => w.num === 1).levels)
+  const matchBrace = (src, open) => {
+    let d = 0
+    for (let i = open; i < src.length; i++) {
+      if (src[i] === '\\') { i++; continue }
+      if (src[i] === '{') d++
+      else if (src[i] === '}' && --d === 0) return i
+    }
+    return src.length - 1
+  }
+  // the numbers in a piece of text or LaTeX, signed; words in \text{…} are skipped
+  // unless keepText (a number there can be read, but not coloured)
+  function numberTokens(src, latex, keepText = false) {
+    const out = []
+    let i = 0
+    while (i < src.length) {
+      if (latex && src[i] === '\\') {
+        const m = /^\\([a-zA-Z]+)/.exec(src.slice(i))
+        if (!m) { i += 2; continue }
+        if (!keepText && /^(text|textbf|textit|mathrm|operatorname)$/.test(m[1]) && src[i + m[0].length] === '{') i = matchBrace(src, i + m[0].length) + 1
+        else i += m[0].length
+        continue
+      }
+      const m = /^\d+(?:\{,\}\d{3})*(?:\.\d+)?/.exec(src.slice(i))
+      if (m && !/[\d.]/.test(src[i - 1] ?? '')) {
+        let val = parseFloat(m[0].replace(/\{,\}/g, ''))
+        let start = i
+        let j = i - 1
+        while (j >= 0 && src[j] === ' ') j--
+        if (j >= 0 && (src[j] === '-' || src[j] === '−')) {
+          const before = src.slice(0, j).trimEnd()
+          // a minus after a number or a bracket is a subtraction; anywhere else it is a sign
+          const binary = latex
+            ? /[\d)}\]a-zA-Z]$/.test(before) && !/\\(le|ge|leq|geq|approx|to|Rightarrow|cdot|times|quad|qquad|pm|lt|gt)$/.test(before)
+            : /[\d)]$/.test(before)
+          if (!binary) {
+            val = -val
+            start = j
+          }
+        }
+        out.push({ start, end: i + m[0].length, val, tok: src.slice(start, i + m[0].length) })
+        i += m[0].length
+        continue
+      }
+      i++
+    }
+    return out
+  }
+  const sameNum = (a, b) => Math.abs(a - b) < 1e-9
+  // 0, 1 and 2 turn up everywhere (1 − p, 2σ²…): never claim those came from the question
+  const linkable = v => !(Number.isInteger(v) && Math.abs(v) <= 2)
+  const wrapNums = (latex, colorOf) => {
+    let out = '', at = 0
+    for (const t of numberTokens(latex, true)) {
+      const c = colorOf(t.val)
+      if (!c) continue
+      out += latex.slice(at, t.start) + `{\\class{${c}}{${latex.slice(t.start, t.end)}}}`
+      at = t.end
+    }
+    return out + latex.slice(at)
+  }
+  // split LaTeX at its top level (outside braces and \left…\right) where sepAt(i) says so
+  function splitTop(src, sepAt) {
+    const parts = []
+    let d = 0, from = 0
+    for (let i = 0; i < src.length; i++) {
+      const c = src[i]
+      if (c === '\\') {
+        const m = /^\\([a-zA-Z]+|.)/.exec(src.slice(i))
+        if (m[1] === 'left') d++
+        else if (m[1] === 'right') d--
+        else if (d === 0 && i > from) {
+          const n = sepAt(src, i)
+          if (n) {
+            parts.push(src.slice(from, i))
+            from = i
+            i += n - 1
+            continue
+          }
+        }
+        i += m[0].length - 1
+        continue
+      }
+      if (c === '{') d++
+      else if (c === '}') d--
+      else if (d === 0 && i > from) {
+        const n = sepAt(src, i)
+        if (n) {
+          parts.push(src.slice(from, i))
+          from = i
+          i += n - 1
+        }
+      }
+    }
+    parts.push(src.slice(from))
+    return parts
+  }
+  const trimSpace = t => t.replace(/^(?:\s|\\[;,!: ]|\\quad|\\qquad)+|(?:\s|\\[;,!: ]|\\quad|\\qquad)+$/g, '')
+  // rows: a new row at a colon, a ⇒, a \quad; the colon itself is dropped
+  function workRows(latex) {
+    const rows = splitTop(latex, (src, i) => {
+      if (src[i] === ':') return 1
+      const m = /^(?:\;)?\\Rightarrow(?:\;)?|^\\quad/.exec(src.slice(i))
+      return m ? m[0].length : 0
+    })
+    return rows
+      .map(r => trimSpace(r.replace(/^:/, '').replace(/^\\quad/, '')))
+      .filter(Boolean)
+      .map(r => splitTop(r, (src, i) => (src[i] === '=' ? 1 : (/^\\approx(?![a-zA-Z])|^\\to(?![a-zA-Z])/.exec(src.slice(i)) ?? [''])[0].length)))
+  }
+  // a few words of the question around a number, for its chip
+  function around(text, tok) {
+    const at = text.indexOf(tok)
+    if (at < 0) return null
+    const left = text.slice(0, at).split(/[.;?!]|, | and | with | of | from /).pop()
+    const right = text.slice(at + tok.length).split(/[.;?!,]| and | with /)[0]
+    const phrase = (left + tok + right).trim()
+    return phrase.length > 44 ? phrase.slice(0, 43) + '…' : phrase
+  }
+
+  function workPanel(p, { sheet = null, auto = false, next = null } = {}) {
+    // lettered options have no numbers to work, just the reason
+    const work = p.options ? null : p.answerLatex ?? null
+    const el = h('div', 'plug')
+    el.append(h('h3', '', work ? 'Show the work' : 'Why'))
+    const rule = h('div', 'plug-line work-rule')
+    if (p.hint?.latex) rule.append(tex(p.hint.latex))
+    const chips = h('div', 'plug-chips')
+    const box = h('div', 'work-rows')
+    const why = p.hint?.text ? h('p', 'plug-sub work-why', p.hint.text) : null
+    el.append(rule, chips, box)
+    if (why) el.append(why)
+    const acts = h('div', 'row-actions')
+    const replay = h('button', 'btn ghost', 'Replay')
+    replay.type = 'button'
+    acts.append(replay)
+    if (next) acts.append(next)
+    el.append(acts)
+
+    // the question's numbers, and which of them the work uses (a colour each)
+    const qNums = [...numberTokens(p.text ?? '', false), ...numberTokens(p.latex ?? '', true, true)].filter(t => linkable(t.val))
+    const rows = work ? workRows(work) : []
+    const lastRow = rows.length - 1
+    // the answer itself is never linked: a result can equal a given number by chance
+    const isAnswer = (r, j) => r === lastRow && j === rows[r].length - 1 && rows[r].length > 1
+    const linkedPart = rows.flatMap((row, r) => row.filter((_, j) => !isAnswer(r, j))).join(' ')
+    const used = []
+    for (const t of numberTokens(linkedPart, true)) {
+      if (!linkable(t.val) || used.some(u => sameNum(u.val, t.val))) continue
+      const q = qNums.find(x => sameNum(x.val, t.val))
+      if (q && used.length < 5) used.push({ val: t.val, tok: q.tok.replace('−', '-'), cls: 'pv' + used.length, where: around(p.text ?? '', q.tok) })
+    }
+    const colorOf = v => used.find(u => sameNum(u.val, v))?.cls
+    const rowTex = (r, n) =>
+      rows[r].slice(0, n).map((c, j) => (isAnswer(r, j) ? `\\class{pvres}{{}${c}}` : wrapNums(c, colorOf))).join('')
+    // the question itself, with the numbers lit up in their colours
+    const story = () => sheet?.querySelector('.story')
+    const qMath = () => sheet?.querySelector('.q-math')
+    function lightQuestion() {
+      if (!sheet || !used.length) return
+      if (p.text && story()) {
+        const para = h('p', 'story')
+        let at = 0
+        for (const t of numberTokens(p.text, false)) {
+          const c = colorOf(t.val)
+          if (!c) continue
+          para.append(document.createTextNode(p.text.slice(at, t.start)), h('mark', 'pvmark ' + c, p.text.slice(t.start, t.end)))
+          at = t.end
+        }
+        para.append(document.createTextNode(p.text.slice(at)))
+        story().replaceWith(para)
+      }
+      if (p.latex && qMath()) {
+        const m = tex(wrapNums(p.latex, colorOf))
+        m.classList.add('q-math')
+        qMath().replaceWith(m)
+      }
+    }
+    const chipFor = u => {
+      let c = chips.querySelector(`[data-v="${u.val}"]`)
+      if (c) return c
+      c = h('span', 'plug-chip ' + u.cls, u.tok)
+      c.dataset.v = String(u.val)
+      c.append(h('small', '', u.where ? `“${u.where}”` : 'in the question'))
+      chips.append(c)
+      return c
+    }
+
+    function showFinal() {
+      if (why) why.hidden = false
+      used.forEach(chipFor)
+      box.replaceChildren(...rows.map((r, i) => {
+        const d = h('div', 'plug-line')
+        d.append(tex(rowTex(i, r.length)))
+        return d
+      }))
+      lightQuestion()
+    }
+    let run = 0
+    async function play() {
+      const me = ++run
+      const alive = () => me === run && el.isConnected
+      chips.replaceChildren()
+      box.replaceChildren()
+      // the reason comes last, under the finished work
+      if (why && rows.length) why.hidden = true
+      rule.classList.remove('enter')
+      void rule.offsetWidth
+      rule.classList.add('enter')
+      lightQuestion()
+      await wait(500)
+      for (const u of used) {
+        if (!alive()) return
+        chipFor(u)
+        tone(semis(523.25, 2), 0, 0.06, 'sine', 0.05)
+        await wait(300)
+      }
+      for (let r = 0; r < rows.length; r++) {
+        const d = h('div', 'plug-line enter')
+        box.append(d)
+        const seen = {}
+        for (let n = 1; n <= rows[r].length; n++) {
+          if (!alive()) return
+          d.replaceChildren(tex(rowTex(r, n)))
+          // the numbers new in this step start hidden, then fly in from their chips
+          const landing = []
+          for (const u of used) {
+            const spots = [...d.querySelectorAll(`svg g.${u.cls}`)]
+            spots.slice(seen[u.cls] ?? 0).forEach(g => {
+              g.style.opacity = '0'
+              landing.push({ g, u })
+            })
+            seen[u.cls] = spots.length
+          }
+          await Promise.all(landing.map(({ g, u }, i) => wait(i * 90).then(() => alive() && fly(chipFor(u), g, u.tok, u.cls)).then(() => {
+            g.style.opacity = ''
+            g.classList.add('glow')
+          })))
+          if (!alive()) return
+          const last = r === lastRow && n === rows[r].length
+          if (last) {
+            d.querySelector('svg g.pvres')?.classList.add('glow')
+            d.classList.remove('enter')
+            void d.offsetWidth
+            d.classList.add('bump')
+            sfx.right(2)
+          } else tone(semis(523.25, 5 + n * 2), 0, 0.08, 'sine', 0.07)
+          await wait(landing.length ? 250 : 600)
+        }
+      }
+      if (why && alive()) {
+        why.hidden = false
+        why.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 400 })
+      }
+    }
+    replay.addEventListener('click', () => {
+      if (reduced()) showFinal()
+      else play()
+    })
+    if (auto && !reduced()) setTimeout(play, 0)
+    else showFinal()
+    return el
+  }
+
   // ---------- tables and formula sheet ----------
   const overlay = document.getElementById('overlay')
   const TAB_NAMES = { binomial19: 'Binomial n = 19', binomial: 'Binomial n = 20', normal: 'Normal z', chi2: 'Chi-squared' }
@@ -2713,6 +2996,8 @@ window.MathJax = {
     clearInk()
     renderBuddy()
   }).observe(document.getElementById('view'), { childList: true })
+  // #dev in the address: the panels, for testing them on their own
+  if (location.hash === '#dev') window.__arcade = { workPanel, plugPanel, treeProblem, buildChoices6, tex, h }
   if (petTick()) setTimeout(() => toast('Devolved…'), 600)
   // a long-open tab gets hungry too
   setInterval(() => {
