@@ -340,19 +340,33 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .twalk { margin-top: 10px; }
 .twalk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 6px 0 10px; }
 .twalk-hint { color: var(--muted); font-size: 0.9rem; }
-.tw .tw-leaf { border: 0; border-left: 3px solid var(--gold); color: var(--ink); font: inherit; font-size: 0.92rem; cursor: pointer; text-align: left; }
-.tw .tw-leaf:hover { background: var(--gold-soft); }
-.tw .oq, .tw .oa, .tw .tw-leaf, .tw .tw-why, .tw .tw-card { transition: opacity 0.35s, background 0.35s, color 0.35s; }
-.tw.walking .oq, .tw.walking .oa, .tw.walking .tw-leaf { opacity: 0.3; }
-.tw.walking .lit { opacity: 1; }
-.tw .oq.lit { background: var(--rule); color: var(--sheet); }
-.tw .oa.lit { background: var(--green-soft); color: var(--ink); border-radius: 6px; padding: 2px 6px; margin-left: -6px; }
-.tw .oa.nope { opacity: 0.18; text-decoration: line-through; }
-.tw .tw-leaf.lit { background: var(--gold); color: #17241c; }
-.tw .here { box-shadow: 0 0 0 3px var(--gold); }
-.tw .tw-why { margin: 4px 0 2px; padding: 6px 10px; border-left: 3px solid var(--green); background: var(--paper); font-size: 0.92rem; animation: line-in 0.35s ease-out; }
-.tw .tw-card { animation: line-in 0.35s ease-out; }
-.tw .tw-card .leafcard { margin-top: 8px; }
+.lineage-scroll { overflow-x: auto; overflow-y: hidden; padding: 4px 0 10px; border: 1px solid var(--rule-soft); border-radius: 12px; background: var(--paper); }
+.lineage { display: block; margin: 0 auto; font-family: var(--body); }
+.lineage .lt-line { fill: none; stroke: var(--rule-soft); stroke-width: 2; }
+.lineage .lt-glow { fill: none; stroke: var(--gold); stroke-width: 3.5; stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0; }
+.lineage .lt-glow.on { opacity: 1; stroke-dashoffset: 0; transition: stroke-dashoffset 0.7s ease-out; }
+.lineage .lt-dot { fill: var(--gold); filter: drop-shadow(0 0 4px var(--gold)); }
+.lineage .lt-node rect { fill: var(--sheet); stroke: var(--rule-soft); stroke-width: 1.5; transition: fill 0.35s, stroke 0.35s; }
+.lineage .lt-node.root rect { stroke: var(--rule); stroke-width: 2; }
+.lineage .lt-node.leaf rect { stroke: var(--gold); }
+.lineage .lt-node.leaf { cursor: pointer; }
+.lineage .lt-node.leaf:hover rect, .lineage .lt-node.leaf:focus-visible rect { fill: var(--gold-soft); }
+.lineage .lt-node { transition: opacity 0.35s; outline: none; }
+.lineage .lt-ans { fill: var(--muted); font-size: 11px; }
+.lineage .lt-q { fill: var(--ink); font-size: 12.5px; font-weight: 700; }
+.lineage .lt-name { fill: var(--ink); font-family: var(--display); font-size: 15px; font-weight: 800; }
+.lineage .lt-sec { fill: var(--muted); font-family: var(--mono); font-size: 10.5px; }
+.lineage.walking .lt-node { opacity: 0.35; }
+.lineage.walking .lt-node.lit { opacity: 1; }
+.lineage .lt-node.nope { opacity: 0.12 !important; }
+.lineage .lt-node.lit rect { fill: var(--green-soft); stroke: var(--green); stroke-width: 2.5; }
+.lineage .lt-node.leaf.lit rect { fill: var(--gold); stroke: var(--gold); }
+.lineage .lt-node.leaf.lit text { fill: #17241c; }
+.lineage .lt-node.here rect { stroke: var(--gold); stroke-width: 3; }
+.lt-caption { margin-top: 10px; padding: 10px 14px; border-left: 4px solid var(--gold); background: var(--paper); border-radius: 0 10px 10px 0; animation: line-in 0.3s ease-out; }
+.lt-caption p { margin: 2px 0; }
+.lt-ask { font-weight: 700; color: var(--rule); }
+.lt-why { color: var(--muted); }
 .tw-open { margin-top: 10px; }
 .leafcard .math-i { font-size: 1.05rem; }
 .choice .val mjx-container { margin: 0 !important; }
@@ -1065,7 +1079,7 @@ window.MathJax = {
     inkClear.hidden = true
     setEraseMode(false)
   }
-  const onControl = e => e.target instanceof Element && e.target.closest('button, input, a, select, textarea, label')
+  const onControl = e => e.target instanceof Element && e.target.closest('button, input, a, select, textarea, label, [role="button"]')
   const sideButton = e => (e.buttons & 34) !== 0 || e.button === 2 || e.button === 5
   // where the pen is on the page: the screen spot plus how far the page is scrolled
   const onPage = e => ({ x: e.clientX + window.scrollX, y: e.clientY + window.scrollY })
@@ -3600,10 +3614,85 @@ window.MathJax = {
     return c
   }
   // ---------- the tree, animated: which distribution, and why ----------
-  // The questions and answers as a tree. Playing a path dims the rest, lights each
-  // question and the answer that leads on (crossing out the others), says why, and
-  // opens the distribution at the end: its formula, when to use it, what X is.
+  // A family-tree chart: the first question on top, each answer a box below its
+  // question, the ten distributions at the ends. Playing a path draws the line down
+  // to each answer, fades the other answers, says why, and opens the distribution.
   function treeWalk({ leaf: only = null } = {}) {
+    const COL = 124, BOXW = 114, ROW = 112, TOP = 8
+    // the nodes: the root question, then one per answer (its next question, or its distribution)
+    const nodes = []
+    const add = (parent, b, depth) => {
+      const n = { parent, depth, answer: b?.a ?? null, more: b?.more ?? '', why: b?.why ?? '', q: b ? b.node?.q ?? null : TREE.q, leaf: b?.leaf ?? null, kids: [] }
+      nodes.push(n)
+      if (parent) parent.kids.push(n)
+      for (const c of (b ? b.node?.branches : TREE.branches) ?? []) add(n, c, depth + 1)
+      return n
+    }
+    const root = add(null, null, 0)
+    // leaves left to right; each parent centred over its children
+    let col = 0
+    const place = n => {
+      if (!n.kids.length) n.x = col++ * COL + COL / 2
+      else {
+        n.kids.forEach(place)
+        n.x = (n.kids[0].x + n.kids[n.kids.length - 1].x) / 2
+      }
+      n.y = TOP + n.depth * ROW
+    }
+    place(root)
+    const W = col * COL, H = TOP + (Math.max(...nodes.map(n => n.depth)) + 1) * ROW
+    const svg = svgEl('svg', { class: 'lineage', width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Decision tree: which distribution' })
+    const lines = svgEl('g')
+    svg.append(lines)
+    // word-wrap for the boxes (SVG text does not wrap)
+    const wrapText = (s, max) => {
+      const out = []
+      let line = ''
+      for (const w of s.split(' ')) {
+        if ((line + ' ' + w).trim().length > max && line) {
+          out.push(line)
+          line = w
+        } else line = (line + ' ' + w).trim()
+      }
+      if (line) out.push(line)
+      return out
+    }
+    for (const n of nodes) {
+      const g = svgEl('g', { class: 'lt-node' + (n.leaf ? ' leaf' : '') + (n === root ? ' root' : '') })
+      const rows = []
+      if (n.answer) rows.push(...wrapText(n.answer, 17).map(t => ['ans', t]))
+      if (n.leaf) rows.push(...wrapText(LEAVES[n.leaf].name.toUpperCase(), 13).map(t => ['name', t]), ['sec', LEAVES[n.leaf].sec])
+      else if (n.q) rows.push(...wrapText(n.q, 17).map(t => ['q', t]))
+      const lh = { ans: 13, q: 15, name: 17, sec: 13 }
+      const hgt = rows.reduce((s, [k]) => s + lh[k], 0) + 14
+      n.h = hgt
+      g.append(svgEl('rect', { x: n.x - BOXW / 2, y: n.y, width: BOXW, height: hgt, rx: 9 }))
+      let ty = n.y + 7
+      for (const [k, t] of rows) {
+        ty += lh[k]
+        g.append(svgEl('text', { x: n.x, y: ty - 3, class: 'lt-' + k, 'text-anchor': 'middle' }, t))
+      }
+      if (n.leaf) {
+        g.setAttribute('role', 'button')
+        g.setAttribute('tabindex', '0')
+        g.setAttribute('aria-label', `Show the path to ${LEAVES[n.leaf].name}`)
+        g.addEventListener('click', () => play([n.leaf]))
+        g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); play([n.leaf]) } })
+      }
+      n.g = g
+      svg.append(g)
+    }
+    // family-tree lines: down from the parent, across, down to the child
+    for (const n of nodes) if (n.parent) {
+      const p = n.parent, y1 = p.y + p.h, mid = y1 + (n.y - y1) / 2
+      const d = `M${p.x},${y1} V${mid} H${n.x} V${n.y}`
+      lines.append(n.line = svgEl('path', { d, class: 'lt-line' }))
+      lines.append(n.glow = svgEl('path', { d, class: 'lt-glow', pathLength: 100 }))
+    }
+    const dot = svgEl('circle', { r: 6, class: 'lt-dot' })
+    dot.style.display = 'none'
+    svg.append(dot)
+
     const wrap = h('div', 'twalk')
     const bar = h('div', 'twalk-bar')
     const playAll = h('button', 'btn', only ? '▶ Play it again' : '▶ Play every path')
@@ -3612,87 +3701,80 @@ window.MathJax = {
     stop.type = 'button'
     stop.hidden = true
     bar.append(playAll, stop, h('span', 'twalk-hint', only ? '' : 'or tap a distribution to see only its path'))
-    const tree = h('div', 'outline tw')
-    const paths = {} // leaf -> the elements from the top question to it
-    const kids = new Map() // question -> its answers
-    function build(node, trail) {
-      const box = h('div')
-      const q = h('span', 'oq tw-q', node.q)
-      box.append(q)
-      const ul = h('ul')
-      const answers = []
-      for (const b of node.branches) {
-        const li = h('li')
-        const a = h('div', 'oa tw-a')
-        a.append(h('b', '', b.a), document.createTextNode(' · ' + b.more))
-        const why = h('p', 'tw-why', b.why)
-        why.hidden = true
-        li.append(a)
-        answers.push(a)
-        if (b.leaf) {
-          const L = LEAVES[b.leaf]
-          const chip = h('button', 'oleaf tw-leaf')
-          chip.type = 'button'
-          chip.append(h('b', '', L.name), document.createTextNode(' ' + L.sec))
-          chip.addEventListener('click', () => play([b.leaf]))
-          const card = h('div', 'tw-card')
-          card.append(leafCard(b.leaf))
-          card.hidden = true
-          li.append(why, chip, card)
-          paths[b.leaf] = [...trail, { q, a, why }, { chip, card }]
-        } else {
-          li.append(why, build(b.node, [...trail, { q, a, why }]))
-        }
-        ul.append(li)
-      }
-      kids.set(q, answers)
-      box.append(ul)
-      return box
-    }
-    tree.append(build(TREE, []))
-    wrap.append(bar, tree)
+    const scroller = h('div', 'lineage-scroll')
+    scroller.append(svg)
+    const caption = h('div', 'lt-caption')
+    caption.hidden = true
+    wrap.append(bar, scroller, caption)
 
-    const all = sel => tree.querySelectorAll(sel)
+    const follow = n => {
+      const want = n.x - scroller.clientWidth / 2
+      scroller.scrollTo({ left: Math.max(0, want), behavior: reduced() ? 'auto' : 'smooth' })
+    }
     function reset() {
-      tree.classList.remove('walking')
-      for (const el of all('.lit, .nope, .here')) el.classList.remove('lit', 'nope', 'here')
-      for (const el of all('.tw-why, .tw-card')) el.hidden = true
+      svg.classList.remove('walking')
+      for (const n of nodes) {
+        n.g.classList.remove('lit', 'nope', 'here')
+        n.glow?.classList.remove('on')
+      }
+      dot.style.display = 'none'
+      caption.hidden = true
+      caption.replaceChildren()
     }
-    const here = el => {
-      for (const x of all('.here')) x.classList.remove('here')
-      el.classList.add('lit', 'here')
-      el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
-    }
-    let run = 0
+    // the dot runs down the line to the child
+    const run = (n, ms) => new Promise(done => {
+      const len = n.glow.getTotalLength()
+      const t0 = performance.now()
+      dot.style.display = ''
+      const step = now => {
+        const k = Math.min(1, (now - t0) / ms)
+        const pt = n.glow.getPointAtLength(len * k)
+        dot.setAttribute('cx', pt.x)
+        dot.setAttribute('cy', pt.y)
+        if (k < 1) requestAnimationFrame(step)
+        else done()
+      }
+      requestAnimationFrame(step)
+      setTimeout(done, ms + 200)
+    })
+    let runId = 0
     async function play(leaves) {
-      const me = ++run
-      const alive = () => me === run && wrap.isConnected
+      const me = ++runId
+      const alive = () => me === runId && wrap.isConnected
       playAll.hidden = true
       stop.hidden = false
       for (const leaf of leaves) {
         reset()
-        tree.classList.add('walking')
-        const steps = paths[leaf]
-        for (const step of steps.slice(0, -1)) {
-          here(step.q)
-          tone(semis(523.25, 4), 0, 0.08, 'sine', 0.06)
-          await wait(reduced() ? 0 : 800)
+        svg.classList.add('walking')
+        const path = []
+        for (let n = nodes.find(x => x.leaf === leaf); n; n = n.parent) path.unshift(n)
+        root.g.classList.add('lit', 'here')
+        follow(root)
+        caption.hidden = false
+        caption.replaceChildren(h('p', 'lt-ask', root.q))
+        tone(semis(523.25, 4), 0, 0.08, 'sine', 0.06)
+        await wait(reduced() ? 0 : 900)
+        for (const n of path.slice(1)) {
           if (!alive()) return
-          for (const other of kids.get(step.q)) if (other !== step.a) other.classList.add('nope')
-          here(step.a)
-          step.why.hidden = false
-          step.why.classList.add('lit')
+          for (const s of n.parent.kids) if (s !== n) s.g.classList.add('nope')
+          n.glow.classList.add('on')
+          follow(n)
+          if (!reduced()) await run(n, 700)
+          if (!alive()) return
+          for (const x of nodes) x.g.classList.remove('here')
+          n.g.classList.add('lit', 'here')
+          const said = h('p', 'lt-said')
+          said.append(h('b', '', n.answer), document.createTextNode(' · ' + n.more))
+          caption.replaceChildren(h('p', 'lt-ask', n.parent.q), said, h('p', 'lt-why', n.why))
           tone(semis(523.25, 9), 0, 0.08, 'sine', 0.06)
-          await wait(reduced() ? 0 : 2000)
-          if (!alive()) return
+          await wait(reduced() ? 0 : n.leaf ? 900 : 2100)
         }
-        const end = steps[steps.length - 1]
-        here(end.chip)
-        end.card.hidden = false
-        end.card.classList.add('lit')
-        end.card.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+        if (!alive()) return
+        dot.style.display = 'none'
+        caption.append(leafCard(leaf))
+        caption.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
         sfx.right(2)
-        await wait(reduced() ? 0 : 4200)
+        await wait(reduced() ? 0 : 4500)
         if (!alive()) return
       }
       playAll.hidden = false
@@ -3700,7 +3782,7 @@ window.MathJax = {
     }
     playAll.addEventListener('click', () => play(only ? [only] : PICK_ORDER))
     stop.addEventListener('click', () => {
-      run++
+      runId++
       reset()
       playAll.hidden = false
       stop.hidden = true
