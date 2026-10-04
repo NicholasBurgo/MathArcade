@@ -595,11 +595,10 @@ window.MathJax = {
   const unit = T2.unit
   const lineByShort = Object.fromEntries(unit.guide.map(g => [g.short, g]))
   const ROUND = 6
-  // a level of its own (not a study-guide line): name the distribution, every chapter
+  // a level of its own (not a study-guide line): name the distribution, every chapter,
+  // from test-style stories with traps
   const TREE_LEVEL = 'Which distribution? (all chapters)'
-  // the same question with test-style stories: longer, with traps
-  const TREE_LEVEL2 = 'Which distribution? Test mode'
-  const isTree = short => short === TREE_LEVEL || short === TREE_LEVEL2
+  const isTree = short => short === TREE_LEVEL
   const REVIEW_NAMES = { 'World 1 review': 1, 'World 2 review': 1, 'World 3 review': 1, 'World 4 review': 1, Everything: 1 }
   // every kind of question a level has (its templates, across its topics)
   const levelKinds = short => (isTree(short) || short in REVIEW_NAMES ? [] : T2.guideTopics(unit, lineByShort[short]).flatMap(t => t.templates.map(tp => ({ t, tp }))))
@@ -613,7 +612,7 @@ window.MathJax = {
       num: 0,
       name: 'The tree',
       blurb: 'Which distribution is it? Every chapter, 3.4 to 4.4.',
-      levels: [TREE_LEVEL, TREE_LEVEL2],
+      levels: [TREE_LEVEL],
     },
     {
       num: 1,
@@ -1381,9 +1380,7 @@ window.MathJax = {
     if (isTree(short)) {
       sheet.classList.add('wide')
       if (!mathReady) mathBoot.then(() => { if (screen === 'card' && mathReady) openCard(short) })
-      sheet.append(h('p', 'paper-note', short === TREE_LEVEL2
-        ? 'Test-style stories with traps: a rate that is really a fixed number of tries, a wait that is really uniform, a gamma that is really chi-squared, a pdf or an MGF to recognise. Ask what X counts or measures, then walk the tree.'
-        : 'Every question starts here. Read the chart left to right: ask if X is a count or a measurement, then what it counts or measures; the answer on the line leads to the distribution. Play the paths to watch it decide.'))
+      sheet.append(h('p', 'paper-note', 'Every question starts here. Read the chart left to right: is X a count or a measurement, then what does it count or measure? The stories are test-style, with traps: a rate that is really a fixed number of tries, a gamma that is really chi-squared, a pdf or an MGF to recognise.'))
       sheet.append(treeWalk(), shapeGuide())
     } else {
       if (isReview(short)) {
@@ -1440,7 +1437,7 @@ window.MathJax = {
         if (next[0] === order[order.length - 1]) next.push(next.shift())
         order.push(...next)
       }
-      for (const leaf of order.slice(0, roundSize(short))) queue.push({ p: treeProblem(leaf, short === TREE_LEVEL2), seen: 0, missed: false })
+      for (const leaf of order.slice(0, roundSize(short))) queue.push({ p: treeProblem(leaf, true), seen: 0, missed: false })
     }
     const topics = isTree(short) ? [] : T2.guideTopics(unit, lineByShort[short])
     const weights = topics.map(t => t.templates.length)
@@ -1466,7 +1463,7 @@ window.MathJax = {
 
   // one question from a level: a distribution story, or one of the level's kinds
   function problemFor(level) {
-    if (isTree(level)) return treeProblem(undefined, level === TREE_LEVEL2)
+    if (isTree(level)) return treeProblem(undefined, true)
     return pickOne(levelKinds(level)).tp.generate()
   }
 
@@ -2037,7 +2034,7 @@ window.MathJax = {
     await mathBoot
     const pick = T2.createFreshPicker()
     const items = BOSS_ORDER.map(short => {
-      if (isTree(short)) return { short, p: treeProblem(undefined, short === TREE_LEVEL2), raw: '', paper: false, result: null }
+      if (isTree(short)) return { short, p: treeProblem(undefined, true), raw: '', paper: false, result: null }
       const topics = T2.guideTopics(unit, lineByShort[short])
       // a question that can be answered without its options, when the level has one
       let p
