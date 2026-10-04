@@ -391,6 +391,8 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .shape-row .math-d { padding: 2px 0; text-align: left; font-size: 1.1rem; }
 .shape-row mjx-container[display="true"] { text-align: left !important; }
 .shape-card .read-note { font-weight: 600; font-size: 0.95rem; }
+.shape-card.open { grid-column: 1 / -1; }
+.shape-card > .tool { margin-top: 8px; }
 .mgf { margin: 10px 0; padding: 10px 14px; border: 1.5px solid var(--rule-soft); border-radius: 10px; background: var(--paper); }
 .mgf-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-bottom: 6px; }
 .mgf-head b { font-family: var(--display); font-size: 1.4rem; }
@@ -3971,6 +3973,16 @@ window.MathJax = {
       }
       const parts = [...sh.notes.map(([k, t]) => h('p', `read-note pv${k}`, t)), h('p', 'read-shape', '→ ' + sh.verdict)]
       card.append(top, row('Shape', sh.general), row('Example', sh.example), ...parts)
+      const from = { normal: 'normal', gamma: 'gamma', chi: 'chi', exponential: 'expB', geometric: 'geo' }[sh.leaf]
+      if (sh.kind === 'MGF' && from) {
+        const b = h('button', 'tool', 'Where it comes from')
+        b.type = 'button'
+        b.addEventListener('click', () => {
+          card.classList.add('open')
+          b.replaceWith(mgfPlayer(BUILDS[from](), { auto: true }))
+        })
+        card.append(b)
+      }
       list.append(card)
       return { card, parts }
     })
