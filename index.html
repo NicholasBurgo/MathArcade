@@ -348,6 +348,25 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .work-rule { color: var(--muted); }
 .work-rule.enter { animation: line-in 0.35s ease-out; }
 .work-why { margin-top: 8px; }
+.dgraph-wrap { margin: 12px 0 4px; }
+.graph-title { font: 600 0.85rem var(--mono); color: var(--ink); margin-top: 2px; }
+.dgraph { display: block; width: 100%; max-width: 560px; margin-top: 4px; background: var(--sheet); border: 1px solid var(--rule-soft); border-radius: 8px; overflow: visible; }
+.dgraph .axis { stroke: var(--muted); stroke-width: 1; }
+.dgraph .tick { fill: var(--muted); font: 600 9px var(--mono); }
+.dgraph .tick.hit { fill: var(--ink); }
+.dgraph .axis-name { fill: var(--muted); font: italic 10px var(--body); }
+.dgraph .val { fill: var(--ink); font: 700 10px var(--mono); }
+.dgraph .bar { fill: color-mix(in srgb, var(--rule) 55%, transparent); }
+.dgraph .bar.hit { fill: var(--gold); }
+.dgraph .curve { fill: none; stroke: var(--rule); stroke-width: 2; }
+.dgraph .shade { fill: color-mix(in srgb, var(--gold) 45%, transparent); }
+.dgraph .mark { stroke: var(--gold); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.dgraph.play .bar { transform-box: fill-box; transform-origin: bottom; animation: bar-up 0.45s ease-out both; animation-delay: calc(var(--i) * 35ms); }
+.dgraph.play .curve { stroke-dasharray: 1000; animation: draw 1.1s ease-out both; }
+.dgraph.play .shade, .dgraph.play .val, .dgraph.play .mark { animation: fade-in 0.4s ease-out 1s both; }
+@keyframes bar-up { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes draw { from { stroke-dashoffset: 1000; } to { stroke-dashoffset: 0; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 .tlook { margin: 10px 0 4px; }
 .tlook-scroll { overflow-x: auto; overflow-y: hidden; margin-top: 4px; border: 1px solid var(--rule-soft); border-radius: 8px; background: var(--sheet); }
 .tlook-table { border-collapse: collapse; font-family: var(--mono); font-size: 0.82rem; white-space: nowrap; }
@@ -2601,6 +2620,148 @@ window.MathJax = {
     return t.rows[g - 1].values[t.cols.indexOf(fmt(col))]
   }
 
+  // ---------- the graph: the distribution with the story's numbers ----------
+  const lgamma = z => {
+    if (z < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * z)) - lgamma(1 - z)
+    const c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7]
+    z -= 1
+    let x = c[0]
+    for (let i = 1; i < 9; i++) x += c[i] / (z + i)
+    const t = z + 7.5
+    return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x)
+  }
+  const gammaPdf = (x, a, b) => (x <= 0 ? 0 : Math.exp((a - 1) * Math.log(x) - x / b - lgamma(a) - a * Math.log(b)))
+  // what to draw for each distribution: bars (counting) or a curve (measuring),
+  // which bar or area the story asked about, and a title with the parameters
+  function graphOf(leaf, v, txt = {}) {
+    const say = k => txt[k] ?? fmt(v[k])
+    const range = (lo, hi) => Array.from({ length: hi - lo + 1 }, (_, i) => lo + i)
+    const upTo = (lo, pmf, cap) => {
+      let x = lo, cum = 0
+      while (cum < 0.985 && x - lo < cap) cum += pmf(x++)
+      return x
+    }
+    const bars = (title, xs, pmf, at) => ({ kind: 'bars', title, xs, ys: xs.map(pmf), at, atLabel: `f(${at}) ≈ ${+pmf(at).toPrecision(3)}` })
+    switch (leaf) {
+      case 'binomial': {
+        const pmf = x => choose(v.n, x) * v.p ** x * v.q ** (v.n - x)
+        return bars(`binomial · n = ${v.n}, p = ${fmt(v.p)}`, range(0, v.n), pmf, v.x)
+      }
+      case 'geometric': {
+        const pmf = x => v.q ** (x - 1) * v.p
+        return bars(`geometric · p = ${fmt(v.p)}`, range(1, Math.max(v.x + 2, upTo(1, pmf, 24))), pmf, v.x)
+      }
+      case 'negbin': {
+        const pmf = x => choose(x - 1, v.r - 1) * v.p ** v.r * v.q ** (x - v.r)
+        return bars(`negative binomial · r = ${v.r}, p = ${fmt(v.p)}`, range(v.r, Math.max(v.x + 2, upTo(v.r, pmf, 30))), pmf, v.x)
+      }
+      case 'hyper': {
+        const pmf = x => (choose(v.r, x) * choose(v.N - v.r, v.n - x)) / choose(v.N, v.n)
+        return bars(`hypergeometric · N = ${v.N}, r = ${v.r}, n = ${v.n}`, range(Math.max(0, v.n - (v.N - v.r)), Math.min(v.n, v.r)), pmf, v.x)
+      }
+      case 'poisson': {
+        const pmf = x => (Math.exp(-v.k) * v.k ** x) / fact(x)
+        return bars(`Poisson · k = ${fmt(v.k)}`, range(0, Math.max(v.x + 2, upTo(0, pmf, 26))), pmf, v.x)
+      }
+      case 'uniform': {
+        const w = v.B - v.A
+        return { kind: 'curve', title: `uniform · A = ${v.A}, B = ${v.B}`, lo: v.A - 0.2 * w, hi: v.B + 0.2 * w, pdf: x => (x >= v.A && x <= v.B ? 1 / w : 0), ticks: [v.A, v.B], flat: true, note: `height 1/(B − A) = 1/${fmt(w)}` }
+      }
+      case 'exponential': {
+        const hi = Math.max(-Math.log(0.01) / v.lam, v.t * 1.6)
+        return { kind: 'curve', title: `exponential · λ = ${say('lam')}`, lo: 0, hi, pdf: x => (x < 0 ? 0 : v.lam * Math.exp(-v.lam * x)), shade: [v.t, hi], ticks: [0, v.t], note: `shaded: P(X > ${fmt(v.t)}) ≈ ${+Math.exp(-v.lam * v.t).toPrecision(3)}` }
+      }
+      case 'gamma': {
+        const m = v.al * v.be, sd = Math.sqrt(v.al) * v.be
+        return { kind: 'curve', title: `gamma · α = ${v.al}, β = ${say('be')}`, lo: 0, hi: m + 4 * sd, pdf: x => gammaPdf(x, v.al, v.be), ticks: [0, m], note: `mean αβ = ${fmt(m)}` }
+      }
+      case 'chi': {
+        const g = v.ga, hi = g + 5 * Math.sqrt(2 * g)
+        const pdf = x => gammaPdf(x, g / 2, 2)
+        if ('ra' in v) {
+          const cs = chiEntry(g, 1 - v.ra), c = +cs
+          return { kind: 'curve', title: `chi-squared · γ = ${g}`, lo: 0, hi: Math.max(hi, c * 1.15), pdf, shade: [c, Math.max(hi, c * 1.15)], ticks: [0, c], note: `shaded: the right area ${fmt(v.ra)}, past c = ${cs}` }
+        }
+        return { kind: 'curve', title: `chi-squared · γ = ${g}`, lo: 0, hi, pdf, ticks: [0, g], note: `mean γ = ${g}` }
+      }
+      case 'normal': {
+        const z2 = +((v.x - v.mu) / v.sig).toFixed(2)
+        return { kind: 'curve', title: `normal · μ = ${fmt(v.mu)}, σ = ${fmt(v.sig)}`, lo: v.mu - 3.5 * v.sig, hi: v.mu + 3.5 * v.sig, pdf: x => Math.exp(-((x - v.mu) ** 2) / (2 * v.sig ** 2)) / (v.sig * Math.sqrt(2 * Math.PI)),
+          shade: [v.mu - 3.5 * v.sig, v.x], ticks: [v.mu - 2 * v.sig, v.mu - v.sig, v.mu, v.mu + v.sig, v.mu + 2 * v.sig], mark: v.x, note: `shaded: P(X < ${fmt(v.x)}) = ${normEntry(z2)}` }
+      }
+    }
+    return null
+  }
+  const SVGNS = 'http://www.w3.org/2000/svg'
+  const svgEl = (tag, attrs = {}, text) => {
+    const e = document.createElementNS(SVGNS, tag)
+    for (const [k, val] of Object.entries(attrs)) e.setAttribute(k, val)
+    if (text != null) e.textContent = text
+    return e
+  }
+  const tickText = x => String(+(+x).toPrecision(4))
+  function distGraph(leaf, v, txt) {
+    const g = graphOf(leaf, v, txt)
+    if (!g) return null
+    const W = 340, H = 180, L = 34, R = 12, Tp = 18, B = 30, pw = W - L - R, ph = H - Tp - B
+    const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, class: 'dgraph', role: 'img', 'aria-label': `Graph of the ${g.title} distribution` })
+    svg.append(svgEl('line', { x1: L, y1: Tp + ph, x2: L + pw, y2: Tp + ph, class: 'axis' }))
+    svg.append(svgEl('line', { x1: L, y1: Tp, x2: L, y2: Tp + ph, class: 'axis' }))
+    if (g.kind === 'bars') {
+      const top = Math.max(...g.ys) * 1.12
+      const slot = pw / g.xs.length
+      const every = Math.ceil(g.xs.length / 12)
+      g.xs.forEach((x, i) => {
+        const hgt = (g.ys[i] / top) * ph
+        const hit = x === g.at
+        const bar = svgEl('rect', { x: L + i * slot + slot * 0.15, y: Tp + ph - hgt, width: Math.max(1, slot * 0.7), height: Math.max(0, hgt), class: 'bar' + (hit ? ' hit' : '') })
+        bar.style.setProperty('--i', i)
+        svg.append(bar)
+        if (hit || i % every === 0) svg.append(svgEl('text', { x: L + (i + 0.5) * slot, y: Tp + ph + 13, class: 'tick' + (hit ? ' hit' : ''), 'text-anchor': 'middle' }, String(x)))
+        if (hit) {
+          const lx = Math.min(Math.max(L + (i + 0.5) * slot, L + 40), L + pw - 40)
+          svg.append(svgEl('text', { x: lx, y: Math.max(Tp + 10, Tp + ph - hgt - 6), class: 'val', 'text-anchor': 'middle' }, g.atLabel))
+        }
+      })
+      svg.append(svgEl('text', { x: L - 4, y: Tp + 4, class: 'tick', 'text-anchor': 'end' }, String(+top.toPrecision(2))))
+      svg.append(svgEl('text', { x: L + pw / 2, y: H - 3, class: 'axis-name', 'text-anchor': 'middle' }, 'x'))
+    } else {
+      const N = 160, xs = Array.from({ length: N + 1 }, (_, i) => g.lo + ((g.hi - g.lo) * i) / N)
+      const ys = xs.map(g.pdf)
+      const top = Math.max(...ys) * 1.15
+      const X = x => L + ((x - g.lo) / (g.hi - g.lo)) * pw
+      const Y = y => Tp + ph - (y / top) * ph
+      if (g.shade) {
+        const [a, b] = g.shade
+        const pts = xs.filter(x => x >= a && x <= b)
+        const poly = [[a, 0], [a, g.pdf(a)], ...pts.map(x => [x, g.pdf(x)]), [b, g.pdf(b)], [b, 0]]
+        svg.append(svgEl('path', { d: 'M' + poly.map(([x, y]) => `${X(x).toFixed(1)},${Y(y).toFixed(1)}`).join(' L') + ' Z', class: 'shade' }))
+      }
+      const d = g.flat
+        ? `M${X(g.lo)},${Y(0)} L${X(v.A)},${Y(0)} L${X(v.A)},${Y(g.pdf(v.A))} L${X(v.B)},${Y(g.pdf(v.B))} L${X(v.B)},${Y(0)} L${X(g.hi)},${Y(0)}`
+        : 'M' + xs.map((x, i) => `${X(x).toFixed(1)},${Y(ys[i]).toFixed(1)}`).join(' L')
+      svg.append(svgEl('path', { d, class: 'curve', pathLength: 1000 }))
+      for (const t of g.ticks) {
+        svg.append(svgEl('line', { x1: X(t), y1: Tp + ph, x2: X(t), y2: Tp + ph + 4, class: 'axis' }))
+        svg.append(svgEl('text', { x: X(t), y: Tp + ph + 15, class: 'tick', 'text-anchor': 'middle' }, tickText(t)))
+      }
+      if (g.mark != null) svg.append(svgEl('line', { x1: X(g.mark), y1: Tp, x2: X(g.mark), y2: Tp + ph, class: 'mark' }))
+      if (g.shade) svg.append(svgEl('line', { x1: X(g.shade[0] === g.lo ? g.shade[1] : g.shade[0]), y1: Tp + 4, x2: X(g.shade[0] === g.lo ? g.shade[1] : g.shade[0]), y2: Tp + ph, class: 'mark' }))
+    }
+    const wrap = h('div', 'dgraph-wrap')
+    // the title keeps its case: capital μ and σ would read as M and Σ
+    wrap.append(h('div', 'piece-label', 'The graph'), h('div', 'graph-title', g.title), svg)
+    if (g.note) wrap.append(h('p', 'tlook-cap', g.note))
+    return {
+      el: wrap,
+      async play(alive) {
+        svg.classList.add('play')
+        await wait(g.kind === 'bars' ? Math.min(1400, 400 + g.xs.length * 35) : 1500)
+        if (alive()) tone(semis(523.25, 14), 0, 0.12, 'sine', 0.07)
+      },
+    }
+  }
+
   const wait = ms => new Promise(r => setTimeout(r, ms))
   // send a copy of a chip's number from the chip to a spot in the formula
   function fly(fromEl, toEl, text, cls) {
@@ -2636,6 +2797,7 @@ window.MathJax = {
     // a number the story only implies gets its own line of work, just before it is used
     const val = Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, v.val]))
     const T = Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, v.tex]))
+    const TXT = Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, v.txt]))
     const lines = []
     for (const line of PLUG[p.leaf]) {
       if (line.when && !line.when(val)) continue
@@ -2732,6 +2894,8 @@ window.MathJax = {
         d.append(tex(lineTex(line, new Set(line.order), Infinity)))
         box.append(d)
       }
+      const gr = distGraph(p.leaf, val, TXT)
+      if (gr) box.append(gr.el)
       if (sheet && p.clue) story()?.replaceWith(storyEl({ text: p.text, clue: p.clue }, true))
     }
     let run = 0
@@ -2799,6 +2963,13 @@ window.MathJax = {
         // a worked-out number becomes a chip, ready to plug in
         if (line.key) chipFor(line.key).animate([{ transform: 'scale(1.25)' }, { transform: 'none' }], { duration: 350 })
         await wait(550)
+      }
+      // last, the picture: the distribution with these numbers, and the part asked about
+      const gr = alive() && distGraph(p.leaf, val, TXT)
+      if (gr) {
+        box.append(gr.el)
+        gr.el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+        await gr.play(alive)
       }
       if (alive() && sheet && p.clue) story()?.replaceWith(storyEl({ text: p.text, clue: p.clue }, true))
     }
@@ -3132,7 +3303,7 @@ window.MathJax = {
     const leftClause = text.slice(0, q.start).split(/[.;?!]\s|, | and | with /).pop()
     const rightClause = text.slice(q.end).split(/[.;?!,]| and | with /)[0]
     let left = (leftClause.match(/(?:\S+\s+){0,3}$/) ?? [''])[0]
-    const right = (rightClause.match(/^\S*(?:\s+\S+){0,2}/) ?? [''])[0]
+    const right = (rightClause.match(/^\S*(?:\s+\S+){0,3}/) ?? [''])[0]
     // a bare number ("an IQ score of 93?"): reach back past the clause break
     if (!left.trim() && !right.trim()) left = (text.slice(0, q.start).match(/(?:\S+\s+){0,4}$/) ?? [''])[0]
     return (left + tok + right).trim()
@@ -3520,7 +3691,7 @@ window.MathJax = {
     renderBuddy()
   }).observe(document.getElementById('view'), { childList: true })
   // #dev in the address: the panels, for testing them on their own
-  if (location.hash === '#dev') window.__arcade = { workPanel, plugPanel, treeProblem, buildChoices6, tex, h }
+  if (location.hash === '#dev') window.__arcade = { workPanel, plugPanel, treeProblem, buildChoices6, tex, h, distGraph, graphOf }
   if (petTick()) setTimeout(() => toast('Devolved…'), 600)
   // a long-open tab gets hungry too
   setInterval(() => {
