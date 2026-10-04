@@ -2139,16 +2139,16 @@ window.MathJax = {
 
   // ---------- the tree: which distribution, every chapter ----------
   const LEAVES = {
-    poisson: { name: 'Poisson', sec: '§3.8', tex: '\\displaystyle f(x) = \\frac{e^{-k}k^{x}}{x!}', use: 'calls to a help desk in a 30-minute window', x: 'a count: 0, 1, 2, …', key: 'k = rate × amount (4/hr × ½ hr = 2)' },
-    hyper: { name: 'Hypergeometric', sec: '§3.7', tex: '\\displaystyle f(x) = \\frac{\\binom{r}{x}\\binom{N-r}{n-x}}{\\binom{N}{n}}', use: '10 laptops, 3 bad, you test 4', x: 'successes grabbed: max(0, n − (N − r)) … min(n, r)', key: 'N in the group, r successes in it, n grabbed' },
-    binomial: { name: 'Binomial', sec: '§3.5', tex: '\\displaystyle f(x) = \\binom{n}{x}p^{x}q^{\\,n-x}', use: 'guessing on all 12 questions of a quiz', x: 'successes: 0, 1, …, n', key: 'C(n, x)·pˣ·qⁿ⁻ˣ · tables for n = 19, 20' },
-    geometric: { name: 'Geometric', sec: '§3.4', tex: '\\displaystyle f(x) = q^{\\,x-1}p', use: 'calling customers until the first sale', x: 'tries: 1, 2, 3, …', key: 'f(x) = qˣ⁻¹p · F(x) = 1 − qˣ' },
-    negbin: { name: 'Negative binomial', sec: '§3.6', tex: '\\displaystyle f(x) = \\binom{x-1}{r-1}p^{r}q^{\\,x-r}', use: 'making lots until the r-th defective one (2nd, 3rd, …)', x: 'tries: r, r + 1, …', key: '(r − 1 successes in x − 1 tries) × p · r = which success it stops at' },
-    uniform: { name: 'Uniform', sec: '§4.1', tex: '\\displaystyle f(x) = \\frac{1}{B-A}', use: 'a bus shows up anytime in the next 10 minutes', x: 'anywhere in [A, B]', key: 'f(x) = 1/(B − A) · probability = length ÷ length' },
-    exponential: { name: 'Exponential', sec: '§4.3', tex: '\\displaystyle f(x) = \\lambda e^{-\\lambda x}', use: 'the wait for the first call at 3 per hour', x: 'a wait, any time > 0', key: 'f(x) = λe^(−λx) = (1/β)e^(−x/β), β = 1/λ · P(X > t) = e^(−λt)' },
-    gamma: { name: 'Gamma', sec: '§4.3', tex: '\\displaystyle f(x) = \\frac{x^{\\alpha-1}e^{-x/\\beta}}{\\Gamma(\\alpha)\\,\\beta^{\\alpha}}', use: 'the wait for the α-th call (2nd, 3rd, 10th, …)', x: 'a wait, any time > 0', key: 'α = which event you wait for, β = 1 ÷ rate · mean αβ, variance αβ² · Γ(n + 1) = n!' },
-    chi: { name: 'Chi-squared', sec: '§4.3', tex: '\\displaystyle \\text{gamma with } \\alpha = \\tfrac{\\gamma}{2},\\ \\beta = 2', use: 'find χ²₀.₀₅ with γ = 10 (it is 18.3)', x: 'a χ² value > 0', key: 'gamma with α = γ/2, β = 2 · read the table' },
-    normal: { name: 'Normal', sec: '§4.4', tex: '\\displaystyle f(x) = \\frac{1}{\\sqrt{2\\pi}\\,\\sigma}e^{-(x-\\mu)^2/2\\sigma^2}', use: 'IQ: μ = 100, σ = 15, what percentile is 139?', x: 'any number', key: 'z = (x − μ)/σ → z-table → left area' },
+    poisson: { name: 'Poisson', sec: '§3.8', tex: '\\displaystyle f(x) = \\frac{e^{-k}k^{x}}{x!}', use: 'how many events land in a window, at any average rate (e.g. calls in 30 minutes, typos on a page, flaws per km)', x: 'a count: 0, 1, 2, … (no upper limit)', key: 'k = λs = rate × size of the window, same units (e.g. 4/hr × ½ hr = 2)' },
+    hyper: { name: 'Hypergeometric', sec: '§3.7', tex: '\\displaystyle f(x) = \\frac{\\binom{r}{x}\\binom{N-r}{n-x}}{\\binom{N}{n}}', use: 'grab n from a group of N that holds r successes, no putting back (e.g. test 4 of 10 laptops, 3 bad)', x: 'successes grabbed: max(0, n − (N − r)) … min(n, r)', key: 'N in the group, r successes in it, n grabbed' },
+    binomial: { name: 'Binomial', sec: '§3.5', tex: '\\displaystyle f(x) = \\binom{n}{x}p^{x}q^{\\,n-x}', use: 'a set number n of independent tries, same p each; X counts successes (e.g. guessing on all 12 quiz questions)', x: 'successes: 0, 1, …, n', key: 'C(n, x)·pˣ·qⁿ⁻ˣ · tables for n = 19, 20' },
+    geometric: { name: 'Geometric', sec: '§3.4', tex: '\\displaystyle f(x) = q^{\\,x-1}p', use: 'independent tries until the FIRST success, any p; X counts the tries (e.g. calls until the first sale)', x: 'tries: 1, 2, 3, …', key: 'f(x) = qˣ⁻¹p · F(x) = 1 − qˣ' },
+    negbin: { name: 'Negative binomial', sec: '§3.6', tex: '\\displaystyle f(x) = \\binom{x-1}{r-1}p^{r}q^{\\,x-r}', use: 'independent tries until the r-th success (2nd, 3rd, …), any p; X counts the tries (e.g. lots until the 3rd defective one)', x: 'tries: r, r + 1, …', key: '(r − 1 successes in x − 1 tries) × p · r = which success it stops at' },
+    uniform: { name: 'Uniform', sec: '§4.1', tex: '\\displaystyle f(x) = \\frac{1}{B-A}', use: 'every value from A to B equally likely, any A < B (e.g. a bus anytime in the next 10 minutes)', x: 'anywhere in [A, B]', key: 'f(x) = 1/(B − A) · probability = length ÷ length' },
+    exponential: { name: 'Exponential', sec: '§4.3', tex: '\\displaystyle f(x) = \\lambda e^{-\\lambda x}', use: 'the wait until the FIRST (or next) event, at any rate λ; also the time between events, or a memoryless lifetime (e.g. the first call, at 3 per hour)', x: 'a wait, any time > 0', key: 'f(x) = λe^(−λx) = (1/β)e^(−x/β), β = 1/λ · P(X > t) = e^(−λt)' },
+    gamma: { name: 'Gamma', sec: '§4.3', tex: '\\displaystyle f(x) = \\frac{x^{\\alpha-1}e^{-x/\\beta}}{\\Gamma(\\alpha)\\,\\beta^{\\alpha}}', use: 'the wait until the α-th event (2nd, 3rd, 10th, …), at any rate (e.g. the 4th call, at 6 per hour)', x: 'a wait, any time > 0', key: 'α = which event you wait for, β = 1 ÷ rate · mean αβ, variance αβ² · Γ(n + 1) = n!' },
+    chi: { name: 'Chi-squared', sec: '§4.3', tex: '\\displaystyle \\text{gamma with } \\alpha = \\tfrac{\\gamma}{2},\\ \\beta = 2', use: 'named χ² with γ degrees of freedom, or a gamma with β = 2; values come from the table (e.g. χ²₀.₀₅ with γ = 10 is 18.3)', x: 'a χ² value > 0', key: 'gamma with α = γ/2, β = 2 · read the table' },
+    normal: { name: 'Normal', sec: '§4.4', tex: '\\displaystyle f(x) = \\frac{1}{\\sqrt{2\\pi}\\,\\sigma}e^{-(x-\\mu)^2/2\\sigma^2}', use: 'a bell curve with any mean μ and standard deviation σ (e.g. IQ: μ = 100, σ = 15)', x: 'any number', key: 'z = (x − μ)/σ → z-table → left area' },
   }
   // each branch: the answer, why it fits, and where it leads
   const TREE = {
@@ -2160,7 +2160,7 @@ window.MathJax = {
         node: {
           q: 'What’s the story?',
           branches: [
-            { a: 'Events at a rate', more: '“4 per hour”, “per page”', why: 'An average rate over time or space, with no separate tries: Poisson.', leaf: 'poisson' },
+            { a: 'Events at a rate', more: '“λ per hour”, “per page”, “per mile”: any rate', why: 'An average rate over time or space, with no separate tries: Poisson.', leaf: 'poisson' },
             { a: 'Grab from a group', more: 'no putting back', why: 'A fixed group, and what you take is not put back: hypergeometric.', leaf: 'hyper' },
             {
               a: 'Repeated tries', more: 'independent, same p each try',
@@ -2168,7 +2168,7 @@ window.MathJax = {
               node: {
                 q: 'What’s fixed?',
                 branches: [
-                  { a: 'The number of tries', more: '“out of 12”, “20 times”', why: 'The tries are set in advance and X counts successes: binomial.', leaf: 'binomial' },
+                  { a: 'The number of tries', more: '“out of n”, “n times”: n is set first', why: 'The tries are set in advance and X counts successes: binomial.', leaf: 'binomial' },
                   {
                     a: 'The number of successes', more: 'keep going “until …”',
                     why: 'You keep going until a set number of successes, and X counts the tries.',
@@ -2192,14 +2192,14 @@ window.MathJax = {
         node: {
           q: 'What’s the story?',
           branches: [
-            { a: 'Every value equally likely', more: '“anywhere from 0 to 10”', why: 'Flat: every value in an interval is equally likely: uniform.', leaf: 'uniform' },
+            { a: 'Every value equally likely', more: '“anywhere from A to B”', why: 'Flat: every value in an interval is equally likely: uniform.', leaf: 'uniform' },
             {
               a: 'A waiting time', more: 'events arrive at rate λ',
               why: 'X is how long you wait for events that arrive at a rate: the gamma family.',
               node: {
                 q: 'Waiting for which event?',
                 branches: [
-                  { a: 'The first', more: '“until the first call”', why: 'The wait for the first event: exponential. (That is also gamma with α = 1, but name the special case.)', leaf: 'exponential' },
+                  { a: 'The first', more: '“until the first / next …”, “time between …”', why: 'The wait for the first (or next) event, at any rate λ: exponential. (That is also gamma with α = 1, but name the special case.)', leaf: 'exponential' },
                   { a: 'The α-th', more: '“until the 2nd, 3rd, … call”', why: 'The wait for the 2nd, 3rd, … event: gamma.', leaf: 'gamma' },
                 ],
               },
