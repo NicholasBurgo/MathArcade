@@ -1512,9 +1512,9 @@ window.MathJax = {
     const picked = []
     for (const c of [...(p.distractors ?? []), ...generic]) {
       if (picked.length === WRONG) break
-      if (!Number.isFinite(c) || Math.abs(c - a) < tol || (a >= 0 && c < 0)) continue
+      if (!Number.isFinite(c) || Math.abs(c - a) <= tol * (1 + 1e-9) || (a >= 0 && c < 0)) continue
       const l = fmtChoice(c)
-      if (used.has(l) || Math.abs(parseFloat(l) - a) < tol) continue
+      if (used.has(l) || Math.abs(parseFloat(l) - a) <= tol * (1 + 1e-9)) continue
       used.add(l)
       picked.push(c)
     }
@@ -1522,13 +1522,23 @@ window.MathJax = {
     while (picked.length < WRONG) {
       const c = a + (Number.isInteger(a) ? bump : bump * 0.15)
       const l = fmtChoice(c)
-      if (!used.has(l) && Math.abs(parseFloat(l) - a) >= tol) {
+      if (!used.has(l) && Math.abs(parseFloat(l) - a) > tol * (1 + 1e-9)) {
         used.add(l)
         picked.push(c)
       }
       bump += 1
     }
     return shuffleArr([{ label: fmtChoice(a), correct: true }, ...picked.map(v => ({ label: fmtChoice(v), correct: false }))])
+  }
+  // typed answers: the class app's check, except that "16" for 0.16 needs the % sign,
+  // so a reciprocal slip (10 for 0.1) or a missing decimal is not marked right
+  function checkTyped(raw, p) {
+    const ok = T2.checkAnswer(raw, p)
+    if (!ok || p.accept || typeof p.answer !== 'number' || /%/.test(raw)) return ok
+    let t = String(raw).trim().toLowerCase().replace(/\s+/g, '').replace(/^[a-z]=/, '').replace(',', '.')
+    const f = t.match(/^(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)$/)
+    const n = f ? (Number(f[2]) === 0 ? null : Number(f[1]) / Number(f[2])) : t !== '' && Number.isFinite(Number(t)) ? Number(t) : null
+    return n !== null && Math.abs(n - p.answer) < (p.tolerance ?? 1e-6)
   }
   function choicesFor(p) {
     return buildChoices6(p).map(c => {
@@ -1791,7 +1801,7 @@ window.MathJax = {
     check.addEventListener('click', () => {
       const raw = box.value()
       if (!raw) return box.input?.focus()
-      settle(T2.checkAnswer(raw, p), false)
+      settle(checkTyped(raw, p), false)
     })
     show.addEventListener('click', () => {
       // look at the answer, then be honest about it
@@ -2011,7 +2021,7 @@ window.MathJax = {
     boss.end = Date.now()
     stopClock()
     for (const it of boss.items) {
-      if (it.raw && typeable(it.p)) it.result = T2.checkAnswer(it.raw, it.p) ? 'ok' : 'bad'
+      if (it.raw && typeable(it.p)) it.result = checkTyped(it.raw, it.p) ? 'ok' : 'bad'
     }
     renderReview()
   }
@@ -2518,7 +2528,7 @@ window.MathJax = {
   }
   // a window of one printed table: the row lights up, then the column, and they meet
   // at the entry; reverse (an area to find) lights the entry first, then its edges
-  function tableLook({ name, row, col, target = null }) {
+  function tableLook({ name, row, col, target = null, halfway = null }) {
     tables ??= unit.printedTables()
     const t = tables[name]
     const ri = t.rows.findIndex(r => r.label === row)
@@ -2563,7 +2573,9 @@ window.MathJax = {
     let cap
     if (name === 'normal') {
       const z = (row.startsWith('-') ? '-' : '') + (Math.abs(+row) + +col).toFixed(2)
-      cap = target != null
+      cap = halfway
+        ? `${target} is exactly halfway between ${normEntry(halfway[0])} (z = ${halfway[0].toFixed(2)}) and ${normEntry(halfway[1])} (z = ${halfway[1].toFixed(2)}), so use the z halfway between them: ${((halfway[0] + halfway[1]) / 2).toFixed(3)}. This window shows ${entry} (z = ${z}).`
+        : target != null
         ? `Look in the body for the entry closest to ${target}: ${entry}. Its row ${row} and column ${col} make z = ${z}.`
         : `Row ${row} (z cut off after one decimal, not rounded) and column ${col} (its second decimal) make z = ${z}. They meet at ${entry}, the area to the LEFT: P(Z < ${z}) = ${entry}.`
     } else if (name === 'chi2') {
@@ -3316,7 +3328,9 @@ window.MathJax = {
     const leftClause = text.slice(0, q.start).split(/[.;?!]\s|, | and | with /).pop()
     const rightClause = text.slice(q.end).split(/[.;?!,]| and | with /)[0]
     let left = (leftClause.match(/(?:\S+\s+){0,3}$/) ?? [''])[0]
-    const right = (rightClause.match(/^\S*(?:\s+\S+){0,3}/) ?? [''])[0]
+    let right = (rightClause.match(/^\S*(?:\s+\S+){0,4}/) ?? [''])[0]
+    // never stop on a little word ("… of them are")
+    while (/\s(?:the|a|an|of|to|in|on|at|is|are|was|were|who|that|them|and|or|with|by|for|from|did)$/i.test(right)) right = right.replace(/\s+\S+$/, '')
     // a bare number ("an IQ score of 93?"): reach back past the clause break
     if (!left.trim() && !right.trim()) left = (text.slice(0, q.start).match(/(?:\S+\s+){0,4}$/) ?? [''])[0]
     return (left + tok + right).trim()
@@ -3341,7 +3355,10 @@ window.MathJax = {
       for (const m of work.matchAll(/(-?[\d.]+)\s*\\text\{ is the entry at \}/g)) back.push({ target: m[1], entry: (+m[1]).toFixed(4) })
       // "left area A: z = …": the entry closest to A
       const areas = [...work.matchAll(/left area \}\s*(\d*\.?\d+)/g)].map(m => m[1])
-      const zs = [...toks(work), ...toks(p.latex)].filter(t => /^-?\d(\.\d\d?)?$/.test(t.tok.replace('−', '-')) && Math.abs(t.val) < 4)
+      // a z: two decimals, or anything written as "z = …"; never a row or column label
+      const isZ = (src, t) => !/\\text\{(?:row|column) \}\s*$/.test(src.slice(0, t.start)) &&
+        (/^-?\d\.\d\d$/.test(t.tok.replace('−', '-')) || /z(?:_\{?[\w.]*\}?)? = $/.test(src.slice(0, t.start)))
+      const zs = [...toks(work).filter(t => isZ(work, t)), ...toks(p.latex ?? '').filter(t => isZ(p.latex ?? '', t))].filter(t => Math.abs(t.val) < 4)
       for (const t of zs) {
         const cell = zCell(t.val)
         const entry = cellOf('normal', cell.row, cell.col)
@@ -3349,7 +3366,10 @@ window.MathJax = {
         const b = back.find(x => x.entry === entry)
         const area = areas.find(A => closestZ(+A).includes(Math.round(t.val * 100)))
         if (b) add({ name: 'normal', ...cell, target: b.target })
-        else if (area != null) add({ name: 'normal', ...cell, target: area })
+        else if (area != null) {
+          const two = closestZ(+area)
+          add({ name: 'normal', ...cell, target: area, halfway: two.length === 2 ? two.map(z => z / 100).sort((a, b) => a - b) : null })
+        }
         else if (inWork(entry)) add({ name: 'normal', ...cell })
       }
     } else if (level === 'Binomial table') {
@@ -3392,6 +3412,10 @@ window.MathJax = {
     const cands = []
     rows.forEach((row, r) => row.forEach((c, j) => {
       if (isAnswer(r, j) || /^\s*(=|\\approx)\s*-?[\d.]+(\\ldots)?\s*[,:]?\s*$/.test(c)) return
+      // the step after a \max(…) holds its results, not the question's numbers
+      if (j > 0 && /\\max\(/.test(row[j - 1])) return
+      // "= 150, …": the 150 is a result, whatever follows it
+      const lead = /^\s*(=|\\approx)\s*-?[\d.]+\s*[,:]/.exec(c)?.[0].length ?? 0
       const skip = []
       for (const m of c.matchAll(/\\max\(/g)) {
         let d = 0, k = m.index + 4
@@ -3401,7 +3425,13 @@ window.MathJax = {
         }
         skip.push([m.index, k])
       }
-      for (const t of numberTokens(c, true)) if (linkable(t.val) && !skip.some(([a, b]) => t.start >= a && t.start <= b)) cands.push({ r, j, ...t })
+      for (const t of numberTokens(c, true)) {
+        if (!linkable(t.val) || t.start < lead || skip.some(([a, b]) => t.start >= a && t.start <= b)) continue
+        // a column label is an area or a digit of z, not a number from the question
+        // (a row label can be: the χ² table's row is the story's γ)
+        if (/\\text\{column \}\s*$/.test(c.slice(0, t.start))) continue
+        cands.push({ r, j, ...t })
+      }
     }))
     const used = [], links = []
     for (const t of cands) {
