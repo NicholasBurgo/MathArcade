@@ -4069,7 +4069,18 @@ window.MathJax = {
     { xs: [0, 1, 2], fs: ['0.5', '0.3', '0.2'] },
     { xs: [-1, 0, 1, 2], fs: ['0.1', '0.2', '0.3', '0.4'] },
   ]
-  const PQS = [['0.2', '0.8'], ['0.25', '0.75'], ['0.3', '0.7'], ['0.4', '0.6'], ['0.6', '0.4'], ['0.7', '0.3'], ['0.75', '0.25'], ['0.8', '0.2']]
+  const PQS = [['0.1', '0.9'], ['0.2', '0.8'], ['0.25', '0.75'], ['0.3', '0.7'], ['0.4', '0.6'], ['0.6', '0.4'], ['0.7', '0.3'], ['0.75', '0.25'], ['0.8', '0.2'], ['0.9', '0.1']]
+  // f(x) = a formula over its total, on a few values (the notes' kind)
+  const FINITES = [
+    { tex: 'x', w: x => x, xs: [1, 2, 3] },
+    { tex: 'x', w: x => x, xs: [1, 2, 3, 4] },
+    { tex: 'x + 1', w: x => x + 1, xs: [0, 1, 2] },
+    { tex: '4 - x', w: x => 4 - x, xs: [0, 1, 2, 3] },
+    { tex: '2x + 1', w: x => 2 * x + 1, xs: [0, 1, 2] },
+    { tex: 'x^2', w: x => x * x, xs: [1, 2, 3] },
+    { tex: 'x + 2', w: x => x + 2, xs: [-1, 0, 1, 2] },
+  ]
+  const gcdN = (a, b) => (b ? gcdN(b, a % b) : Math.abs(a))
   const UNIS = [{ a: 0, b: 2 }, { a: 0, b: 4 }, { a: 1, b: 3 }, { a: 2, b: 4 }, { a: 1, b: 5 }, { a: 0, b: 5 }]
   const fmtN = v => String(+v.toFixed(6))
   // e^(kt) in tex: 1, e^t, e^{-t}, e^{2t}
@@ -4107,6 +4118,26 @@ window.MathJax = {
             slips: [sumE(xs.map(x => [1, x])), sumE(xs.map((x, i) => [x * f[i], x])), sumE(xs.map((x, i) => [f[i], x + 1])), ex ? eKt(ex) : null].filter(Boolean) },
         ],
         check: { tex: R`m_X(0) = ${fs.join(' + ')} = 1`, why: 'At t = 0 every term’s e is 1, so they add to 1' },
+      }
+    },
+    formula(n = FINITES[0]) {
+      const { xs, w } = n
+      const S = xs.reduce((s, x) => s + w(x), 0)
+      const M = xs.reduce((s, x) => s + x * w(x), 0), g = gcdN(M, S)
+      const top = sumE(xs.map(x => [w(x), x]))
+      // e^(E[X] t): the mean pulled inside the exponential
+      const atMean = M / g === 1 && S / g === 1 ? 'e^{t}' : S / g === 1 ? `e^{${M / g}t}` : `e^{${M / g}t/${S / g}}`
+      return {
+        name: 'A pdf formula on a few values',
+        pdf: R`f(x) = \frac{${n.tex}}{${S}}, \quad x = ${xs.join(', ')}`,
+        lead0: R`m_X(t) &= \sum_x e^{tx} f(x) = `,
+        lines: [
+          { move: 'setup', tex: xs.map(x => R`\HL{e^{${x}t}}\cdot\frac{${w(x)}}{${S}}`).join(' + '), why: `List the values first: ${xs.map(x => `f(${x}) = ${w(x)}/${S}`).join(', ')}. Then one term per value`,
+            slips: [xs.map(x => R`e^{${x}t}\cdot\frac{1}{${xs.length}}`).join(' + '), xs.map(x => R`${x}\cdot\frac{${w(x)}}{${S}}`).join(' + '), xs.map(x => R`e^{t}\cdot\frac{${w(x)}}{${S}}`).join(' + '), ...(xs.some(x => w(x) !== x) ? [xs.map(x => R`e^{${w(x)}t}\cdot\frac{${x}}{${S}}`).join(' + ')] : [])] },
+          { move: 'tidy', tex: R`\frac{${top}}{${S}}`, why: `One fraction: ${S} is the common denominator`,
+            slips: [top, R`\frac{${sumE(xs.map(x => [x * w(x), x]))}}{${S}}`, M ? atMean : R`\frac{${sumE(xs.map(x => [1, x]))}}{${xs.length}}`, R`\frac{${sumE(xs.map(x => [w(x), x + 1]))}}{${S}}`] },
+        ],
+        check: { tex: R`m_X(0) = \frac{${xs.map(w).join(' + ')}}{${S}} = 1`, why: 'At t = 0 every e is 1, so the terms add to 1' },
       }
     },
     geo() {
@@ -4289,6 +4320,7 @@ window.MathJax = {
   // the builds a question can use, with numbers or letters
   const MGF_BUILDS = [
     () => BUILDS.table(pickOne(TABLES)),
+    () => BUILDS.formula(pickOne(FINITES)),
     () => BUILDS.geo(),
     () => BUILDS.geoN(pickOne(PQS)),
     () => BUILDS.series0(pickOne(PQS)),
@@ -4440,7 +4472,7 @@ window.MathJax = {
     const stage = h('div')
     const all = []
     const groups = [
-      ['On the test', [['e1', 'e^(−x)'], ['geo', 'Geometric'], ['expB', 'Exponential (β)'], ['expL', 'Exponential (λ)'], ['uni', 'Uniform'], ['table', 'A pdf table'], ['series0', 'A series from x = 0'], ['moments', 'Mean and variance']]],
+      ['On the test', [['e1', 'e^(−x)'], ['geo', 'Geometric'], ['expB', 'Exponential (β)'], ['expL', 'Exponential (λ)'], ['uni', 'Uniform'], ['table', 'A pdf table'], ['formula', 'A pdf formula'], ['series0', 'A series from x = 0'], ['moments', 'Mean and variance']]],
       ['Where World 0’s other shapes come from', [['gamma', 'Gamma'], ['chi', 'Chi-squared'], ['normal', 'Normal']]],
     ]
     for (const [label, list] of groups) {
@@ -5061,7 +5093,7 @@ window.MathJax = {
     renderBuddy()
   }).observe(document.getElementById('view'), { childList: true })
   // #dev in the address: the panels, for testing them on their own
-  if (location.hash === '#dev') window.__arcade = { workPanel, plugPanel, treeProblem, buildChoices6, tex, h, distGraph, graphOf, inferGraph, drawGraph, problemFor, REVIEW }
+  if (location.hash === '#dev') window.__arcade = { workPanel, plugPanel, mgfPlayer, mgfProblem, BUILDS, treeProblem, buildChoices6, tex, h, distGraph, graphOf, inferGraph, drawGraph, problemFor, REVIEW }
   if (petTick()) setTimeout(() => toast('Devolved…'), 600)
   // a long-open tab gets hungry too
   setInterval(() => {
