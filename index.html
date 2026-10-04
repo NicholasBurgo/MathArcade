@@ -468,21 +468,7 @@ mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); bor
 /* S Pen ink: laid over the whole page, never in the way of a tap */
 #ink { position: absolute; top: 0; left: 0; z-index: 25; pointer-events: none; }
 /* ---------- the pet ---------- */
-.pet { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 18px; align-items: center; margin-top: 14px; padding: 14px 18px; background: var(--sheet); border: 1.5px solid var(--rule-soft); border-radius: 16px; }
-.pet-sprite { position: relative; width: 132px; height: 132px; border: 0; padding: 0; background: none; cursor: pointer; }
-.pet-sprite svg, .buddy svg { width: 100%; height: 100%; display: block; overflow: visible; }
-.pet-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
-.pet-name button { border: 0; background: none; padding: 0; cursor: pointer; font-family: var(--display); font-size: 1.7rem; font-weight: 800; text-transform: uppercase; color: var(--ink); line-height: 1; }
-.pet-name input { font: inherit; font-family: var(--display); font-size: 1.5rem; width: 9ch; padding: 2px 6px; border: 1.5px solid var(--rule); border-radius: 8px; background: var(--paper); color: var(--ink); }
-.pet-name span { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
-.meters { display: grid; gap: 5px; margin: 8px 0 6px; max-width: 360px; }
-.meter { display: grid; grid-template-columns: 78px minmax(0, 1fr) 40px; align-items: center; gap: 8px; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-.meter .bar { height: 8px; border-radius: 4px; background: var(--rule-soft); overflow: hidden; }
-.meter .bar i { display: block; height: 100%; border-radius: 4px; background: var(--green); transition: width 0.5s ease; }
-.meter .bar i.low { background: var(--red); }
-.meter .bar i.grow { background: var(--gold); }
-.meter b { color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
-.pet-status { margin: 0; color: var(--muted); font-size: 0.95rem; max-width: 52ch; }
+.buddy svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .bubble { position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); width: max-content; max-width: min(300px, 80vw); padding: 8px 12px; border-radius: 12px; background: var(--ink); color: var(--paper); font-size: 0.85rem; line-height: 1.4; text-align: left; z-index: 3; animation: toast 4.5s ease-out forwards; pointer-events: none; }
 .buddy { position: fixed; z-index: 24; left: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: 64px; height: 64px; pointer-events: none; }
 @keyframes idle { 50% { transform: translateY(-4px); } }
@@ -493,7 +479,6 @@ mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); bor
 .cheer .critter { animation: cheer 0.6s ease-out; }
 .oops .critter { animation: oops 0.5s ease-in-out; }
 .evolving .critter { animation: evolve 1.2s ease-out; }
-@media (max-width: 520px) { .pet { grid-template-columns: 1fr; justify-items: center; text-align: center; } .meters { width: 100%; } .pet-name { justify-content: center; } }
 .pen-check { position: fixed; z-index: 27; left: 12px; top: 80px; margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--ink); color: var(--paper); font-family: var(--mono); font-size: 0.8rem; line-height: 1.35; pointer-events: none; white-space: pre; }
 .ink-tools { position: fixed; z-index: 26; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; }
 .ink-clear[aria-pressed="true"] { background: var(--rule); color: var(--sheet); }
@@ -939,7 +924,7 @@ window.MathJax = {
         toast(pet.stage === 1 ? `${pet.name} hatched!` : `${pet.name} evolved into ${s.name}!`)
         sfx.levelUp()
         burst(140)
-        document.querySelectorAll('.pet-sprite, .buddy').forEach(el => {
+        document.querySelectorAll('.buddy').forEach(el => {
           el.classList.remove('evolving')
           void el.offsetWidth
           el.classList.add('evolving')
@@ -1003,86 +988,6 @@ window.MathJax = {
         ${P.extra}${P.body}
         <g fill="var(--ink)" stroke="var(--ink)">${eyes}${mouth}</g>${cheeks}
       </g></svg>`
-  }
-
-  function petStatus(pet) {
-    if (pet.note) return pet.note
-    const mood = petMood(pet)
-    if (pet.stage === 0) return `An egg. Answer ${Math.max(1, STAGES[1].at - pet.growth)} more question${STAGES[1].at - pet.growth === 1 ? '' : 's'} right to hatch it.`
-    if (mood === 'sick') {
-      const left = pet.starving ? Math.max(1, Math.ceil(24 - (Date.now() - pet.starving) / 3.6e6)) : 24
-      return pet.stage > 1 ? `${pet.name} is starving and will devolve in about ${left} h. One level fixes it.` : `${pet.name} is starving. One level fixes it.`
-    }
-    if (mood === 'hungry') return `${pet.name} is hungry. Every right answer is a snack.`
-    if (mood === 'sad') return `${pet.name} is bored. Clear a level to cheer it up.`
-    const block = evolveBlock(pet)
-    return block || `${pet.name} is in its final form. Keep it fed until Tuesday.`
-  }
-
-  // the pet card on the map
-  function petCard() {
-    petTick()
-    const pet = state.pet
-    const card = h('section', 'pet')
-    const sprite = h('button', 'pet-sprite')
-    sprite.type = 'button'
-    sprite.setAttribute('aria-label', `${pet.name}: tap for a study tip`)
-    sprite.innerHTML = petSvg(pet)
-    let tipped = 0
-    sprite.addEventListener('click', () => {
-      const tips = Object.values(CARDS).flat()
-      sprite.querySelector('.bubble')?.remove()
-      const b = h('span', 'bubble', pet.stage === 0 ? '…tap tap… (it wiggles)' : pickOne(tips))
-      sprite.append(b)
-      sprite.classList.remove('cheer')
-      void sprite.offsetWidth
-      sprite.classList.add('cheer')
-      // a little attention cheers it up, a few times a visit
-      if (tipped++ < 5) pet.happy = clamp(pet.happy + 1)
-      sfx.right(0)
-    })
-    const info = h('div')
-    const nameRow = h('div', 'pet-name')
-    const nameBtn = h('button', '', pet.name)
-    nameBtn.type = 'button'
-    nameBtn.title = 'Rename'
-    nameBtn.addEventListener('click', () => {
-      const input = h('input')
-      input.id = 'pet-name'
-      input.value = pet.name
-      input.maxLength = 14
-      input.setAttribute('aria-label', 'Pet name')
-      const done = () => {
-        pet.name = input.value.trim() || pet.name
-        save()
-        renderMap()
-      }
-      input.addEventListener('keydown', e => { if (e.key === 'Enter') done() })
-      input.addEventListener('blur', done)
-      nameBtn.replaceWith(input)
-      input.focus()
-      input.select()
-    })
-    nameRow.append(nameBtn, h('span', '', `Stage ${pet.stage}/5 · ${STAGES[pet.stage].name} · ${STAGES[pet.stage].says}`))
-    const meters = h('div', 'meters')
-    const meter = (label, value, cls) => {
-      const m = h('div', 'meter')
-      const bar = h('div', 'bar')
-      const fill = h('i', cls)
-      fill.style.width = Math.round(value) + '%'
-      bar.append(fill)
-      m.append(h('span', '', label), bar, h('b', '', Math.round(value) + '%'))
-      return m
-    }
-    meters.append(meter('Fullness', pet.full, pet.full < 30 ? 'low' : ''), meter('Happiness', pet.happy, pet.happy < 30 ? 'low' : ''))
-    const next = STAGES[pet.stage + 1]
-    if (next) {
-      const from = STAGES[pet.stage].at
-      meters.append(meter('Growth', Math.min(100, ((pet.growth - from) / (next.at - from)) * 100), 'grow'))
-    }
-    info.append(nameRow, meters, h('p', 'pet-status', petStatus(pet)))
-    card.append(sprite, info)
-    return card
   }
 
   // the small one in the corner while you answer
@@ -1385,7 +1290,6 @@ window.MathJax = {
     fig.append(cap)
     hero.append(words, fig)
     view.append(hero)
-    view.append(petCard())
 
     const next = nextUp()
     const cta = h('button', 'cta')
