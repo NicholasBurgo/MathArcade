@@ -299,6 +299,14 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .math-d mjx-container { margin: 0 !important; }
 .math-d mjx-container svg { max-width: none; }
 .choices { display: grid; gap: 8px; margin-top: 12px; }
+.pick { display: grid; gap: 10px; margin-top: 14px; max-width: 560px; justify-items: start; }
+.pick-label { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.pick-select { width: 100%; font: inherit; font-size: 1.1rem; padding: 12px 14px; border-radius: 10px; border: 2px solid var(--rule); background: var(--sheet); color: var(--ink); cursor: pointer; }
+.pick-select:disabled { cursor: default; opacity: 1; }
+.pick-preview { min-height: 2.6em; display: grid; gap: 2px; }
+.pick-preview .choice-name { font-size: 1rem; }
+.pick.right .pick-select { border-color: var(--green); background: var(--green-soft); }
+.pick.wrong .pick-select { border-color: var(--red); background: var(--red-soft); }
 @media (min-width: 720px) { .choices.six { grid-template-columns: 1fr 1fr; } }
 .choice {
   position: relative;
@@ -1581,6 +1589,12 @@ window.MathJax = {
       paperQuestion(p, sheet)
       return
     }
+    if (isTree(round.short) && p.leaf) {
+      pickQuestion(p, sheet)
+      view.append(sheet)
+      window.scrollTo({ top: 0 })
+      return
+    }
     const list = h('div', 'choices')
     const opts = choicesFor(p)
     const buttons = opts.map((o, i) => {
@@ -1655,13 +1669,7 @@ window.MathJax = {
       award(10, buttons[i])
       const p = q.p
       if (p.leaf && p.vars) {
-        const next = h('button', 'btn', 'Next')
-        next.type = 'button'
-        next.addEventListener('click', advance)
-        const panel = plugPanel(p, { sheet, auto: true, next })
-        sheet.append(panel)
-        next.focus({ preventScroll: true })
-        panel.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+        showPlug(p, sheet)
         return
       }
       if (WORK_LEVELS.has(round.short) && (p.answerLatex || p.hint)) {
@@ -1694,6 +1702,79 @@ window.MathJax = {
     if (p.clue) sheet.querySelector('.story')?.replaceWith(storyEl({ text: p.text, clue: p.clue }, true))
     if (p.trap) why.append(h('p', 'trap', 'The trap: ' + p.trap))
     if (p.leaf) why.append(leafCard(p.leaf))
+    const { acts, cont } = gotIt(q)
+    why.append(acts)
+    sheet.append(why)
+    cont.focus({ preventScroll: true })
+    why.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+  }
+
+  function showPlug(p, sheet) {
+    const next = h('button', 'btn', 'Next')
+    next.type = 'button'
+    next.addEventListener('click', advance)
+    const panel = plugPanel(p, { sheet, auto: true, next })
+    sheet.append(panel)
+    next.focus({ preventScroll: true })
+    panel.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+  }
+
+  // ---------- World 0: pick from every distribution ----------
+  // All ten, in the tree's order (counting, then measuring), so where a name sits
+  // gives nothing away. Picking one shows its formula; Check grades it.
+  const PICK_ORDER = ['binomial', 'geometric', 'negbin', 'hyper', 'poisson', 'uniform', 'exponential', 'gamma', 'chi', 'normal']
+  function pickQuestion(p, sheet) {
+    const wrap = h('div', 'pick')
+    const id = 'pick-' + Math.random().toString(36).slice(2, 8)
+    const label = h('label', 'pick-label', 'Your answer')
+    label.htmlFor = id
+    const sel = h('select', 'pick-select')
+    sel.id = id
+    const none = h('option', '', 'Choose a distribution…')
+    none.value = ''
+    none.disabled = true
+    none.selected = true
+    sel.append(none)
+    for (const k of PICK_ORDER) {
+      const o = h('option', '', `${LEAVES[k].name} (${LEAVES[k].sec})`)
+      o.value = k
+      sel.append(o)
+    }
+    const preview = h('div', 'pick-preview')
+    const check = h('button', 'btn', 'Check')
+    check.type = 'button'
+    check.disabled = true
+    sel.addEventListener('change', () => {
+      const L = LEAVES[sel.value]
+      if (!L) return
+      preview.replaceChildren(h('b', 'choice-name', L.name), tex(L.tex, false))
+      check.disabled = false
+    })
+    check.addEventListener('click', () => answerPick(sel.value, p, sheet, { sel, check, wrap }))
+    wrap.append(label, sel, preview, check)
+    sheet.append(wrap)
+  }
+  function answerPick(pick, p, sheet, { sel, check, wrap }) {
+    if (round.locked || !LEAVES[pick]) return
+    round.locked = true
+    sel.disabled = true
+    check.disabled = true
+    const q = round.queue[round.at]
+    if (pick === p.leaf) {
+      wrap.classList.add('right')
+      award(10, check)
+      showPlug(p, sheet)
+      return
+    }
+    miss(q)
+    wrap.classList.add('wrong')
+    const why = h('div', 'why')
+    why.append(h('h3', '', 'How it works'))
+    why.append(h('p', '', `You picked ${LEAVES[pick].name}. The answer is ${LEAVES[p.leaf].name}.`))
+    if (p.hint?.text) why.append(h('p', '', p.hint.text))
+    if (p.clue) sheet.querySelector('.story')?.replaceWith(storyEl({ text: p.text, clue: p.clue }, true))
+    if (p.trap) why.append(h('p', 'trap', 'The trap: ' + p.trap))
+    why.append(leafCard(p.leaf))
     const { acts, cont } = gotIt(q)
     why.append(acts)
     sheet.append(why)
