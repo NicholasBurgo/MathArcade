@@ -1239,8 +1239,8 @@ window.MathJax = {
     if (isTree(short)) {
       sheet.classList.add('wide')
       if (!mathReady) mathBoot.then(() => { if (screen === 'card' && mathReady) openCard(short) })
-      sheet.append(h('p', 'paper-note', 'Every question starts here. Read the chart left to right: is X a count or a measurement, then what does it count or measure? The stories are test-style, with traps: a rate that is really a fixed number of tries, a gamma that is really chi-squared, a pdf or an MGF to recognise.'))
-      sheet.append(treeWalk(), shapeGuide())
+      sheet.append(h('p', 'paper-note', 'Every question starts here. Read the chart left to right: is X a count or a measurement, then what does it count or measure? The stories are test-style, with traps: a rate that is really a fixed number of tries, a gamma that is really chi-squared, a pdf to recognise.'))
+      sheet.append(treeWalk(), shapeGuide('pdf'))
     } else if (isParam(short)) {
       sheet.classList.add('wide')
       if (!mathReady) mathBoot.then(() => { if (screen === 'card' && mathReady) openCard(short) })
@@ -1248,7 +1248,7 @@ window.MathJax = {
     } else if (isMgf(short)) {
       sheet.classList.add('wide')
       if (!mathReady) mathBoot.then(() => { if (screen === 'card' && mathReady) openCard(short) })
-      sheet.append(h('p', 'paper-note', 'Every MGF comes from one recipe: multiply the pdf by eᵗˣ, add it up, then simplify with a few moves. Pick one and watch it built, line by line.'), mgfCard())
+      sheet.append(h('p', 'paper-note', 'Every MGF comes from one recipe: multiply the pdf by eᵗˣ, add it up, then simplify with a few moves. Pick one and watch it built, line by line. Then, below: given an MGF, read off which distribution it is.'), mgfCard())
     } else {
       if (isReview(short)) {
         ul.append(h('li', '', short === 'Everything'
@@ -1333,7 +1333,7 @@ window.MathJax = {
   // one question from a level: a distribution story, or one of the level's kinds
   function problemFor(level) {
     if (isTree(level)) return treeProblem(undefined, true)
-    if (isMgf(level)) return mgfProblem()
+    if (isMgf(level)) return Math.random() < 0.2 ? mgfName() : mgfProblem()
     if (isParam(level)) return paramProblem()
     return pickOne(levelKinds(level)).tp.generate()
   }
@@ -3784,14 +3784,14 @@ window.MathJax = {
     { kind: 'pdf', leaf: 'normal', general: `f(x) = \\frac{1}{\\sqrt{2\\pi}\\,${shp(1, '\\sigma')}}e^{-(x - ${shp(0, '\\mu')})^2/(2${shp(1, '\\sigma')}^2)}`, example: `f(x) = \\frac{1}{\\sqrt{2\\pi}\\,${shp(1, '5')}}e^{-(x - ${shp(0, '70')})^2/50}`,
       notes: [[0, 'x minus μ is squared in the exponent: μ = 70'], [1, 'σ = 5 in front; below, 2σ² = 2(25) = 50']], verdict: 'normal, μ = 70, σ = 5' },
   ]
-  function shapeGuide() {
+  function shapeGuide(kind) {
     const wrap = h('section', 'shapes')
-    wrap.append(h('h3', 'shapes-title', 'Given a pdf or an MGF instead of a story? Read its shape'),
+    wrap.append(h('h3', 'shapes-title', kind === 'MGF' ? 'Given an MGF? Read its shape' : 'Given a pdf instead of a story? Read its shape'),
       h('p', 'paper-note', 'Match the formula to a shape below. The colours show where each number sits in the shape, and what it is.'))
     const play = h('button', 'btn ghost', '▶ Play the shapes')
     play.type = 'button'
     const list = h('div', 'shape-list')
-    const cards = SHAPES.map(sh => {
+    const cards = SHAPES.filter(sh => sh.kind === kind).map(sh => {
       const card = h('div', 'shape-card')
       const top = h('div', 'shape-top')
       top.append(h('b', '', LEAVES[sh.leaf].name), h('span', '', sh.kind))
@@ -4164,7 +4164,9 @@ window.MathJax = {
     () => BUILDS.expL(Math.random() < 0.5 ? null : { l: pickOne([2, 3, 5]) }),
     () => BUILDS.uni(Math.random() < 0.5 ? null : pickOne(UNIS)),
   ]
-  const MGF_KINDS = ['start', 'next', 'next', 'next', 'move', 'move', 'final', 'final', 'exist', 'next']
+  const MGF_KINDS = ['start', 'next', 'next', 'next', 'move', 'final', 'final', 'exist', 'name', 'name']
+  // "X has this MGF: which distribution?", answered from World 0's list, with the MGF read on a right answer
+  const mgfName = () => treeProblem(pickOne(MGF_LEAVES), true, { mgf: true })
   const firstLead = b => b.lead0 ?? R`m_X(t) &= E[e^{tX}] = `
   // a build as rows: each line (the first after its "m_X(t) = E[e^(tX)] ="), then where it exists
   const rowsOf = b => [
@@ -4174,7 +4176,7 @@ window.MathJax = {
   ]
 
   // One question about a build: set it up, the next line, which move, the MGF, where it exists.
-  function mgfProblem(kind = pickOne(MGF_KINDS), b = pickOne(MGF_BUILDS)()) {
+  function mgfProblem(kind = pickOne(MGF_KINDS.filter(k => k !== 'name')), b = pickOne(MGF_BUILDS)()) {
     const L = b.lines
     const lead = i => (i === 0 ? firstLead(b) : '&= ')
     const derive = (k, more = '') => R`\begin{aligned} ${L.slice(0, k).map((l, i) => lead(i) + plainTex(l.tex)).join(R` \\ `)}${more} \end{aligned}`
@@ -4230,6 +4232,7 @@ window.MathJax = {
     while (kinds.length < n) kinds.push(...shuffleArr(MGF_KINDS))
     let last = -1
     return kinds.slice(0, n).map(kind => {
+      if (kind === 'name') return mgfName()
       let i
       do i = Math.floor(Math.random() * MGF_BUILDS.length)
       while (i === last)
@@ -4329,7 +4332,7 @@ window.MathJax = {
     // the notes' example, ready to play
     all[0].setAttribute('aria-pressed', 'true')
     stage.append(mgfPlayer(BUILDS.e1()))
-    wrap.append(stage)
+    wrap.append(stage, shapeGuide('MGF'))
     return wrap
   }
 
@@ -4605,8 +4608,13 @@ window.MathJax = {
     normal: ['uniform', 'chi', 'binomial', 'exponential', 'gamma'],
   }
   // a story, four distribution names, and the tree path as the explanation
-  function treeProblem(leaf = pickOne(Object.keys(LEAVES)), hard = false) {
-    const sc = pickOne((hard ? HARD : STORIES)[leaf])()
+  // the distributions with a test-style "X has this MGF" story (Build the MGF asks those)
+  const MGF_LEAVES = ['geometric', 'exponential', 'gamma', 'chi', 'normal']
+  function treeProblem(leaf = pickOne(Object.keys(LEAVES)), hard = false, { mgf = false } = {}) {
+    // Level 1 is stories; naming a distribution from its MGF belongs to Build the MGF
+    let sc
+    do sc = pickOne((hard ? HARD : STORIES)[leaf])()
+    while ((sc.clue === 'moment generating function') !== mgf)
     const path = pathTo(leaf)
     // a story can rule out a decoy that would also be right for it; top up from the rest
     const avoid = sc.avoid ?? []
