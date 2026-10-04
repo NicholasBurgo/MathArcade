@@ -639,7 +639,7 @@ window.MathJax = {
       num: 3,
       name: 'The scripts',
       blurb: 'Derivations that come out the same every time.',
-      levels: ['Geometric pdf', 'Geometric cdf', 'Derive the negative binomial pdf', 'Derive the discrete pdfs', 'Verify a pdf, or find the constant'],
+      levels: ['Geometric pdf', 'Geometric cdf', 'Derive the discrete pdfs', 'Verify a pdf, or find the constant'],
     },
     {
       num: 4,
@@ -728,15 +728,10 @@ window.MathJax = {
       'That is a finite geometric series (on the sheet): p(1 − qˣ)/(1 − q).',
       '1 − q is p, so the p cancels: F(x) = 1 − qˣ.',
     ],
-    'Derive the negative binomial pdf': [
-      'X = the number of tries needed for r successes, so the last try is a success.',
-      'f(x) = P(r − 1 successes in the first x − 1 tries) × p.',
-      '= C(x − 1, r − 1)·p^(r−1)·q^((x−1)−(r−1))·p = C(x − 1, r − 1)·pʳ·q^(x−r).',
-    ],
     'Derive the discrete pdfs': [
       'Binomial: one particular order of x successes has probability pˣqⁿ⁻ˣ, and there are C(n, x) orders.',
       'Hypergeometric: good samples C(r, x)·C(N − r, n − x) over all samples C(N, n).',
-      'Negative binomial: r − 1 successes in x − 1 tries, then one more success.',
+      'Negative binomial: the last try is the r-th success, so f(x) = P(r − 1 successes in x − 1 tries) × p = C(x − 1, r − 1)·pʳ·q^(x−r).',
     ],
     'Verify a pdf, or find the constant': [
       'A pdf needs two things: f(x) ≥ 0 everywhere, and a total of 1 (the sum, or the integral).',
