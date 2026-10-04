@@ -348,6 +348,27 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .work-rule { color: var(--muted); }
 .work-rule.enter { animation: line-in 0.35s ease-out; }
 .work-why { margin-top: 8px; }
+.tlook { margin: 10px 0 4px; }
+.tlook-scroll { overflow-x: auto; overflow-y: hidden; margin-top: 4px; border: 1px solid var(--rule-soft); border-radius: 8px; background: var(--sheet); }
+.tlook-table { border-collapse: collapse; font-family: var(--mono); font-size: 0.82rem; white-space: nowrap; }
+.tlook-table th, .tlook-table td { padding: 4px 8px; text-align: right; border-bottom: 1px solid var(--rule-soft); transition: background 0.2s, color 0.2s; }
+.tlook-table th { color: var(--muted); font-weight: 600; }
+.tlook-table th.corner { text-align: left; }
+.tlook-table tr.gap td { text-align: left; color: var(--muted); border: 0; padding: 0 8px; }
+.tlook-table .on-row { background: color-mix(in srgb, var(--pv1) 18%, transparent); }
+.tlook-table th.on-row { color: var(--pv1); }
+.tlook-table .on-col { background: color-mix(in srgb, var(--pv0) 18%, transparent); }
+.tlook-table th.on-col { color: var(--pv0); }
+.tlook-table .on-row.on-col { background: color-mix(in srgb, var(--pv1) 14%, color-mix(in srgb, var(--pv0) 14%, transparent)); }
+.tlook-table .scan { background: color-mix(in srgb, var(--gold) 22%, transparent); }
+.tlook-table td.hit, .tlook-table td.hit.on-row.on-col { background: var(--gold); color: #17241c; font-weight: 700; box-shadow: 0 0 0 2px var(--gold); animation: hit 0.5s ease-out; }
+/* the row labels stay in view while the table scrolls to the column */
+.tlook-table tr > :first-child { position: sticky; left: 0; z-index: 1; background: var(--sheet); }
+.tlook-table tr > th.on-row:first-child { background: color-mix(in srgb, var(--pv1) 30%, var(--sheet)); }
+@keyframes hit { 0% { transform: scale(1.35); } 100% { transform: scale(1); } }
+.tlook-cap { margin: 6px 0 0; font-size: 0.92rem; }
+.piece-label { margin: 8px 0 0; font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.plug-sub.trap, .why .trap { color: var(--ink); font-weight: 700; }
 .plug-line.work { opacity: 0.92; font-size: 0.92em; border-left: 2px dashed var(--rule-soft); padding-left: 10px; }
 .plug-line.enter { animation: line-in 0.35s ease-out; }
 .plug-line.bump { animation: bump 0.35s ease-out; }
@@ -497,11 +518,14 @@ window.MathJax = {
   const ROUND = 6
   // a level of its own (not a study-guide line): name the distribution, every chapter
   const TREE_LEVEL = 'Which distribution? (all chapters)'
+  // the same question with test-style stories: longer, with traps
+  const TREE_LEVEL2 = 'Which distribution? Test mode'
+  const isTree = short => short === TREE_LEVEL || short === TREE_LEVEL2
   // every kind of question a level has (its templates, across its topics)
-  const levelKinds = short => (short === TREE_LEVEL ? [] : T2.guideTopics(unit, lineByShort[short]).flatMap(t => t.templates.map(tp => ({ t, tp }))))
+  const levelKinds = short => (isTree(short) ? [] : T2.guideTopics(unit, lineByShort[short]).flatMap(t => t.templates.map(tp => ({ t, tp }))))
   // a round shows every kind at least once, and never fewer than ROUND questions;
   // naming the distribution is quick, so its rounds run twice as long
-  const roundSize = short => (short === TREE_LEVEL ? ROUND * 2 : Math.max(ROUND, levelKinds(short).length))
+  const roundSize = short => (isTree(short) ? ROUND * 2 : Math.max(ROUND, levelKinds(short).length))
 
   // ---------- the path: the review list, easiest points first ----------
   const WORLDS = [
@@ -509,7 +533,7 @@ window.MathJax = {
       num: 0,
       name: 'The tree',
       blurb: 'Which distribution is it? Every chapter, 3.4 to 4.4.',
-      levels: [TREE_LEVEL],
+      levels: [TREE_LEVEL, TREE_LEVEL2],
     },
     {
       num: 1,
@@ -535,7 +559,7 @@ window.MathJax = {
       blurb: 'Integrals and derivatives, one move at a time.',
       levels: ['pdf ↔ cdf', 'Mean and variance from a pdf', 'Find an MGF from a pdf', 'Integration by parts, gamma integrals'],
     },
-  ].map(w => ({ ...w, levels: w.levels.filter(s => s === TREE_LEVEL || lineByShort[s]) }))
+  ].map(w => ({ ...w, levels: w.levels.filter(s => isTree(s) || lineByShort[s]) }))
   const ORDER = WORLDS.flatMap(w => w.levels)
 
   // ---------- power-up cards: the whole idea in plain words ----------
@@ -1356,9 +1380,11 @@ window.MathJax = {
     sheet.append(h('div', 'eyebrow', `World ${WORLDS[wi].num} · Power-up`))
     sheet.append(h('h2', '', short))
     const ul = h('ul', 'points')
-    if (short === TREE_LEVEL) {
+    if (isTree(short)) {
       if (!mathReady) mathBoot.then(() => { if (screen === 'card' && mathReady) openCard(short) })
-      sheet.append(h('p', 'paper-note', 'Every question starts here. Read the tree top to bottom, then name the distribution for each story.'))
+      sheet.append(h('p', 'paper-note', short === TREE_LEVEL2
+        ? 'Test-style stories with traps: a rate that is really a fixed number of tries, a wait that is really uniform, a gamma that is really chi-squared, a pdf or an MGF to recognise. Ask what X counts or measures, then walk the tree.'
+        : 'Every question starts here. Read the tree top to bottom, then name the distribution for each story.'))
       const o = h('div', 'outline')
       o.append(outline(TREE))
       sheet.append(o)
@@ -1389,7 +1415,7 @@ window.MathJax = {
     view.replaceChildren(h('p', 'loading', 'Shuffling the deck…'))
     await mathBoot
     const queue = []
-    if (short === TREE_LEVEL) {
+    if (isTree(short)) {
       // every distribution once, then repeats, never the same one twice in a row
       const shuffled = () => Object.keys(LEAVES).sort(() => Math.random() - 0.5)
       const order = []
@@ -1398,18 +1424,18 @@ window.MathJax = {
         if (next[0] === order[order.length - 1]) next.push(next.shift())
         order.push(...next)
       }
-      for (const leaf of order.slice(0, roundSize(short))) queue.push({ p: treeProblem(leaf), seen: 0, missed: false })
+      for (const leaf of order.slice(0, roundSize(short))) queue.push({ p: treeProblem(leaf, short === TREE_LEVEL2), seen: 0, missed: false })
     }
-    const topics = short === TREE_LEVEL ? [] : T2.guideTopics(unit, lineByShort[short])
+    const topics = isTree(short) ? [] : T2.guideTopics(unit, lineByShort[short])
     const weights = topics.map(t => t.templates.length)
     const total = weights.reduce((a, b) => a + b, 0)
     const pick = T2.createFreshPicker()
     // one of every kind first, in a random order
-    if (short !== TREE_LEVEL) {
+    if (!isTree(short)) {
       for (const { tp } of levelKinds(short).sort(() => Math.random() - 0.5)) queue.push({ p: tp.generate(), seen: 0, missed: false })
     }
     // then fill up to the round size with picks weighted toward the bigger topics
-    for (let i = queue.length; i < (short === TREE_LEVEL ? 0 : roundSize(short)); i++) {
+    for (let i = queue.length; i < (isTree(short) ? 0 : roundSize(short)); i++) {
       let r = Math.random() * total
       let t = topics[topics.length - 1]
       for (let j = 0; j < topics.length; j++) {
@@ -1605,7 +1631,7 @@ window.MathJax = {
         const next = h('button', 'btn', 'Next')
         next.type = 'button'
         next.addEventListener('click', advance)
-        const panel = workPanel(p, { sheet, auto: true, next })
+        const panel = workPanel(p, { sheet, auto: true, next, level: round.short })
         sheet.append(panel)
         next.focus({ preventScroll: true })
         panel.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
@@ -1629,6 +1655,7 @@ window.MathJax = {
       why.append(tex(shown))
     } else why.append(h('p', '', `The right bubble is ${'ABCDEFGH'[good]}.`))
     if (p.clue) sheet.querySelector('.story')?.replaceWith(storyEl({ text: p.text, clue: p.clue }, true))
+    if (p.trap) why.append(h('p', 'trap', 'The trap: ' + p.trap))
     if (p.leaf) why.append(leafCard(p.leaf))
     const { acts, cont } = gotIt(q)
     why.append(acts)
@@ -1835,7 +1862,7 @@ window.MathJax = {
     state.lastDay = d
   }
 
-  // ---------- the final boss: 21 written questions, graded after hand-in ----------
+  // ---------- the final boss: one written question per level, graded after hand-in ----------
   let boss = null
   let clockTimer = null
   const mmss = ms => {
@@ -1852,7 +1879,7 @@ window.MathJax = {
     await mathBoot
     const pick = T2.createFreshPicker()
     const items = ORDER.map(short => {
-      if (short === TREE_LEVEL) return { short, p: treeProblem(), raw: '', paper: false, result: null }
+      if (isTree(short)) return { short, p: treeProblem(undefined, short === TREE_LEVEL2), raw: '', paper: false, result: null }
       const topics = T2.guideTopics(unit, lineByShort[short])
       // a question that can be answered without its options, when the level has one
       let p
@@ -2091,7 +2118,7 @@ window.MathJax = {
     geometric: { name: 'Geometric', sec: '§3.4', tex: '\\displaystyle f(x) = q^{\\,x-1}p', use: 'calling customers until the first sale', x: 'tries: 1, 2, 3, …', key: 'f(x) = qˣ⁻¹p · F(x) = 1 − qˣ' },
     negbin: { name: 'Negative binomial', sec: '§3.6', tex: '\\displaystyle f(x) = \\binom{x-1}{r-1}p^{r}q^{\\,x-r}', use: 'making lots until the 3rd defective one', x: 'tries: r, r + 1, …', key: '(r − 1 successes in x − 1 tries) × p' },
     uniform: { name: 'Uniform', sec: '§4.1', tex: '\\displaystyle f(x) = \\frac{1}{B-A}', use: 'a bus shows up anytime in the next 10 minutes', x: 'anywhere in [A, B]', key: 'f(x) = 1/(B − A) · probability = length ÷ length' },
-    exponential: { name: 'Exponential', sec: '§4.3', tex: '\\displaystyle f(x) = \\lambda e^{-\\lambda x}', use: 'the wait for the first call at 3 per hour', x: 'a wait, any time > 0', key: 'f(x) = λe^(−λx) · P(W > t) = e^(−λt)' },
+    exponential: { name: 'Exponential', sec: '§4.3', tex: '\\displaystyle f(x) = \\lambda e^{-\\lambda x}', use: 'the wait for the first call at 3 per hour', x: 'a wait, any time > 0', key: 'f(x) = λe^(−λx) = (1/β)e^(−x/β), β = 1/λ · P(X > t) = e^(−λt)' },
     gamma: { name: 'Gamma', sec: '§4.3', tex: '\\displaystyle f(x) = \\frac{x^{\\alpha-1}e^{-x/\\beta}}{\\Gamma(\\alpha)\\,\\beta^{\\alpha}}', use: 'the wait for the 3rd call', x: 'a wait, any time > 0', key: 'mean αβ, variance αβ² · Γ(n + 1) = n!' },
     chi: { name: 'Chi-squared', sec: '§4.3', tex: '\\displaystyle \\text{gamma with } \\alpha = \\tfrac{\\gamma}{2},\\ \\beta = 2', use: 'find χ²₀.₀₅ with γ = 10 (it is 18.3)', x: 'a χ² value > 0', key: 'gamma with α = γ/2, β = 2 · read the table' },
     normal: { name: 'Normal', sec: '§4.4', tex: '\\displaystyle f(x) = \\frac{1}{\\sqrt{2\\pi}\\,\\sigma}e^{-(x-\\mu)^2/2\\sigma^2}', use: 'IQ: μ = 100, σ = 15, what percentile is 139?', x: 'any number', key: 'z = (x − μ)/σ → z-table → left area' },
@@ -2109,19 +2136,19 @@ window.MathJax = {
             { a: 'Events at a rate', more: '“4 per hour”, “per page”', why: 'An average rate over time or space, with no separate tries: Poisson.', leaf: 'poisson' },
             { a: 'Grab from a group', more: 'no putting back', why: 'A fixed group, and what you take is not put back: hypergeometric.', leaf: 'hyper' },
             {
-              a: 'Repeated tries', more: 'same chance p each try',
-              why: 'Separate tries that each succeed with the same chance p.',
+              a: 'Repeated tries', more: 'independent, same p each try',
+              why: 'Independent tries that each succeed with the same chance p.',
               node: {
                 q: 'What’s fixed?',
                 branches: [
                   { a: 'The number of tries', more: '“out of 12”, “20 times”', why: 'The tries are set in advance and X counts successes: binomial.', leaf: 'binomial' },
                   {
                     a: 'The number of successes', more: 'keep going “until …”',
-                    why: 'You keep going until a success happens, and X counts the tries.',
+                    why: 'You keep going until a set number of successes, and X counts the tries.',
                     node: {
                       q: 'Which success ends it?',
                       branches: [
-                        { a: 'The first', more: '“until the first …”', why: 'It stops at the first success: geometric.', leaf: 'geometric' },
+                        { a: 'The first', more: '“until the first …”', why: 'It stops at the first success: geometric. (That is also negative binomial with r = 1, but name the special case.)', leaf: 'geometric' },
                         { a: 'The r-th', more: '“until the 3rd …”', why: 'It stops at the 2nd, 3rd, … success: negative binomial.', leaf: 'negbin' },
                       ],
                     },
@@ -2145,7 +2172,7 @@ window.MathJax = {
               node: {
                 q: 'Waiting for which event?',
                 branches: [
-                  { a: 'The first', more: '“until the first call”', why: 'The wait for the first event: exponential (gamma with α = 1).', leaf: 'exponential' },
+                  { a: 'The first', more: '“until the first call”', why: 'The wait for the first event: exponential. (That is also gamma with α = 1, but name the special case.)', leaf: 'exponential' },
                   { a: 'The α-th', more: '“until the 3rd call”', why: 'The wait for the 2nd, 3rd, … event: gamma.', leaf: 'gamma' },
                 ],
               },
@@ -2190,25 +2217,25 @@ window.MathJax = {
     binomial: [
       () => { const n = ri(8, 20); return { text: `A quiz has ${n} multiple-choice questions with 4 choices each, and you guess on every one. X is how many you get right.`, clue: `${n} multiple-choice questions`,
         vars: { n: V(n, `${n} multiple-choice questions`), p: pOver(1, 4, '4 choices each', '1 right out of 4'), q: q1(0.25), x: sayX(near(n / 4, 0, n)) } } },
-      () => { const n = ri(8, 20), p = pickOne(['0.6', '0.7', '0.75', '0.8']); return { text: `A basketball player makes each free throw with probability ${p}. She takes ${n} free throws. X is how many she makes.`, clue: `She takes ${n} free throws`,
+      () => { const n = ri(8, 20), p = pickOne(['0.6', '0.7', '0.75', '0.8']); return { text: `A basketball player makes each free throw with probability ${p}, independently. She takes ${n} free throws. X is how many she makes.`, clue: `She takes ${n} free throws`,
         vars: { n: V(n, `takes ${n} free throws`), p: V(+p, `probability ${p}`), q: q1(+p), x: sayX(near(n * p, 0, n)) } } },
       () => { const n = ri(5, 12); return { text: `A card is drawn from a deck, its suit is noted, and the card is put back. This is done ${n} times. X is the number of hearts drawn.`, clue: 'the card is put back',
         vars: { n: V(n, `done ${n} times`), p: pOver(13, 52, 'hearts', '13 of the 52 cards'), q: q1(0.25), x: sayX(near(n / 4, 0, n)) } } },
     ],
     geometric: [
-      () => { const p = pickOne(['0.1', '0.2', '0.25', '0.3']); return { text: `A salesperson calls customers one at a time, and each call ends in a sale with probability ${p}. X is the number of calls until the first sale.`, clue: 'until the first sale',
+      () => { const p = pickOne(['0.1', '0.2', '0.25', '0.3']); return { text: `A salesperson calls customers one at a time, and each call ends in a sale with probability ${p}, independently. X is the number of calls until the first sale.`, clue: 'until the first sale',
         vars: { p: V(+p, `probability ${p}`), q: q1(+p), x: sayX(ri(2, 5)) } } },
       () => ({ text: 'You roll a die until the first six shows up. X is the number of rolls.', clue: 'until the first six',
         vars: { p: { ...frac(1, 6), from: 'the first six', note: '1 face out of 6' }, q: q1(1 / 6, '\\tfrac{5}{6}'), x: sayX(ri(2, 5)) } }),
-      () => { const p = pickOne(['0.05', '0.1', '0.2']); return { text: `Each chip off a line is defective with probability ${p}. An inspector tests chips until the first defective one. X is the number of chips tested.`, clue: 'until the first defective one',
+      () => { const p = pickOne(['0.05', '0.1', '0.2']); return { text: `Each chip off a line is defective with probability ${p}, independently. An inspector tests chips until the first defective one. X is the number of chips tested.`, clue: 'until the first defective one',
         vars: { p: V(+p, `probability ${p}`), q: q1(+p), x: sayX(ri(2, 5)) } } },
     ],
     negbin: [
-      () => { const r = ri(2, 5), p = pickOne(['0.2', '0.3', '0.4']); return { text: `Each well an oil company drills strikes oil with probability ${p}. X is the number of wells drilled until the ${ord(r)} strike.`, clue: `until the ${ord(r)} strike`,
+      () => { const r = ri(2, 5), p = pickOne(['0.2', '0.3', '0.4']); return { text: `Each well an oil company drills strikes oil with probability ${p}, independently. X is the number of wells drilled until the ${ord(r)} strike.`, clue: `until the ${ord(r)} strike`,
         vars: { r: V(r, `${ord(r)} strike`), p: V(+p, `probability ${p}`), q: q1(+p), x: sayX(r + ri(1, 4)) } } },
       () => { const r = ri(2, 3), pct = pickOne([10, 20, 25]); return { text: `${pct}% of the lots a factory makes are defective. Lots are made until the ${ord(r)} defective lot. X is the number of lots made.`, clue: `until the ${ord(r)} defective lot`,
         vars: { r: V(r, `${ord(r)} defective lot`), p: worked(V(pct / 100, `${pct}%`), { order: [], tex: s => `${s('p')} = ${pct}\\% = \\frac{${pct}}{100}`, steps: () => [`= ${fmt(pct / 100)}`] }), q: q1(pct / 100), x: sayX(r + ri(1, 4)) } } },
-      () => { const r = ri(2, 5), p = pickOne(['0.6', '0.7', '0.8']); return { text: `A player makes each free throw with probability ${p}. She shoots until she makes ${r} of them. X is the number of shots she takes.`, clue: `until she makes ${r} of them`,
+      () => { const r = ri(2, 5), p = pickOne(['0.6', '0.7', '0.8']); return { text: `A player makes each free throw with probability ${p}, independently. She shoots until she makes ${r} of them. X is the number of shots she takes.`, clue: `until she makes ${r} of them`,
         vars: { r: V(r, `makes ${r} of them`), p: V(+p, `probability ${p}`), q: q1(+p), x: sayX(r + ri(1, 3)) } } },
     ],
     hyper: [
@@ -2225,18 +2252,18 @@ window.MathJax = {
         do { l = ri(3, 12); m = pickOne([10, 15, 20, 30]) } while (!Number.isInteger((l * m * 4) / 60))
         const k = (l * m) / 60
         return { text: `A help desk gets an average of ${l} calls per hour. X is the number of calls in the next ${m} minutes.`, clue: `an average of ${l} calls per hour`,
-          vars: { lam: V(l, `${l} calls per hour`), t: worked({ ...frac(m, 60), from: `next ${m} minutes`, note: `${m} min = ${m}/60 hour` }, { order: [], tex: s => `${s('t')} = ${m}\\text{ min} = \\frac{${m}}{60}\\text{ hour}` }), k: V(k, null, 'k = λt, from the line above'), x: sayX(near(k, 0, 9)) } }
+          vars: { lam: V(l, `${l} calls per hour`), s: worked({ ...frac(m, 60), from: `next ${m} minutes`, note: `${m} min = ${m}/60 hour` }, { order: [], tex: S => `${S('s')} = ${m}\\text{ min} = \\frac{${m}}{60}\\text{ hour}` }), k: V(k, null, 'k = λs, from the line above'), x: sayX(near(k, 0, 9)) } }
       },
       () => { const l = pickOne(['0.2', '0.5', '1.5']), s = ri(4, Math.min(12, Math.floor(8 / l))), k = +(l * s).toFixed(2); return { text: `A textbook averages ${l} typos per page. X is the number of typos in a ${s}-page chapter.`, clue: `averages ${l} typos per page`,
-        vars: { lam: V(+l, `${l} typos per page`), t: V(s, `${s}-page chapter`, 'pages'), k: V(k, null, 'k = λt, from the line above'), x: sayX(near(k, 0, 20)) } } },
+        vars: { lam: V(+l, `${l} typos per page`), s: V(s, `${s}-page chapter`, 'pages'), k: V(k, null, 'k = λs, from the line above'), x: sayX(near(k, 0, 20)) } } },
       () => { const l = ri(2, 4), s = ri(2, Math.floor(8 / l)); return { text: `A road has an average of ${l} potholes per mile. X is the number of potholes in a ${s}-mile stretch.`, clue: `an average of ${l} potholes per mile`,
-        vars: { lam: V(l, `${l} potholes per mile`), t: V(s, `${s}-mile stretch`, 'miles'), k: V(l * s, null, 'k = λt, from the line above'), x: sayX(near(l * s, 0, 40)) } } },
+        vars: { lam: V(l, `${l} potholes per mile`), s: V(s, `${s}-mile stretch`, 'miles'), k: V(l * s, null, 'k = λs, from the line above'), x: sayX(near(l * s, 0, 40)) } } },
     ],
     uniform: [
       () => { const b = pickOne([10, 15, 20, 30]); return { text: `A bus is equally likely to arrive at any moment in the next ${b} minutes. X is when it arrives.`, clue: 'equally likely to arrive at any moment',
         vars: { A: V(0, null, 'it starts now: 0'), B: V(b, `next ${b} minutes`) } } },
-      () => { const a = ri(0, 5), b = a + ri(4, 10); return { text: `A program picks a number X between ${a} and ${b}, with every value equally likely.`, clue: 'every value equally likely',
-        vars: { A: V(a, `between ${a}`), B: V(b, `and ${b}`) } } },
+      () => { const a = ri(0, 5), b = a + ri(4, 10); return { text: `A program picks a real number X anywhere from ${a} to ${b}, with every value equally likely.`, clue: 'every value equally likely',
+        vars: { A: V(a, `from ${a}`), B: V(b, `to ${b}`) } } },
       () => { const b = pickOne([30, 50, 100]); return { text: `A ${b} cm rod is cut at a point chosen uniformly along its length. X is where it is cut.`, clue: 'chosen uniformly',
         vars: { A: V(0, null, 'one end of the rod: 0'), B: V(b, `${b} cm rod`) } } },
     ],
@@ -2245,7 +2272,7 @@ window.MathJax = {
         vars: { lam: V(l, `${l} per hour`), t: V(t, null, `say we want P(X > ${t} hour)`) } } },
       () => { const l = ri(2, 8), t = pickOne([0.5, 1]); return { text: `A Geiger counter clicks ${l} times a minute on average. X is the wait for the first click.`, clue: 'the wait for the first click',
         vars: { lam: V(l, `${l} times a minute`), t: V(t, null, `say we want P(X > ${t} minute)`) } } },
-      () => { const m = ri(2, 10), t = ri(1, m); return { text: `A server crashes on average once every ${m} days. X is the time until its next crash.`, clue: 'the time until its next crash',
+      () => { const m = ri(3, 10), t = ri(1, m); return { text: `A server crashes on average once every ${m} days. X is the time until its next crash.`, clue: 'the time until its next crash',
         vars: { lam: worked({ ...frac(1, m), from: `once every ${m} days`, note: `1 crash per ${m} days` }, { order: [], tex: s => `${s('lam')} = \\frac{1\\text{ crash}}{${m}\\text{ days}}`, steps: () => [`= \\frac{1}{${m}}\\text{ per day}`] }), t: V(t, null, `say we want P(X > ${t} days)`) } } },
     ],
     gamma: [
@@ -2256,9 +2283,9 @@ window.MathJax = {
     ],
     chi: [
       () => { const g = ri(3, 20); return { text: `X has a chi-squared distribution with ${g} degrees of freedom. Find the value with area 0.05 to its right.`, clue: `chi-squared distribution with ${g} degrees of freedom`,
-        vars: { ga: V(g, `${g} degrees of freedom`) } } },
+        vars: { ga: V(g, `${g} degrees of freedom`), ra: V(0.05, 'area 0.05 to its right') } } },
       () => { const g = ri(3, 20); return { text: `Use the χ² table with γ = ${g} to find the value of X that cuts off the top 1%.`, clue: 'the χ² table',
-        vars: { ga: V(g, `γ = ${g}`) } } },
+        vars: { ga: V(g, `γ = ${g}`), ra: V(0.01, 'the top 1%', '1% = 0.01') } } },
     ],
     normal: [
       () => ({ text: 'IQ scores are normally distributed with mean 100 and standard deviation 15. X is a random person’s IQ.', clue: 'normally distributed',
@@ -2271,8 +2298,8 @@ window.MathJax = {
   }
 
   // ---------- plug it in: the story's numbers go into the formula ----------
-  const SYM = { n: 'n', p: 'p', q: 'q', x: 'x', r: 'r', N: 'N', k: 'k', t: 't', A: 'A', B: 'B', lam: '\\lambda', mu: '\\mu', sig: '\\sigma', al: '\\alpha', be: '\\beta', ga: '\\gamma' }
-  const CHIP_SYM = { lam: 'λ', mu: 'μ', sig: 'σ', al: 'α', be: 'β', ga: 'γ' }
+  const SYM = { n: 'n', p: 'p', q: 'q', x: 'x', r: 'r', N: 'N', k: 'k', t: 't', s: 's', ra: 'r', A: 'A', B: 'B', lam: '\\lambda', mu: '\\mu', sig: '\\sigma', al: '\\alpha', be: '\\beta', ga: '\\gamma' }
+  const CHIP_SYM = { lam: 'λ', mu: 'μ', sig: 'σ', al: 'α', be: 'β', ga: 'γ', ra: 'right area' }
   const choose = (n, k) => {
     if (k < 0 || k > n) return 0
     let c = 1
@@ -2293,45 +2320,88 @@ window.MathJax = {
     if (Number.isInteger(x)) return a >= 1e4 ? x.toLocaleString('en-US').replace(/,/g, '{,}') : String(x)
     return String(sig4(x))
   }
-  const exact = x => (Number.isInteger(x) ? Math.abs(x) < 1e13 : Math.abs(x) >= 1e-4 && Math.abs(sig4(x) - x) < 1e-12)
+  const exact = x => (Number.isInteger(x) ? Math.abs(x) < 1e13 : Math.abs(+x.toPrecision(4) - x) <= 1e-12 * Math.abs(x))
   const rel = ok => (ok ? '=' : '\\approx')
   const base = t => (/^\d+$/.test(t) ? t : `\\left(${t}\\right)`)
   const xpow = e => (e === 1 ? 'x' : `x^{${e}}`)
+  // ---------- the pieces: what you work out inside a formula ----------
+  const prod = (lo, hi) => {
+    let r = 1
+    for (let i = lo; i <= hi; i++) r *= i
+    return r
+  }
+  // C(n, k) by hand: n!/(k!(n − k)!), the bigger factorial cancels, multiply out the rest
+  function chooseWork(n, k) {
+    const small = Math.min(k, n - k), big = n - small, C = choose(n, k)
+    const top = Array.from({ length: small }, (_, i) => n - i)
+    const line = { order: [], label: `How to get C(${n}, ${k})`, tex: () => `\\binom{${n}}{${k}} = \\frac{${n}!}{${k}!\\,${n - k}!}` }
+    if (small === 0) return { ...line, steps: () => ['= 1'], tail: () => '\\quad (0! = 1)' }
+    const cancel = `\\frac{${top.join(' \\cdot ')} \\cdot \\cancel{${big}!}}{${small}! \\cdot \\cancel{${big}!}}`
+    if (small === 1) return { ...line, steps: () => [`= ${cancel}`, `= ${n}`] }
+    if (small > 6) return { ...line, steps: () => [`= \\frac{${n} \\cdot ${n - 1} \\cdots ${big + 1}}{${small}!}`, `= ${num(C)}`], tail: () => '\\quad \\text{(nCr on a calculator)}' }
+    const bottom = Array.from({ length: small }, (_, i) => small - i)
+    return { ...line, steps: () => [`= ${cancel}`, `= \\frac{${top.join(' \\cdot ')}}{${bottom.join(' \\cdot ')}}`, `= \\frac{${num(prod(big + 1, n))}}{${num(fact(small))}}`, `= ${num(C)}`] }
+  }
+  // x! written out
+  function factWork(x) {
+    const out = x <= 6 ? Array.from({ length: x }, (_, i) => x - i).join(' \\cdot ') : `${x} \\cdot ${x - 1} \\cdots 2 \\cdot 1`
+    if (x <= 1) return { order: [], label: `How to get ${x}!`, tex: () => `${x}! = 1`, tail: () => (x === 0 ? '\\quad (0! = 1 \\text{ by definition})' : '') }
+    return { order: [], label: `How to get ${x}!`, tex: () => `${x}! = ${out}`, steps: () => [`= ${num(fact(x))}`] }
+  }
+  // calculator punches, one per row: [left side, value]
+  const calcPiece = (items, label = 'On the calculator') => {
+    if (!items.length) return null
+    const rows = items.map(([l, x]) => `${l} &${rel(exact(x))} ${num(x)}`)
+    return { order: [], label, plain: true, tex: () => rows[0].replace('&', ''), steps: () => rows.slice(1) }
+  }
+  // the powers worth a line ([base tex, base, exponent]; ^0 and ^1 need no work)
+  const powPiece = list => calcPiece(list.filter(([, , e]) => e >= 2).map(([t, b, e]) => [`${base(t)}^{${e}}`, b ** e]))
+
   // each line: a formula with slots (s(key) is the symbol, or the number once it is
   // plugged in; mode 1 wraps a non-whole number in brackets, mode 2 any number), the
-  // order the numbers go in, then the work, one row at a time, down to the answer
+  // order the numbers go in, rows of work under it; then the pieces worked on the
+  // side (pieces), and the rows that finish it with them (finish)
   const PLUG = {
     binomial: [{ order: ['n', 'p', 'q', 'x'], tex: s => `f(${s('x')}) = \\binom{${s('n')}}{${s('x')}}${s('p', 1)}^{${s('x')}}${s('q', 1)}^{${s('n')}-${s('x')}}`,
-      steps: (v, T) => {
-        const e = v.n - v.x, C = choose(v.n, v.x), A = v.p ** v.x, B = v.q ** e, f = C * A * B
-        return [`= \\binom{${v.n}}{${v.x}}${base(T.p)}^{${v.x}}${base(T.q)}^{${e}}`, `${rel(exact(A) && exact(B))} ${num(C)} \\cdot ${num(A)} \\cdot ${num(B)}`, `${rel(exact(f))} ${num(f)}`]
+      steps: (v, T) => [`= \\binom{${v.n}}{${v.x}}${base(T.p)}^{${v.x}}${base(T.q)}^{${v.n - v.x}}`],
+      pieces: (v, T) => [chooseWork(v.n, v.x), powPiece([[T.p, v.p, v.x], [T.q, v.q, v.n - v.x]])],
+      finish: v => {
+        const C = choose(v.n, v.x), A = v.p ** v.x, B = v.q ** (v.n - v.x), f = C * A * B
+        return { lhs: `f(${v.x})`, steps: () => [`${rel(exact(A) && exact(B))} ${num(C)} \\cdot ${num(A)} \\cdot ${num(B)}`, `${rel(exact(f))} ${num(f)}`] }
       } }],
     geometric: [{ order: ['p', 'q', 'x'], tex: s => `f(${s('x')}) = ${s('q', 1)}^{${s('x')}-1}${s('p', 2)}`,
-      steps: (v, T) => {
+      steps: (v, T) => [`= ${base(T.q)}^{${v.x - 1}}${base(T.p)}`],
+      pieces: (v, T) => [powPiece([[T.q, v.q, v.x - 1]])],
+      finish: v => {
         const Q = v.q ** (v.x - 1), f = Q * v.p
-        return [`= ${base(T.q)}^{${v.x - 1}}${base(T.p)}`, `${rel(exact(Q) && exact(v.p))} ${num(Q)} \\cdot ${num(v.p)}`, `${rel(exact(f))} ${num(f)}`]
+        return { lhs: `f(${v.x})`, steps: () => [`${rel(exact(Q) && exact(v.p))} ${num(Q)} \\cdot ${num(v.p)}`, `${rel(exact(f))} ${num(f)}`] }
       } }],
     negbin: [{ order: ['r', 'p', 'q', 'x'], tex: s => `f(${s('x')}) = \\binom{${s('x')}-1}{${s('r')}-1}${s('p', 1)}^{${s('r')}}${s('q', 1)}^{${s('x')}-${s('r')}}`,
-      steps: (v, T) => {
+      steps: (v, T) => [`= \\binom{${v.x - 1}}{${v.r - 1}}${base(T.p)}^{${v.r}}${base(T.q)}^{${v.x - v.r}}`],
+      pieces: (v, T) => [chooseWork(v.x - 1, v.r - 1), powPiece([[T.p, v.p, v.r], [T.q, v.q, v.x - v.r]])],
+      finish: v => {
         const C = choose(v.x - 1, v.r - 1), P = v.p ** v.r, Q = v.q ** (v.x - v.r), f = C * P * Q
-        return [`= \\binom{${v.x - 1}}{${v.r - 1}}${base(T.p)}^{${v.r}}${base(T.q)}^{${v.x - v.r}}`, `${rel(exact(P) && exact(Q))} ${num(C)} \\cdot ${num(P)} \\cdot ${num(Q)}`, `${rel(exact(f))} ${num(f)}`]
+        return { lhs: `f(${v.x})`, steps: () => [`${rel(exact(P) && exact(Q))} ${num(C)} \\cdot ${num(P)} \\cdot ${num(Q)}`, `${rel(exact(f))} ${num(f)}`] }
       } }],
     hyper: [{ order: ['N', 'r', 'n', 'x'], tex: s => `f(${s('x')}) = \\frac{\\binom{${s('r')}}{${s('x')}}\\binom{${s('N')}-${s('r')}}{${s('n')}-${s('x')}}}{\\binom{${s('N')}}{${s('n')}}}`,
-      steps: v => {
+      steps: v => [`= \\frac{\\binom{${v.r}}{${v.x}}\\binom{${v.N - v.r}}{${v.n - v.x}}}{\\binom{${v.N}}{${v.n}}}`],
+      pieces: v => [chooseWork(v.r, v.x), chooseWork(v.N - v.r, v.n - v.x), chooseWork(v.N, v.n)],
+      finish: v => {
         const C1 = choose(v.r, v.x), C2 = choose(v.N - v.r, v.n - v.x), C3 = choose(v.N, v.n), f = (C1 * C2) / C3
-        return [`= \\frac{\\binom{${v.r}}{${v.x}}\\binom{${v.N - v.r}}{${v.n - v.x}}}{\\binom{${v.N}}{${v.n}}}`, `= \\frac{${num(C1)} \\cdot ${num(C2)}}{${num(C3)}}`, `${rel(exact(C1 * C2) && exact(C3))} \\frac{${num(C1 * C2)}}{${num(C3)}}`, `${rel(exact(f))} ${num(f)}`]
+        return { lhs: `f(${v.x})`, steps: () => [`= \\frac{${num(C1)} \\cdot ${num(C2)}}{${num(C3)}}`, `${rel(exact(C1 * C2) && exact(C3))} \\frac{${num(C1 * C2)}}{${num(C3)}}`, `${rel(exact(f))} ${num(f)}`] }
       } }],
     poisson: [
-      { order: ['lam', 't'], tex: s => `${s('k')} = ${s('lam')}${s('t', 2)}`,
-        steps: (v, T) => (T.t.includes('frac') ? [`= \\frac{${Math.round(v.lam * v.t * 60)}}{60}`, `= ${fmt(v.k)}`] : [`= ${fmt(v.k)}`]) },
+      { mid: true, order: ['lam', 's'], tex: s => `${s('k')} = ${s('lam')}${s('s', 2)}`,
+        steps: (v, T) => (/\{60\}/.test(T.s) ? [`= \\frac{${Math.round(v.lam * v.s * 60)}}{60}`, `= ${fmt(v.k)}`] : [`= ${fmt(v.k)}`]) },
       { order: ['k', 'x'], tex: s => `f(${s('x')}) = \\frac{e^{-${s('k')}}${s('k', 1)}^{${s('x')}}}{${s('x')}!}`,
-        steps: v => {
+        pieces: (v, T) => [calcPiece([[`e^{-${T.k}}`, Math.exp(-v.k)], ...(v.x >= 2 ? [[`${base(T.k)}^{${v.x}}`, v.k ** v.x]] : [])]), factWork(v.x)],
+        finish: v => {
           const E = Math.exp(-v.k), K = v.k ** v.x, F = fact(v.x), f = (E * K) / F
-          return [`${rel(exact(E) && exact(K))} \\frac{${num(E)} \\cdot ${num(K)}}{${num(F)}}`, `${rel(exact(f))} ${num(f)}`]
+          return { lhs: `f(${v.x})`, steps: () => [`${rel(exact(E) && exact(K))} \\frac{${num(E)} \\cdot ${num(K)}}{${num(F)}}`, `${rel(exact(f))} ${num(f)}`] }
         } },
     ],
     uniform: [{ order: ['A', 'B'], tex: s => `f(x) = \\frac{1}{${s('B')} - ${s('A')}}`,
-      steps: v => [`= \\frac{1}{${v.B - v.A}}`, `${rel(exact(1 / (v.B - v.A)))} ${num(1 / (v.B - v.A))}`], tail: v => `\\quad \\text{for } ${v.A} \\le x \\le ${v.B}` }],
+      steps: v => [`= \\frac{1}{${fmt(v.B - v.A)}}`, `${rel(exact(1 / (v.B - v.A)))} ${num(1 / (v.B - v.A))}`], tail: v => `\\quad \\text{for } ${v.A} \\le x \\le ${v.B}` }],
     exponential: [
       { order: ['lam'], tex: s => `f(x) = ${s('lam')}e^{-${s('lam')}x}`, tail: () => '\\quad \\text{for } x > 0' },
       { order: ['lam', 't'], tex: s => `P(X > ${s('t')}) = e^{-${s('lam')}${s('t', 2)}}`,
@@ -2341,27 +2411,194 @@ window.MathJax = {
         } },
     ],
     gamma: [{ order: ['al', 'be'], tex: s => `f(x) = \\frac{x^{${s('al')}-1}e^{-x/${s('be', 1)}}}{\\Gamma(${s('al')})\\,${s('be', 1)}^{${s('al')}}}`,
-      steps: v => {
-        const l = Math.round(1 / v.be), a = v.al, num1 = l ** a, den = fact(a - 1), g = gcd(num1, den)
-        const coef = den / g === 1 ? `${num1 / g}` : `\\frac{${num1 / g}}{${den / g}}`
-        return [`= \\frac{${xpow(a - 1)}e^{-${l}x}}{${den} \\cdot \\frac{1}{${num1}}}`, `= ${coef}${xpow(a - 1)}e^{-${l}x}`]
-      }, tail: () => '\\quad \\text{for } x > 0' }],
+      pieces: (v, T) => {
+        const a = v.al, rate = Math.round(1 / v.be), frac1 = /frac/.test(T.be)
+        const gam = { order: [], label: `How to get Γ(${a})`, tex: () => `\\Gamma(${a}) = (${a} - 1)!`,
+          steps: () => [`= ${a - 1}!`, ...(a - 1 >= 2 ? [`= ${Array.from({ length: a - 1 }, (_, i) => a - 1 - i).join(' \\cdot ')}`] : []), `= ${fact(a - 1)}`] }
+        const pow = frac1
+          ? { order: [], label: 'The power', tex: () => `\\left(\\tfrac{1}{${rate}}\\right)^{${a}} = \\frac{1}{${rate}^{${a}}}`, steps: () => [`= \\frac{1}{${num(rate ** a)}}`] }
+          : { order: [], label: 'The power', tex: () => `${T.be}^{${a}} = ${num(v.be ** a)}` }
+        const flip = frac1 ? { order: [], label: 'Dividing by a fraction flips it', tex: () => `\\frac{x}{\\tfrac{1}{${rate}}} = ${rate}x` } : null
+        return [gam, pow, flip]
+      },
+      finish: (v, T) => {
+        const a = v.al, den = fact(a - 1)
+        if (/frac/.test(T.be)) {
+          const l = Math.round(1 / v.be), top = l ** a, g = gcd(top, den)
+          const coef = den / g === 1 ? `${num(top / g)}` : `\\frac{${num(top / g)}}{${den / g}}`
+          return { lhs: 'f(x)', steps: () => [`= \\frac{${xpow(a - 1)}e^{-${l}x}}{${den} \\cdot \\frac{1}{${num(top)}}}`, `= ${coef}${xpow(a - 1)}e^{-${l}x}`], tail: () => '\\quad \\text{for } x > 0' }
+        }
+        const b = v.be, all = den * b ** a
+        return { lhs: 'f(x)', steps: () => [`= \\frac{${xpow(a - 1)}e^{-x/${b}}}{${den} \\cdot ${num(b ** a)}}`, `= \\frac{1}{${num(all)}}${xpow(a - 1)}e^{-x/${b}}`], tail: () => '\\quad \\text{for } x > 0' }
+      } }],
     chi: [
-      { order: ['ga'], tex: s => `\\alpha = \\frac{${s('ga')}}{2}`, steps: v => [`= ${fmt(v.ga / 2)}`] },
-      { order: [], tex: () => '\\beta = 2', tail: () => '\\quad \\text{then read the } \\chi^2 \\text{ table}' },
+      { mid: v => 'ra' in v, order: ['ga'], tex: s => `\\alpha = \\frac{${s('ga')}}{2}`, steps: v => [`= ${fmt(v.ga / 2)}`] },
+      { order: [], tex: () => '\\beta = 2' },
+      // when the story asks for a value from the table: a right area r is column 1 − r
+      { when: v => 'ra' in v, mid: true, order: ['ra'], tex: s => `\\text{column} = 1 - ${s('ra')}`, steps: v => [`= ${fmt(1 - v.ra)}`] },
+      { when: v => 'ra' in v, order: ['ga'], tex: (s, v) => `c = \\text{row } ${s('ga')},\\ \\text{column } ${fmt(1 - v.ra)}`, steps: v => [`= ${chiEntry(v.ga, 1 - v.ra)}`],
+        look: v => ({ name: 'chi2', row: String(v.ga), col: fmt(1 - v.ra) }) },
     ],
     normal: [
       { order: ['mu', 'sig'], tex: s => `f(x) = \\frac{1}{\\sqrt{2\\pi}\\,${s('sig', 1)}}e^{-(x-${s('mu')})^2/2${s('sig', 2)}^2}`,
-        steps: (v, T) => {
-          const S = v.sig * Math.sqrt(2 * Math.PI)
-          return [`\\approx \\frac{1}{${num(S)}}e^{-(x-${T.mu})^2/${num(2 * v.sig ** 2)}}`]
-        } },
-      { order: ['x', 'mu', 'sig'], tex: s => `z = \\frac{${s('x')} - ${s('mu')}}{${s('sig')}}`,
+        pieces: (v, T) => [calcPiece([[`\\sqrt{2\\pi}\\,\\left(${T.sig}\\right)`, v.sig * Math.sqrt(2 * Math.PI)], [`2\\left(${T.sig}\\right)^2`, 2 * v.sig ** 2]])],
+        finish: (v, T) => ({ lhs: 'f(x)', mid: true, steps: () => [`\\approx \\frac{1}{${num(v.sig * Math.sqrt(2 * Math.PI))}}e^{-(x-${T.mu})^2/${num(2 * v.sig ** 2)}}`] }) },
+      { mid: true, order: ['x', 'mu', 'sig'], tex: s => `z = \\frac{${s('x')} - ${s('mu')}}{${s('sig')}}`,
         steps: (v, T) => {
           const z = (v.x - v.mu) / v.sig, z2 = +z.toFixed(2)
-          return [`= \\frac{${fmt(v.x - v.mu)}}{${T.sig}}`, `${rel(Math.abs(z2 - z) < 1e-12)} ${z2}`]
+          return [`= \\frac{${fmt(v.x - v.mu)}}{${T.sig}}`, `${rel(Math.abs(z2 - z) < 1e-12)} ${z2.toFixed(2)}`]
         } },
+      // then the table: round z to 2 decimals, and the entry is the area to its left
+      { order: [], label: 'Then the table', answer: true, tex: (s, v) => {
+          const z = (v.x - v.mu) / v.sig, z2 = +z.toFixed(2)
+          return `P(X < ${fmt(v.x)}) ${rel(Math.abs(z2 - z) < 1e-12)} P(Z < ${z2.toFixed(2)})`
+        },
+        steps: v => [`= ${normEntry(+((v.x - v.mu) / v.sig).toFixed(2))}`],
+        look: v => ({ name: 'normal', ...zCell(+((v.x - v.mu) / v.sig).toFixed(2)) }) },
     ],
+  }
+  // the normal table's row and column for a z with 2 decimals (row −1.6, column 0.08 is −1.68)
+  const zCell = z => {
+    const c = Math.round(Math.abs(z) * 100)
+    return { row: (z < 0 ? '-' : '') + (Math.floor(c / 10) / 10).toFixed(1), col: ((c % 10) / 100).toFixed(2) }
+  }
+  const cellOf = (name, row, col) => {
+    tables ??= unit.printedTables()
+    const t = tables[name]
+    const r = t.rows.find(x => x.label === row)
+    const j = t.cols.indexOf(col)
+    return r && j >= 0 ? r.values[j] : null
+  }
+  // the z values (×100) whose entries are closest to an area (two when it is halfway)
+  function closestZ(A) {
+    tables ??= unit.printedTables()
+    let best = Infinity, at = []
+    for (const r of tables.normal.rows) r.values.forEach((v, j) => {
+      const d = Math.abs(+v - A)
+      const z = Math.round((r.label.startsWith('-') ? -1 : 1) * (Math.abs(+r.label) * 100 + j))
+      if (d < best - 1e-12) { best = d; at = [z] }
+      else if (Math.abs(d - best) <= 1e-12 && !at.includes(z)) at.push(z)
+    })
+    return at
+  }
+  const normEntry = z => {
+    const { row, col } = zCell(z)
+    return cellOf('normal', row, col)
+  }
+  // a window of one printed table: the row lights up, then the column, and they meet
+  // at the entry; reverse (an area to find) lights the entry first, then its edges
+  function tableLook({ name, row, col, target = null }) {
+    tables ??= unit.printedTables()
+    const t = tables[name]
+    const ri = t.rows.findIndex(r => r.label === row)
+    const ci = t.cols.indexOf(col)
+    if (ri < 0 || ci < 0) return null
+    const entry = t.rows[ri].values[ci]
+    const wrap = h('div', 'tlook')
+    const scroller = h('div', 'tlook-scroll')
+    const table = h('table', 'tlook-table')
+    const head = h('tr')
+    head.append(h('th', 'corner', t.corner))
+    const colHeads = t.cols.map(c => {
+      const th = h('th', '', c)
+      head.append(th)
+      return th
+    })
+    table.append(head)
+    const lo = Math.max(0, ri - 2), hi = Math.min(t.rows.length - 1, ri + 2)
+    const gap = () => {
+      const tr = h('tr', 'gap')
+      tr.append(h('td', '', '⋮'))
+      table.append(tr)
+    }
+    if (lo > 0) gap()
+    let rowHead = null, rowCells = [], colCells = [], hit = null
+    for (let i = lo; i <= hi; i++) {
+      const tr = h('tr')
+      const th = h('th', '', t.rows[i].label)
+      tr.append(th)
+      t.rows[i].values.forEach((v, j) => {
+        const td = h('td', '', v)
+        tr.append(td)
+        if (i === ri) rowCells.push(td)
+        if (j === ci) colCells.push(td)
+        if (i === ri && j === ci) hit = td
+      })
+      if (i === ri) rowHead = th
+      table.append(tr)
+    }
+    if (hi < t.rows.length - 1) gap()
+    scroller.append(table)
+    let cap
+    if (name === 'normal') {
+      const z = (row.startsWith('-') ? '-' : '') + (Math.abs(+row) + +col).toFixed(2)
+      cap = target != null
+        ? `Look in the body for the entry closest to ${target}: ${entry}. Its row ${row} and column ${col} make z = ${z}.`
+        : `Row ${row} (z to one decimal) and column ${col} (the second decimal) make z = ${z}. They meet at ${entry}, the area to the LEFT: P(Z < ${z}) = ${entry}.`
+    } else if (name === 'chi2') {
+      cap = target != null
+        ? `In row γ = ${row}, find ${entry}. Its column, ${col}, is the area to its LEFT.`
+        : `Row γ = ${row}, column ${col} (the area to the LEFT) meet at ${entry}.`
+    } else {
+      cap = `In the n = ${name === 'binomial19' ? 19 : 20} table, row x = ${row} and column p = ${col} meet at ${entry}: F(${row}) = P(X ≤ ${row}) = ${entry}.`
+    }
+    const caption = h('p', 'tlook-cap', cap)
+    wrap.append(h('div', 'piece-label', 'Reading the table · ' + t.title), scroller, caption)
+    const centre = () => {
+      if (hit) scroller.scrollLeft = Math.max(0, hit.offsetLeft - scroller.clientWidth / 2 + hit.offsetWidth / 2)
+    }
+    function final() {
+      rowHead?.classList.add('on-row')
+      rowCells.forEach(c => c.classList.add('on-row'))
+      colHeads[ci].classList.add('on-col')
+      colCells.forEach(c => c.classList.add('on-col'))
+      hit?.classList.add('hit')
+      caption.hidden = false
+      requestAnimationFrame(centre)
+    }
+    async function play(alive) {
+      caption.hidden = true
+      requestAnimationFrame(centre)
+      await wait(400)
+      const sweep = async (cells, cls, gapMs) => {
+        for (const c of cells) {
+          if (!alive()) return
+          c.classList.add(cls)
+          await wait(gapMs)
+        }
+      }
+      if (target != null) {
+        // an area to find: scan the row of the answer, stop on the closest entry
+        await sweep(rowCells.slice(0, ci + 1), 'scan', 70)
+        rowCells.forEach(c => c.classList.remove('scan'))
+        hit?.classList.add('hit')
+        tone(semis(523.25, 12), 0, 0.12, 'sine', 0.08)
+        await wait(450)
+        rowHead?.classList.add('on-row')
+        await wait(300)
+        colHeads[ci].classList.add('on-col')
+      } else {
+        rowHead?.classList.add('on-row')
+        await sweep(rowCells, 'on-row', 45)
+        await wait(250)
+        colHeads[ci].classList.add('on-col')
+        await sweep(colCells, 'on-col', 70)
+        await wait(200)
+        hit?.classList.add('hit')
+        tone(semis(523.25, 12), 0, 0.12, 'sine', 0.08)
+      }
+      if (!alive()) return
+      caption.hidden = false
+      caption.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300 })
+      await wait(700)
+    }
+    return { el: wrap, play, final }
+  }
+  // the class's chi-squared table: the value in row γ under a LEFT-area column
+  const chiEntry = (g, col) => {
+    tables ??= unit.printedTables()
+    const t = tables.chi2
+    return t.rows[g - 1].values[t.cols.indexOf(fmt(col))]
   }
 
   const wait = ms => new Promise(r => setTimeout(r, ms))
@@ -2397,18 +2634,25 @@ window.MathJax = {
   function plugPanel(p, { sheet = null, auto = false, next = null } = {}) {
     const vars = p.vars
     // a number the story only implies gets its own line of work, just before it is used
-    const lines = []
-    for (const line of PLUG[p.leaf]) {
-      for (const k of line.order) if (vars[k]?.work && !lines.some(l => l.key === k)) lines.push({ ...vars[k].work, key: k })
-      lines.push(line)
-    }
     const val = Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, v.val]))
     const T = Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, v.tex]))
-    const keys = [...new Set(PLUG[p.leaf].flatMap(l => l.order))]
+    const lines = []
+    for (const line of PLUG[p.leaf]) {
+      if (line.when && !line.when(val)) continue
+      for (const k of line.order) if (vars[k]?.work && !lines.some(l => l.key === k)) lines.push({ ...vars[k].work, key: k })
+      lines.push(line)
+      // the pieces on the side, then the rows that finish the formula with them
+      if (line.pieces) lines.push(...line.pieces(val, T).filter(Boolean))
+      if (line.finish) lines.push({ order: [], ...line.finish(val, T) })
+      if (line.look) lines.push({ order: [], lookAt: line.look(val) })
+    }
+    const keys = [...new Set(lines.flatMap(l => l.order))]
     const color = Object.fromEntries(keys.map((k, i) => [k, 'pv' + (i % 5)]))
     const el = h('div', 'plug')
     const L = LEAVES[p.leaf]
-    el.append(h('h3', '', `${L.name} · plug it in`), h('p', 'plug-sub', 'Every number in the story has a spot in the formula. Numbers the story only hints at get worked out first.'))
+    el.append(h('h3', '', `${L.name} · plug it in`))
+    if (p.trap) el.append(h('p', 'plug-sub trap', 'The trap: ' + p.trap))
+    el.append(h('p', 'plug-sub', 'Every number in the story has a spot in the formula. Numbers the story only hints at get worked out first, and so does every piece inside it.'))
     const chips = h('div', 'plug-chips')
     const box = h('div')
     el.append(chips, box)
@@ -2431,8 +2675,28 @@ window.MathJax = {
         return color[k] ? `\\class{${color[k]}}{${body}}` : body
       }
       const all = stepsOf(line)
-      const rows = [line.tex(s).replace(' = ', ' &= ')]
-      all.slice(0, n).forEach((st, j) => rows.push(`&\\class{${j === all.length - 1 ? 'pvres' : 'pvstep'}}{{}${st}}`))
+      const cls = j => (j === all.length - 1 && !line.plain ? 'pvres' : 'pvstep')
+      // the answer is boxed: the last row of a line that is not work on the side or a step on the way
+      const mid = typeof line.mid === 'function' ? line.mid(val) : line.mid
+      const answer = line.answer || (!line.key && !line.label && !line.plain && !mid && !line.pieces && !line.finish && !line.lookAt)
+      const boxed = st => {
+        const m = /^(=|\\approx)\s*([\s\S]*)$/.exec(st)
+        return m ? `${m[1]} \\boxed{${m[2]}}` : `\\boxed{${st}}`
+      }
+      // a row with its own left side (calculator rows) keeps it outside the colour
+      const row = (st, j) => {
+        if (answer && j === all.length - 1 && !st.includes('&')) st = boxed(st)
+        const at = st.indexOf('&')
+        return at < 0 ? `&\\class{${cls(j)}}{{}${st}}` : `${st.slice(0, at)}&\\class{${cls(j)}}{{}${st.slice(at + 1)}}`
+      }
+      let rows
+      if (line.lhs) {
+        // finishing rows: one left side, the first row there from the start
+        rows = all.slice(0, Math.max(1, n)).map((st, j) => (j ? '' : line.lhs + ' ') + row(st, j))
+      } else {
+        rows = [line.tex(s, val).replace(/ (=|\\approx) /, ' &$1 ')]
+        all.slice(0, n).forEach((st, j) => rows.push(row(st, j)))
+      }
       if (n >= all.length && done.size === line.order.length && line.tail) rows[rows.length - 1] += ' ' + line.tail(val)
       return `\\begin{aligned}${rows.join(' \\\\[2pt] ')}\\end{aligned}`
     }
@@ -2453,9 +2717,18 @@ window.MathJax = {
     function showFinal() {
       box.replaceChildren()
       for (const line of lines) {
+        if (line.lookAt) {
+          const tl = tableLook(line.lookAt)
+          if (tl) {
+            box.append(tl.el)
+            tl.final()
+          }
+          continue
+        }
         line.order.forEach(chipFor)
         if (line.key) chipFor(line.key)
-        const d = h('div', 'plug-line' + (line.key ? ' work' : ''))
+        if (line.label) box.append(h('div', 'piece-label', line.label))
+        const d = h('div', 'plug-line' + (line.key || line.label ? ' work' : ''))
         d.append(tex(lineTex(line, new Set(line.order), Infinity)))
         box.append(d)
       }
@@ -2468,9 +2741,20 @@ window.MathJax = {
       chips.replaceChildren()
       box.replaceChildren()
       for (const line of lines) {
+        if (line.lookAt) {
+          const tl = tableLook(line.lookAt)
+          if (!tl) continue
+          box.append(tl.el)
+          await tl.play(alive)
+          if (!alive()) return
+          continue
+        }
         const done = new Set()
-        let n = 0
-        const d = h('div', 'plug-line enter' + (line.key ? ' work' : ''))
+        // finishing rows show their first row straight away
+        const first = line.lhs ? 1 : 0
+        let n = first
+        if (line.label) box.append(h('div', 'piece-label', line.label))
+        const d = h('div', 'plug-line enter' + (line.key || line.label ? ' work' : ''))
         const draw = () => d.replaceChildren(tex(lineTex(line, done, n)))
         // a line of work starts at the words it comes from
         if (line.key && vars[line.key].from) lightStory(vars[line.key].from, color[line.key])
@@ -2496,9 +2780,9 @@ window.MathJax = {
         }
         // the work, one row at a time; the last row is the answer
         const steps = stepsOf(line)
-        for (let j = 0; j <= steps.length; j++) {
+        for (let j = first; j <= steps.length; j++) {
           if (j === steps.length && !line.tail) break
-          await wait(j ? 750 : 350)
+          await wait(j > first ? 650 : 350)
           if (!alive()) return
           n = j + 1
           draw()
@@ -2510,7 +2794,7 @@ window.MathJax = {
           d.classList.remove('enter')
           void d.offsetWidth
           d.classList.add('bump')
-          if (!line.key) sfx.right(2)
+          if (!line.key && !line.label) sfx.right(2)
         }
         // a worked-out number becomes a chip, ready to plug in
         if (line.key) chipFor(line.key).animate([{ transform: 'scale(1.25)' }, { transform: 'none' }], { duration: 350 })
@@ -2525,6 +2809,127 @@ window.MathJax = {
     if (auto && !reduced()) setTimeout(play, 0)
     else showFinal()
     return el
+  }
+
+  // test mode: longer stories with a trap in each (the trap says what it is)
+  const HARD = {
+    binomial: [
+      () => { const pct = pickOne([10, 15, 20, 25]), n = ri(10, 16); return { text: `On average, ${pct}% of an airline's flights arrive late, and flights are late independently of each other. Of the next ${n} flights, X is the number that arrive late.`, clue: `Of the next ${n} flights`,
+        trap: '“On average” sounds like Poisson, but there is a fixed number of flights, each late with the same chance: binomial.',
+        vars: { n: V(n, `next ${n} flights`), p: worked(V(pct / 100, `${pct}%`), { order: [], tex: S => `${S('p')} = ${pct}\\% = \\frac{${pct}}{100}`, steps: () => [`= ${fmt(pct / 100)}`] }), q: q1(pct / 100), x: sayX(near((n * pct) / 100, 0, n)) } } },
+      () => { const [R, B] = pickOne([[4, 6], [3, 7], [2, 8], [6, 4], [3, 5], [1, 3]]), n = ri(5, 10), pp = R / (R + B); return { text: `A bag holds ${R} red and ${B} blue marbles. A marble is drawn at random, its color is written down, and it is put back in the bag. This is done ${n} times. X is the number of red marbles written down.`, clue: 'it is put back in the bag',
+        trap: 'Drawing from a small bag looks hypergeometric, but each marble goes back, so every draw has the same chance: binomial.',
+        vars: { n: V(n, `done ${n} times`), p: worked(V(pp, `${R} red and ${B} blue`), { order: [], tex: S => `${S('p')} = \\frac{${R}}{${R} + ${B}}`, steps: () => [`= \\frac{${R}}{${R + B}}`, `= ${fmt(pp)}`] }), q: q1(pp), x: sayX(near(n * pp, 0, n)) } } },
+      () => { const per = pickOne([20, 30, 40]), n = ri(12, 20), p = pickOne(['0.05', '0.1']); return { text: `A machine makes ${per} bolts an hour. Each bolt is defective with probability ${p}, independently of the others. X is the number of defective bolts among the next ${n} bolts.`, clue: `among the next ${n} bolts`,
+        trap: '“An hour” sounds like a Poisson rate, but X counts defects among a fixed number of bolts, each with the same chance: binomial.',
+        vars: { n: V(n, `next ${n} bolts`), p: V(+p, `probability ${p}`), q: q1(+p), x: sayX(near(n * p, 1, n)) } } },
+    ],
+    geometric: [
+      () => { const make = pickOne([60, 70, 75, 80, 90]), miss = (100 - make) / 100; return { text: `A basketball player makes ${make}% of her free throws, independently. She keeps shooting until she misses one. X is the number of shots she takes.`, clue: 'until she misses one',
+        trap: `The thing she waits for is a miss, so p = 1 − ${fmt(make / 100)} = ${fmt(miss)}, not ${fmt(make / 100)}. Waiting for the first one: geometric.`,
+        vars: { p: worked(V(miss, `${make}%`, 'a miss is the “success”'), { order: [], tex: S => `${S('p')} = P(\\text{miss}) = 1 - ${fmt(make / 100)}`, steps: () => [`= ${fmt(miss)}`] }), q: q1(miss), x: sayX(ri(2, 4)) } } },
+      () => ({ text: 'You roll a pair of fair dice over and over until you roll doubles (both dice show the same number). X is the number of rolls.', clue: 'until you roll doubles',
+        trap: 'Independent rolls, stopping at the first doubles: geometric. The work is p: 6 of the 36 outcomes are doubles.',
+        vars: { p: worked({ ...frac(1, 6), from: 'doubles', note: '6 of the 36 outcomes' }, { order: [], tex: S => `${S('p')} = \\frac{6}{36}`, steps: () => ['= \\frac{1}{6}'] }), q: q1(1 / 6, '\\tfrac{5}{6}'), x: sayX(ri(2, 5)) } }),
+      () => { const pct = pickOne([10, 20, 25, 40]); return { text: `Each new user who signs up has a ${pct}% chance of having been referred by a friend, independently. X is the number of sign-ups up to and including the first referred user.`, clue: 'up to and including the first referred user',
+        trap: 'X counts the tries up to the first success, and the number of tries is not fixed: geometric, not binomial.',
+        vars: { p: worked(V(pct / 100, `${pct}%`), { order: [], tex: S => `${S('p')} = ${pct}\\% = \\frac{${pct}}{100}`, steps: () => [`= ${fmt(pct / 100)}`] }), q: q1(pct / 100), x: sayX(ri(2, 5)) } } },
+    ],
+    negbin: [
+      () => { const r = ri(2, 3), pct = pickOne([20, 25, 30]); return { text: `A telemarketer makes a sale on ${pct}% of her calls, independently. Her shift ends as soon as she makes her ${ord(r)} sale. X is the number of calls she makes during the shift.`, clue: `as soon as she makes her ${ord(r)} sale`,
+        trap: `“Her shift ends when …” is a stopping rule: she calls until the ${ord(r)} success, so the number of calls is not fixed. X counts tries: negative binomial, not binomial.`,
+        vars: { r: V(r, `${ord(r)} sale`), p: worked(V(pct / 100, `${pct}%`), { order: [], tex: S => `${S('p')} = ${pct}\\% = \\frac{${pct}}{100}`, steps: () => [`= ${fmt(pct / 100)}`] }), q: q1(pct / 100), x: sayX(r + ri(1, 4)) } } },
+      () => { const r = ri(2, 3), p = pickOne(['0.3', '0.4']); return { text: `Each fish a biologist catches is tagged with probability ${p}, independently. She keeps fishing until she has caught ${r} tagged fish. X is the number of fish she catches.`, clue: `until she has caught ${r} tagged fish`,
+        trap: 'Tagged fish sound hypergeometric, but there is no fixed group to draw from: the same chance per fish, until the r-th tagged one. Negative binomial.',
+        vars: { r: V(r, `caught ${r} tagged fish`), p: V(+p, `probability ${p}`), q: q1(+p), x: sayX(r + ri(1, 4)) } } },
+      () => { const r = ri(2, 4); return { text: `In a video game, each loot box holds a rare item with probability 0.25, independently. X is the number of boxes a player opens to collect ${r} rare items.`, clue: `to collect ${r} rare items`,
+        trap: '“Opens boxes to collect r rare items” means until the r-th success: negative binomial. (With r = 1 it would be geometric.)',
+        vars: { r: V(r, `collect ${r} rare items`), p: V(0.25, 'probability 0.25'), q: q1(0.25), x: sayX(r + ri(1, 4)) } } },
+    ],
+    hyper: [
+      () => { const N = ri(20, 30), r = ri(8, 14), x = ri(2, 3); return { text: `A 6-person jury is chosen at random from a pool of ${N} people, ${r} of whom are women. X is the number of women on the jury.`, clue: 'chosen at random from a pool',
+        trap: 'A jury is chosen without replacement from a small pool, so the chance changes after each pick: hypergeometric, not binomial.',
+        vars: { N: V(N, `pool of ${N} people`), r: V(r, `${r} of whom are women`), n: V(6, '6-person jury'), x: sayX(x) } } },
+      () => { const N = ri(12, 20), r = ri(2, 4); return { text: `A box of ${N} light bulbs has ${r} that are burned out. You grab 4 bulbs from the box at once. X is the number of burned-out bulbs you grab.`, clue: 'at once',
+        trap: '“At once” means no bulb can be grabbed twice: without replacement from a small box, so hypergeometric.',
+        vars: { N: V(N, `box of ${N} light bulbs`), r: V(r, `has ${r} that are burned out`), n: V(4, 'grab 4 bulbs'), x: sayX(1) } } },
+      () => ({ text: 'A lottery draws 6 different numbers from 1 to 40. You bought a ticket with 6 different numbers on it. X is how many of your numbers are drawn.', clue: 'draws 6 different numbers',
+        trap: 'Your 6 numbers are the “successes” hidden among the 40, and the draw takes 6 with no repeats: hypergeometric.',
+        vars: { N: V(40, 'from 1 to 40'), r: V(6, 'a ticket with 6 different numbers', 'your numbers are the successes'), n: V(6, 'draws 6 different numbers'), x: sayX(ri(1, 2)) } }),
+    ],
+    poisson: [
+      () => { const [l, m] = pickOne([[60, 2], [90, 2], [120, 2], [120, 3], [180, 2], [240, 1], [60, 5], [90, 4]]), k = (l * m) / 60; return { text: `A call center gets about ${l} calls an hour, arriving at random. X is the number of calls in a ${m}-minute span.`, clue: 'arriving at random',
+        trap: 'Convert first: the rate is per hour but the window is in minutes, so s = minutes ÷ 60. Events at random times in a window: Poisson.',
+        vars: { lam: V(l, `${l} calls an hour`), s: worked({ ...frac(m, 60), from: `${m}-minute span`, note: `${m} min = ${m}/60 hour` }, { order: [], tex: S => `${S('s')} = ${m}\\text{ min} = \\frac{${m}}{60}\\text{ hour}` }), k: V(k, null, 'k = λs, from the line above'), x: sayX(near(k, 0, 9)) } } },
+      () => { const e = pickOne([50, 100]), pages = pickOne(e === 50 ? [100, 150, 200, 300, 400] : [200, 300, 400, 500, 600, 800]), k = pages / e; return { text: `A ${pages}-page report averages one typo every ${e} pages. X is the number of typos in the whole report.`, clue: `one typo every ${e} pages`,
+        trap: `“One every ${e} pages” is a rate, λ = 1/${e} per page. There are no separate tries with a chance each, so Poisson.`,
+        vars: { lam: worked({ ...frac(1, e), from: `one typo every ${e} pages`, note: `1 typo per ${e} pages` }, { order: [], tex: S => `${S('lam')} = \\frac{1\\text{ typo}}{${e}\\text{ pages}}`, steps: () => [`= \\frac{1}{${e}}\\text{ per page}`] }), s: V(pages, `${pages}-page report`, 'pages'), k: V(k, null, 'k = λs, from the line above'), x: sayX(near(k, 0, 12)) } } },
+      () => { const l = pickOne([1, 1.5, 2]), m = pickOne([2, 3, 4]), k = l * m; return { text: `Accidents at a busy intersection happen at random, about ${l} per month, even though thousands of cars pass through. X is the number of accidents in the next ${m} months.`, clue: `about ${l} per month`,
+        trap: '“Thousands of cars” tempts binomial, but no one knows the number of cars or a chance per car, only a rate: Poisson.',
+        vars: { lam: V(l, `about ${l} per month`), s: V(m, `next ${m} months`, 'months'), k: V(k, null, 'k = λs, from the line above'), x: sayX(near(k, 0, 12)) } } },
+    ],
+    uniform: [
+      () => { const b = pickOne([10, 12, 15, 20]); return { text: `Trains leave a station every ${b} minutes, exactly on schedule. You walk onto the platform at a random moment, knowing nothing about the schedule. X is how long you wait for the next train.`, clue: 'exactly on schedule',
+        trap: `A wait sounds exponential, but the trains run on a fixed schedule, so every wait from 0 to ${b} minutes is equally likely: uniform.`,
+        vars: { A: V(0, null, 'a train could be leaving right now: 0'), B: V(b, `every ${b} minutes`) } } },
+      () => { const [a, b] = pickOne([[1, 5], [2, 6], [1, 4], [3, 5]]); return { text: `A package is promised “sometime between ${a} pm and ${b} pm,” and every moment in that window is equally likely. X is the delivery time, in hours after noon.`, clue: 'every moment in that window is equally likely',
+        trap: 'A time window with no favorite moment is flat, not a bell curve: uniform.',
+        vars: { A: V(a, `between ${a} pm`), B: V(b, `and ${b} pm`) } } },
+      () => ({ text: 'A fair spinner is marked in degrees from 0 to 360. X is the angle where it stops.', clue: 'A fair spinner',
+        trap: '“Fair” means every angle is equally likely: uniform on [0, 360].',
+        vars: { A: V(0, 'from 0'), B: V(360, 'to 360') } }),
+    ],
+    exponential: [
+      () => { const l = pickOne([1, 2, 3]), t = pickOne([0.5, 1]); return { text: `Earthquakes in a region strike at random, at an average rate of ${l} per year. X is the time, in years, from now until the next one.`, clue: 'until the next one',
+        trap: 'X is a time, not a count (the number of quakes in a year would be Poisson). The wait for the first event: exponential.',
+        vars: { lam: V(l, `${l} per year`), t: V(t, null, `say we want P(X > ${t} year)`) } } },
+      () => { const N = pickOne([500, 1000, 2000]); return { text: `A bulb's lifetime is memoryless: at every moment it is as good as new. It burns out at an average rate of 1 per ${N} hours. X is its lifetime in hours.`, clue: 'memoryless',
+        trap: 'Memoryless (always as good as new) with a constant rate is the signature of the exponential.',
+        vars: { lam: { ...frac(1, N), from: `1 per ${N} hours`, note: 'the rate per hour' }, t: V(N / 2, null, `say we want P(X > ${N / 2} hours)`) } } },
+      () => { const b = pickOne([3, 4, 5, 10]); return { text: `X is gamma with α = 1 and β = ${b}.`, clue: 'α = 1', avoid: ['gamma'],
+        trap: 'A gamma with α = 1 is exponential, with λ = 1/β. Gamma isn’t offered, so name the special case.',
+        vars: { lam: worked({ ...frac(1, b), from: `β = ${b}`, note: 'λ = 1/β' }, { order: [], tex: S => `${S('lam')} = \\frac{1}{\\beta}`, steps: () => [`= \\frac{1}{${b}}`] }), t: V(b, null, `say we want P(X > ${b})`) } } },
+      () => { const l = pickOne([1.5, 2, 3]), t = pickOne([0.5, 1]); return { text: `Customers arrive at a bank at random, ${l} per minute on average. X is the time between one arrival and the next.`, clue: 'the time between one arrival and the next',
+        trap: 'The time between arrivals is the wait for one event: exponential. (Waiting for several would be gamma.)',
+        vars: { lam: V(l, `${l} per minute`), t: V(t, null, `say we want P(X > ${t} minute)`) } } },
+    ],
+    gamma: [
+      () => { const l = ri(4, 8), a = ri(2, 4); return { text: `Calls come in to a help line at random, ${l} per hour on average. A worker takes her break right after she answers her ${ord(a)} call of the shift. X is the time until her break.`, clue: `right after she answers her ${ord(a)} call`,
+        trap: `It waits for the ${ord(a)} event, not the first: gamma. (Exponential is only the wait for one.)`,
+        vars: { al: V(a, `${ord(a)} call`), be: worked({ ...frac(1, l), from: `${l} per hour`, note: 'β = 1 ÷ rate' }, { order: [], tex: S => `${S('be')} = \\frac{1}{\\text{rate}}`, steps: () => [`= \\frac{1}{${l}}`] }) } } },
+      () => { const a = pickOne([2, 3]), b = pickOne([3, 4, 5]), den = fact(a - 1) * b ** a; return { text: 'The time X (in hours) to repair a machine has the pdf shown.', clue: 'has the pdf shown',
+        latex: `f(x) = \\frac{1}{${den}}\\,${xpow(a - 1)}e^{-x/${b}}, \\quad x > 0`,
+        trap: `Match it to x^(α−1)e^(−x/β): the power of x is α − 1 = ${a - 1}, so α = ${a}, and β = ${b}. β isn’t 2, so it is gamma but not chi-squared.`,
+        vars: { al: V(a, null, `x^${a - 1} is x^(α−1)`), be: V(b, null, `e^(−x/${b}) is e^(−x/β)`) } } },
+      () => { const a = ri(2, 5), b = pickOne([3, 4, 5]); return { text: 'X has the moment generating function shown.', clue: 'moment generating function',
+        latex: `m_X(t) = (1 - ${b}t)^{-${a}}`,
+        trap: `(1 − βt)^(−α) is the gamma MGF: β = ${b}, α = ${a}. β isn’t 2, so not chi-squared.`,
+        vars: { al: V(a, null, 'the power is −α'), be: V(b, null, 'the number times t is β') } } },
+    ],
+    chi: [
+      () => { const a = ri(2, 8); return { text: `X is gamma with α = ${a} and β = 2.`, clue: 'β = 2', avoid: ['gamma'],
+        trap: `A gamma with β = 2 is chi-squared, with γ = 2α = ${2 * a} degrees of freedom.`,
+        vars: { ga: worked(V(2 * a, `α = ${a}`, 'γ = 2α'), { order: [], tex: S => `${S('ga')} = 2\\alpha = 2(${a})`, steps: () => [`= ${2 * a}`] }) } } },
+      () => { const a = ri(2, 8); return { text: 'X has the moment generating function shown.', clue: 'moment generating function', avoid: ['gamma'],
+        latex: `m_X(t) = (1 - 2t)^{-${a}}`,
+        trap: `(1 − 2t)^(−γ/2) is the chi-squared MGF: γ/2 = ${a}, so γ = ${2 * a}.`,
+        vars: { ga: worked(V(2 * a, null, `the power is −γ/2 = −${a}`), { order: [], tex: S => `${S('ga')} = 2(${a})`, steps: () => [`= ${2 * a}`] }) } } },
+      () => { const g = ri(5, 25), ra = pickOne([0.05, 0.1, 0.025]); return { text: `A test statistic X follows a χ² curve with γ = ${g}. Find c so that P(X > c) = ${ra}.`, clue: 'a χ² curve', avoid: ['gamma'],
+        trap: 'The χ² table goes by degrees of freedom γ, and its columns are LEFT areas: a right area r is column 1 − r.',
+        vars: { ga: V(g, `γ = ${g}`), ra: V(ra, `P(X > c) = ${ra}`) } } },
+    ],
+    normal: [
+      () => { const mu = ri(2, 8), sig = ri(2, 6), half = (sig * sig) / 2; return { text: 'X has the moment generating function shown.', clue: 'moment generating function',
+        latex: `m_X(t) = e^{${mu}t + ${fmt(half)}t^2}`,
+        trap: `e^(μt + σ²t²/2) is the normal MGF: μ = ${mu}, and σ²/2 = ${fmt(half)}, so σ² = ${sig * sig} and σ = ${sig}.`,
+        vars: { mu: V(mu, null, 'the number times t is μ'), sig: worked(V(sig, null, `σ²/2 = ${fmt(half)}`), { order: [], tex: S => `${S('sig')} = \\sqrt{2(${fmt(half)})}`, steps: () => [`= \\sqrt{${sig * sig}}`, `= ${sig}`] }), x: V(mu + sig * pickOne([-1.5, -1, 1, 1.5, 2]), null, 'say X is this value') } } },
+      () => { const mu = pickOne([16.1, 16.2]), x = +(mu + 0.2 * pickOne([-2, -1, 1, 1.5, 2])).toFixed(2); return { text: `The weights of “1-pound” bags of sugar are bell-shaped around a mean of ${mu} oz, with a standard deviation of 0.2 oz. X is a random bag's weight.`, clue: 'bell-shaped',
+        trap: '“Bell-shaped around a mean, with a standard deviation” is the normal.',
+        vars: { mu: V(mu, `mean of ${mu} oz`), sig: V(0.2, 'standard deviation of 0.2 oz'), x: V(x, null, 'say X is this weight') } } },
+      () => { const mu = pickOne([1000, 1050, 1100]); return { text: `SAT scores follow a normal curve with mean ${mu} and variance 40,000. X is a random student's score.`, clue: 'a normal curve',
+        trap: 'The variance is given, not σ: take the square root first, σ = √40,000 = 200.',
+        vars: { mu: V(mu, `mean ${mu}`), sig: worked(V(200, 'variance 40,000', 'σ = √variance'), { order: [], tex: S => `${S('sig')} = \\sqrt{40{,}000}`, steps: () => ['= 200'] }), x: V(mu + pickOne([-300, -150, 100, 250]), null, 'say X is this score') } } },
+    ],
   }
 
   // the story with its deciding phrase highlighted (or plain, before the end)
@@ -2585,18 +2990,24 @@ window.MathJax = {
     uniform: ['normal', 'exponential', 'binomial', 'chi', 'gamma'],
     exponential: ['gamma', 'poisson', 'geometric', 'uniform', 'chi'],
     gamma: ['exponential', 'negbin', 'chi', 'poisson', 'normal'],
-    chi: ['gamma', 'normal', 'exponential', 'uniform', 'poisson'],
+    // not gamma: every chi-squared IS a gamma (β = 2)
+    chi: ['normal', 'exponential', 'uniform', 'poisson', 'binomial'],
     normal: ['uniform', 'chi', 'binomial', 'exponential', 'gamma'],
   }
   // a story, four distribution names, and the tree path as the explanation
-  function treeProblem(leaf = pickOne(Object.keys(LEAVES))) {
-    const sc = pickOne(STORIES[leaf])()
+  function treeProblem(leaf = pickOne(Object.keys(LEAVES)), hard = false) {
+    const sc = pickOne((hard ? HARD : STORIES)[leaf])()
     const path = pathTo(leaf)
-    const names = shuffleArr([leaf, ...CONFUSED[leaf]])
+    // a story can rule out a decoy that would also be right for it; top up from the rest
+    const avoid = sc.avoid ?? []
+    const decoys = CONFUSED[leaf].filter(k => !avoid.includes(k))
+    for (const k of shuffleArr(Object.keys(LEAVES))) if (decoys.length < 5 && k !== leaf && !avoid.includes(k) && !decoys.includes(k)) decoys.push(k)
+    const names = shuffleArr([leaf, ...decoys])
     return {
       ask: 'Which distribution does X have?',
       text: sc.text,
-      latex: 'X \\sim \\,?',
+      latex: sc.latex ? `${sc.latex} \\qquad X \\sim \\,?` : 'X \\sim \\,?',
+      trap: sc.trap,
       options: names.map(k => ({ name: LEAVES[k].name, latex: LEAVES[k].tex })),
       answer: 'abcdef'[names.indexOf(leaf)],
       placeholder: 'a to f',
@@ -2629,8 +3040,13 @@ window.MathJax = {
       if (latex && src[i] === '\\') {
         const m = /^\\([a-zA-Z]+)/.exec(src.slice(i))
         if (!m) { i += 2; continue }
-        if (!keepText && /^(text|textbf|textit|mathrm|operatorname)$/.test(m[1]) && src[i + m[0].length] === '{') i = matchBrace(src, i + m[0].length) + 1
-        else i += m[0].length
+        if (/^(text|textbf|textit|mathrm|operatorname)$/.test(m[1]) && src[i + m[0].length] === '{') {
+          const open = i + m[0].length
+          const close = matchBrace(src, open)
+          // words: skipped, or read as plain text (their minus signs follow text rules)
+          if (keepText) for (const t of numberTokens(src.slice(open + 1, close), false)) out.push({ ...t, start: t.start + open + 1, end: t.end + open + 1 })
+          i = close + 1
+        } else i += m[0].length
         continue
       }
       const m = /^\d+(?:\{,\}\d{3})*(?:\.\d+)?/.exec(src.slice(i))
@@ -2642,8 +3058,9 @@ window.MathJax = {
         if (j >= 0 && (src[j] === '-' || src[j] === '−')) {
           const before = src.slice(0, j).trimEnd()
           // a minus after a number or a bracket is a subtraction; anywhere else it is a sign
+          const afterWords = latex && /\}$/.test(before) && /\\(text|textbf|textit|mathrm|operatorname)\{[^{}]*\}$/.test(before)
           const binary = latex
-            ? /[\d)}\]a-zA-Z]$/.test(before) && !/\\(le|ge|leq|geq|approx|to|Rightarrow|cdot|times|quad|qquad|pm|lt|gt)$/.test(before)
+            ? /[\d)}\]a-zA-Z]$/.test(before) && !afterWords && !/\\(le|ge|leq|geq|approx|to|Rightarrow|cdot|times|quad|qquad|pm|lt|gt)$/.test(before)
             : /[\d)]$/.test(before)
           if (!binary) {
             val = -val
@@ -2730,7 +3147,61 @@ window.MathJax = {
     return phrase.length > 44 ? phrase.slice(0, 43) + '…' : phrase
   }
 
-  function workPanel(p, { sheet = null, auto = false, next = null } = {}) {
+  // the table cells a worked answer reads, found by checking the class's own table
+  // against the numbers in the work (so a cell is only shown if it really is the one)
+  function findLookups(p, level) {
+    const work = p.options ? null : p.answerLatex
+    if (!work) return []
+    tables ??= unit.printedTables()
+    const toks = src => numberTokens(src ?? '', true, true)
+    const workToks = toks(work).map(t => t.tok.replace('−', '-'))
+    const inWork = str => workToks.includes(str) || workToks.includes('-' + str)
+    const out = []
+    const add = spec => {
+      if (out.length < 2 && !out.some(o => o.name === spec.name && o.row === spec.row && o.col === spec.col)) out.push(spec)
+    }
+    if (level === 'Normal table' || level === 'Normal word problems') {
+      // read backwards: "the closest entry to A is E" / "A is the entry at z"
+      const back = [...work.matchAll(/closest entry to \}\s*(-?[\d.]+)\s*\\text\{ is \}\s*(-?[\d.]+)/g)].map(m => ({ target: m[1], entry: m[2] }))
+      for (const m of work.matchAll(/(-?[\d.]+)\s*\\text\{ is the entry at \}/g)) back.push({ target: m[1], entry: (+m[1]).toFixed(4) })
+      // "left area A: z = …": the entry closest to A
+      const areas = [...work.matchAll(/left area \}\s*(\d*\.?\d+)/g)].map(m => m[1])
+      const zs = [...toks(work), ...toks(p.latex)].filter(t => /^-?\d(\.\d\d?)?$/.test(t.tok.replace('−', '-')) && Math.abs(t.val) < 4)
+      for (const t of zs) {
+        const cell = zCell(t.val)
+        const entry = cellOf('normal', cell.row, cell.col)
+        if (!entry) continue
+        const b = back.find(x => x.entry === entry)
+        const area = areas.find(A => closestZ(+A).includes(Math.round(t.val * 100)))
+        if (b) add({ name: 'normal', ...cell, target: b.target })
+        else if (area != null) add({ name: 'normal', ...cell, target: area })
+        else if (inWork(entry)) add({ name: 'normal', ...cell })
+      }
+    } else if (level === 'Binomial table') {
+      const n = /n = (19|20) table/.exec(p.hint?.text ?? '')?.[1]
+      const col = /column p = (\d*\.?\d+)/.exec(p.hint?.text ?? '')?.[1]
+      if (n && col) {
+        const name = n === '19' ? 'binomial19' : 'binomial'
+        for (const m of work.matchAll(/F\((\d+)\)/g)) {
+          const entry = cellOf(name, m[1], col)
+          if (entry && inWork(entry)) add({ name, row: m[1], col })
+        }
+      }
+    } else if (level === 'Chi-squared table') {
+      const g = /γ = (\d+)/.exec(p.text ?? '')?.[1] ?? [...work.matchAll(/\\gamma = (\d+)/g)].at(-1)?.[1]
+      const t = tables.chi2
+      const r = g && t.rows[+g - 1]
+      if (r) {
+        const qToks = toks(p.latex).map(x => x.tok)
+        r.values.forEach((v, j) => {
+          if (inWork(v) || qToks.includes(v)) add({ name: 'chi2', row: g, col: t.cols[j], target: qToks.includes(v) ? v : null })
+        })
+      }
+    }
+    return out
+  }
+
+  function workPanel(p, { sheet = null, auto = false, next = null, level = null } = {}) {
     // lettered options have no numbers to work, just the reason
     const work = p.options ? null : p.answerLatex ?? null
     const el = h('div', 'plug')
@@ -2741,6 +3212,9 @@ window.MathJax = {
     const box = h('div', 'work-rows')
     const why = p.hint?.text ? h('p', 'plug-sub work-why', p.hint.text) : null
     el.append(rule, chips, box)
+    const looks = findLookups(p, level)
+    const lookBox = h('div')
+    el.append(lookBox)
     if (why) el.append(why)
     const acts = h('div', 'row-actions')
     const replay = h('button', 'btn ghost', 'Replay')
@@ -2806,6 +3280,14 @@ window.MathJax = {
         d.append(tex(rowTex(i, r.length)))
         return d
       }))
+      lookBox.replaceChildren()
+      for (const spec of looks) {
+        const tl = tableLook(spec)
+        if (tl) {
+          lookBox.append(tl.el)
+          tl.final()
+        }
+      }
       lightQuestion()
     }
     let run = 0
@@ -2814,6 +3296,7 @@ window.MathJax = {
       const alive = () => me === run && el.isConnected
       chips.replaceChildren()
       box.replaceChildren()
+      lookBox.replaceChildren()
       // the reason comes last, under the finished work
       if (why && rows.length) why.hidden = true
       rule.classList.remove('enter')
@@ -2859,6 +3342,15 @@ window.MathJax = {
           } else tone(semis(523.25, 5 + n * 2), 0, 0.08, 'sine', 0.07)
           await wait(landing.length ? 250 : 600)
         }
+      }
+      // how the table gives the numbers the work used
+      for (const spec of looks) {
+        if (!alive()) return
+        const tl = tableLook(spec)
+        if (!tl) continue
+        lookBox.append(tl.el)
+        tl.el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+        await tl.play(alive)
       }
       if (why && alive()) {
         why.hidden = false
