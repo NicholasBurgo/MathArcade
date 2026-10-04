@@ -3512,6 +3512,10 @@ window.MathJax = {
       () => { const pct = pickOne([10, 20, 25, 40]); return { text: `Each new user who signs up has a ${pct}% chance of having been referred by a friend, independently. X is the number of sign-ups up to and including the first referred user.`, clue: 'up to and including the first referred user',
         trap: 'X counts the tries up to the first success, and the number of tries is not fixed: geometric, not binomial.',
         vars: { p: worked(V(pct / 100, `${pct}%`), { order: [], tex: S => `${S('p')} = ${pct}\\% = \\frac{${pct}}{100}`, steps: () => [`= ${fmt(pct / 100)}`] }), q: q1(pct / 100), x: sayX(ri(2, 5)) } } },
+      () => { const [pp, qq] = pickOne([['0.2', '0.8'], ['0.25', '0.75'], ['0.3', '0.7'], ['0.4', '0.6']]); return { text: 'X has the moment generating function shown.', clue: 'moment generating function',
+        latex: `m_X(t) = \\frac{${pp}e^t}{1 - ${qq}e^t}`,
+        trap: `pe^t/(1 − qe^t) is the geometric MGF: p = ${pp} on top, q = ${qq} below, and p + q = 1.`,
+        vars: { p: V(+pp, null, 'the number on top'), q: V(+qq, null, 'the number below'), x: sayX(ri(2, 4)) } } },
     ],
     negbin: [
       () => { const r = ri(2, 3), pct = pickOne([20, 25, 30]); return { text: `A telemarketer makes a sale on ${pct}% of her calls, independently. Her shift ends as soon as she makes her ${ord(r)} sale. X is the number of calls she makes during the shift.`, clue: `as soon as she makes her ${ord(r)} sale`,
@@ -3570,6 +3574,10 @@ window.MathJax = {
       () => { const l = pickOne([1.5, 2, 3]), t = pickOne([0.5, 1]); return { text: `Customers arrive at a bank at random, ${l} per minute on average. X is the time between one arrival and the next.`, clue: 'the time between one arrival and the next',
         trap: 'The time between arrivals is the wait for one event: exponential. (Waiting for several would be gamma.)',
         vars: { lam: V(l, `${l} per minute`), t: V(t, null, `say we want P(X > ${t} minute)`) } } },
+      () => { const b = pickOne([3, 4, 5, 10]); return { text: 'X has the moment generating function shown.', clue: 'moment generating function', avoid: ['gamma'],
+        latex: `m_X(t) = \\frac{1}{1 - ${b}t}`,
+        trap: `1/(1 − βt) is (1 − βt)^(−1): a gamma with α = 1, which is the exponential, with β = ${b} and λ = 1/${b}.`,
+        vars: { lam: worked({ ...frac(1, b), note: 'λ = 1/β' }, { order: [], tex: S => `${S('lam')} = \\frac{1}{\\beta}`, steps: () => [`= \\frac{1}{${b}}`] }), t: V(b, null, `say we want P(X > ${b})`) } } },
     ],
     gamma: [
       () => { const l = ri(4, 8), a = ri(2, 4); return { text: `Calls come in to a help line at random, ${l} per hour on average. A worker takes her break right after she answers her ${ord(a)} call of the shift. X is the time until her break.`, clue: `right after she answers her ${ord(a)} call`,
