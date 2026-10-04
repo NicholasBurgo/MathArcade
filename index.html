@@ -962,7 +962,7 @@ window.MathJax = {
     if (pet.growth < next.at) return `${next.at - pet.growth} more growth to become ${next.name}.`
     if (pet.stage > 0 && pet.full < 40) return `Ready to become ${next.name}, but too hungry. Answer a few questions.`
     if (pet.stage > 0 && pet.happy < 40) return `Ready to become ${next.name}, but too sad. Clear a level.`
-    if (pet.stage + 1 === STAGES.length - 1 && (state.boss?.best ?? 0) < BOSS_FOR_FINAL) return `The final form needs a Final Boss score of ${BOSS_FOR_FINAL}+.`
+    if (pet.stage + 1 === STAGES.length - 1 && (state.boss?.best ?? 0) < BOSS_FOR_FINAL) return `The final form needs a practice test score of ${BOSS_FOR_FINAL}+.`
     return ''
   }
   function petEvolve() {
@@ -1313,7 +1313,7 @@ window.MathJax = {
     const r = readiness()
     const hero = h('section', 'hero')
     const words = h('div')
-    words.append(h('h1', '', 'Test 2, one bubble at a time'))
+    words.append(h('h1', '', 'Test 2'))
     words.append(h('p', '', 'Every level is a line from the study guide and the review notes. Clear it with 2 or 3 stars and your readiness curve fills in.'))
     const fig = h('figure', 'bell')
     fig.innerHTML = bellSvg(r)
@@ -1354,7 +1354,7 @@ window.MathJax = {
     const bossCard = h('button', 'boss')
     bossCard.type = 'button'
     bossCard.append(
-      h('span', 'boss-title', 'Final boss'),
+      h('span', 'boss-title', 'Practice test'),
       h('span', '', `One question from every level, ${BOSS_ORDER.length} in all, written like the real test: no choices, a clock running, answers only after you hand it in.`),
     )
     if (state.boss) {
@@ -2009,7 +2009,7 @@ window.MathJax = {
     }
     tally.append(cell('XP this round', '+' + (r.gained + bonus)), cell('best streak', String(r.best)), cell('first-try misses', String(r.misses)))
     sheet.append(tally)
-    const msg = stars === 3 ? 'Clean sheet. Every bubble right the first time.' : stars === 2 ? 'Solid. One clean run gets the third star.' : 'Cleared. Run it again: the questions change every time.'
+    const msg = stars === 3 ? 'Clean sheet. Every answer right the first time.' : stars === 2 ? 'Solid. One clean run gets the third star.' : 'Cleared. Run it again: the questions change every time.'
     sheet.append(h('p', 'note', msg + (stars > prev && prev ? ' New best!' : '')))
     const acts = h('div', 'row-actions')
     const i = ORDER.indexOf(r.short)
@@ -2056,7 +2056,7 @@ window.MathJax = {
   }
 
   async function startBoss() {
-    view.replaceChildren(h('p', 'loading', 'Summoning the boss…'))
+    view.replaceChildren(h('p', 'loading', 'Writing the test…'))
     await mathBoot
     const pick = T2.createFreshPicker()
     const items = BOSS_ORDER.map(short => {
@@ -2100,7 +2100,7 @@ window.MathJax = {
     const clock = h('div', 'clock', mmss(Date.now() - boss.start))
     clock.id = 'boss-clock'
     top.append(nav, clock)
-    sheet.append(top, h('div', 'eyebrow', `Final boss · ${boss.at + 1} of ${boss.items.length} · ${it.short}`))
+    sheet.append(top, h('div', 'eyebrow', `Practice test · ${boss.at + 1} of ${boss.items.length} · ${it.short}`))
     if (p.ask) sheet.append(h('p', 'ask', p.ask))
     if (p.text) sheet.append(h('p', 'story', p.text))
     sheet.append(tex(p.latex))
@@ -2175,7 +2175,7 @@ window.MathJax = {
     screen = 'boss-review'
     view.replaceChildren()
     const sheet = h('section', 'sheet')
-    sheet.append(h('div', 'eyebrow', `Final boss · handed in after ${mmss(boss.end - boss.start)}`))
+    sheet.append(h('div', 'eyebrow', `Practice test · handed in after ${mmss(boss.end - boss.start)}`))
     sheet.append(h('h2', '', 'Check your work'))
     sheet.append(h('p', 'paper-note', 'Typed answers are graded for you. For the rest, compare with your paper and be honest.'))
     const score = h('p', 'score-line')
@@ -2247,7 +2247,7 @@ window.MathJax = {
     hud()
     view.replaceChildren()
     const sheet = h('section', 'sheet')
-    sheet.append(h('div', 'eyebrow', 'Final boss'))
+    sheet.append(h('div', 'eyebrow', 'Practice test'))
     sheet.append(h('h2', '', `${ok} / ${n} · ${grade(r)}`))
     const tally = h('div', 'tally')
     const cell = (label, value) => {
@@ -2259,7 +2259,7 @@ window.MathJax = {
     sheet.append(tally)
     const missed = boss.items.filter(x => x.result !== 'ok')
     sheet.append(
-      h('p', 'note', r >= 0.9 ? 'That is test-ready. Run it once more Monday night to be sure.' : r >= 0.7 ? 'Close. Clear the levels below once each, then fight it again.' : 'The boss won this round. Each level below is about 5 minutes: clear them, then come back.'),
+      h('p', 'note', r >= 0.9 ? 'That is test-ready. Run it once more Monday night to be sure.' : r >= 0.7 ? 'Close. Clear the levels below once each, then take it again.' : 'Not yet. Each level below is about 5 minutes: clear them, then come back.'),
     )
     if (missed.length) {
       const redo = h('div', 'redo')

@@ -42,7 +42,7 @@ a right answer plays an animation that works the problem out.
   lookup and a graph when the question names a distribution. Answers are picked from a
   dropdown list, as in World 0. Each world ends with a review level.
 - **World 5 · Everything** — one question from every level.
-- **Final boss** — one written question per level, graded after you hand it in.
+- **Practice test** — one written question per level, timed, graded after you hand it in.
 - **Paper mode** — every level without choices, for double XP.
 - **S Pen ink** — write anywhere with the pen; fingers still scroll. Hold the side button
   to erase; let go to write again. Samsung Internet reports the held button directly;
