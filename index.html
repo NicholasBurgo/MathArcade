@@ -327,6 +327,31 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .choice.reveal { border-color: var(--green); border-width: 2.5px; }
 .choice.reveal .oval { border-color: var(--green); color: var(--green); }
 @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+/* plug it in: the story's numbers fly into the formula */
+:root { --pv0: #c2410c; --pv1: #1d4ed8; --pv2: #9333ea; --pv3: #be185d; --pv4: #0f766e; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --pv0: #fb923c; --pv1: #60a5fa; --pv2: #c084fc; --pv3: #f472b6; --pv4: #2dd4bf; }
+}
+:root[data-theme="dark"] { --pv0: #fb923c; --pv1: #60a5fa; --pv2: #c084fc; --pv3: #f472b6; --pv4: #2dd4bf; }
+.pv0 { color: var(--pv0); fill: var(--pv0); } .pv1 { color: var(--pv1); fill: var(--pv1); } .pv2 { color: var(--pv2); fill: var(--pv2); }
+.pv3 { color: var(--pv3); fill: var(--pv3); } .pv4 { color: var(--pv4); fill: var(--pv4); } .pvres { color: var(--green); fill: var(--green); }
+.plug { margin-top: 14px; padding: 12px 14px; border-left: 4px solid var(--green); background: var(--green-soft); border-radius: 0 10px 10px 0; }
+.plug h3 { margin: 0 0 2px; font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--green); }
+.plug-sub { margin: 0 0 6px; color: var(--muted); font-size: 0.9rem; }
+.plug-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; min-height: 34px; }
+.plug-chip { display: inline-flex; align-items: center; gap: 8px; padding: 3px 10px; border-radius: 999px; background: var(--sheet); border: 2px solid currentColor; font-family: var(--mono); font-weight: 600; font-size: 0.95rem; animation: chip-in 0.3s ease-out; }
+.plug-chip small { color: var(--muted); font-family: var(--body); font-weight: 400; font-size: 0.8rem; }
+.plug-line { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+.plug-line .math-d { margin: 4px 0; }
+.plug-line.enter { animation: line-in 0.35s ease-out; }
+.plug-line.bump { animation: bump 0.35s ease-out; }
+.plug g.glow { animation: glow 0.6s ease-out; }
+mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); border-bottom: 3px solid currentColor; padding: 0 2px; border-radius: 3px; font-weight: 700; }
+.flyer { position: fixed; left: 0; top: 0; z-index: 60; padding: 2px 8px; border-radius: 8px; background: var(--sheet); border: 2px solid currentColor; font: 700 1.05rem var(--mono); pointer-events: none; box-shadow: var(--shadow); white-space: nowrap; }
+@keyframes chip-in { from { opacity: 0; transform: translateY(6px) scale(0.9); } to { opacity: 1; transform: none; } }
+@keyframes line-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.04); } 100% { transform: scale(1); } }
+@keyframes glow { 0% { opacity: 0.2; } 35% { opacity: 1; filter: drop-shadow(0 0 5px currentColor); } 100% { filter: none; } }
 .why { margin-top: 14px; padding: 12px 14px; border-left: 4px solid var(--red); background: var(--red-soft); border-radius: 0 10px 10px 0; }
 .why h3 { margin: 0 0 4px; font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--red); }
 .why p { margin: 4px 0; }
@@ -1003,7 +1028,7 @@ window.MathJax = {
   let inking = false
   let inkLast = null
   let inkErase = false
-  let stroke = null // { wasOn, side, travel } for the stroke in progress
+  let stroke = null // { wasOn, side, travel, at } for the stroke in progress
   const pageSize = () => ({ w: document.documentElement.clientWidth, h: Math.max(document.documentElement.scrollHeight, innerHeight) })
   // keep = copy the strokes across (rotation, the page growing below them)
   function sizeInk(keep) {
@@ -1054,6 +1079,7 @@ window.MathJax = {
   // the button pressed; a drag with the button pressed keeps erasing. Repeat
   // clicks the browser fires during one press are ignored.
   let toggledAt = 0
+  let lastTap = null // { t, at } of the last pen tap (no drag), for double taps
   function sideToggle(e) {
     if (onControl(e)) return
     e.preventDefault()
@@ -1078,7 +1104,7 @@ window.MathJax = {
     inkPointer = e.pointerId
     inkErase = sideButton(e)
     inkLast = onPage(e)
-    stroke = { wasOn: inkEraseMode, side: false, travel: 0 }
+    stroke = { wasOn: inkEraseMode, side: false, travel: 0, at: inkLast }
     e.preventDefault()
   }, { passive: false })
   window.addEventListener('pointermove', e => {
@@ -1088,7 +1114,7 @@ window.MathJax = {
       inking = true
       inkPointer = e.pointerId
       inkLast = onPage(e)
-      stroke = { wasOn: true, side: false, travel: 0 }
+      stroke = { wasOn: true, side: false, travel: 0, at: inkLast }
     }
     if (!inking || e.pointerId !== inkPointer) return
     e.preventDefault()
@@ -1111,6 +1137,24 @@ window.MathJax = {
     if (stroke?.side && stroke.wasOn && stroke.travel < 12 && Date.now() - toggledAt > 800) {
       setEraseMode(false)
       toggledAt = Date.now()
+    } else if (stroke && !stroke.side && stroke.travel < 12 && e.type === 'pointerup') {
+      // a quick double tap in one spot with the pen tip flips the eraser, on or off
+      const now = Date.now()
+      const at = stroke.at
+      if (lastTap && now - lastTap.t < 350 && Math.hypot(at.x - lastTap.at.x, at.y - lastTap.at.y) < 40) {
+        // turning it on: wipe the two dots the taps left
+        if (!inkEraseMode) for (const dot of [lastTap.at, at]) {
+          inkCtx.save()
+          inkCtx.globalCompositeOperation = 'destination-out'
+          inkCtx.beginPath()
+          inkCtx.arc(dot.x, dot.y, 12, 0, Math.PI * 2)
+          inkCtx.fill()
+          inkCtx.restore()
+        }
+        setEraseMode(!inkEraseMode)
+        toggledAt = now
+        lastTap = null
+      } else lastTap = { t: now, at }
     }
     stroke = null
     inking = false
@@ -1485,6 +1529,17 @@ window.MathJax = {
     if (opts[i].correct) {
       buttons[i].classList.add('right')
       award(10, buttons[i])
+      const p = q.p
+      if (p.leaf && p.vars) {
+        const next = h('button', 'btn', 'Next')
+        next.type = 'button'
+        next.addEventListener('click', advance)
+        const panel = plugPanel(p, { sheet, auto: true, next })
+        sheet.append(panel)
+        next.focus({ preventScroll: true })
+        panel.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+        return
+      }
       setTimeout(advance, 850)
       return
     }
@@ -1518,6 +1573,7 @@ window.MathJax = {
     if (p.leaf) {
       const box = h('div', 'reveal-box')
       box.append(h('h3', '', 'Answer'), leafCard(p.leaf), h('h3', '', 'How the tree gets there'), h('p', '', p.hint.text))
+      if (p.vars) box.append(plugPanel(p))
       return box
     }
     const box = h('div', 'reveal-box')
@@ -2046,55 +2102,287 @@ window.MathJax = {
   const pickOne = arr => arr[Math.floor(Math.random() * arr.length)]
   const ord = n => n + (n === 2 ? 'nd' : n === 3 ? 'rd' : 'th')
   // stories for each leaf: the text, and the phrase that decides it
+  // a number from the story: its value, the words it comes from (highlighted in
+  // the story), a note on how, and how it looks in a formula (tex) and in a chip
+  const fmt = x => String(+x.toFixed(4))
+  const V = (val, from, note, texStr, txt) => ({ val, from, note, tex: texStr ?? fmt(val), txt: txt ?? texStr ?? fmt(val) })
+  const frac = (a, b) => V(a / b, null, null, `\\tfrac{${a}}{${b}}`, `${a}/${b}`)
+  const sayX = x => V(x, null, `say we want P(X = ${x})`)
+  const near = (mean, lo, hi) => Math.min(hi, Math.max(lo, Math.round(mean) + ri(-1, 1)))
+  const q1 = p => V(1 - p, null, 'q = 1 − p')
+  // stories for each leaf: the text, the phrase that decides it, and its numbers
   const STORIES = {
     binomial: [
-      () => { const n = ri(8, 20); return { text: `A quiz has ${n} multiple-choice questions with 4 choices each, and you guess on every one. X is how many you get right.`, clue: `${n} multiple-choice questions` } },
-      () => { const n = ri(8, 20), p = pickOne(['0.6', '0.7', '0.75', '0.8']); return { text: `A basketball player makes each free throw with probability ${p}. She takes ${n} free throws. X is how many she makes.`, clue: `She takes ${n} free throws` } },
-      () => { const n = ri(5, 12); return { text: `A card is drawn from a deck, its suit is noted, and the card is put back. This is done ${n} times. X is the number of hearts drawn.`, clue: 'the card is put back' } },
+      () => { const n = ri(8, 20); return { text: `A quiz has ${n} multiple-choice questions with 4 choices each, and you guess on every one. X is how many you get right.`, clue: `${n} multiple-choice questions`,
+        vars: { n: V(n, `${n} multiple-choice questions`), p: V(0.25, '4 choices each', '1 right out of 4'), q: q1(0.25), x: sayX(near(n / 4, 0, n)) } } },
+      () => { const n = ri(8, 20), p = pickOne(['0.6', '0.7', '0.75', '0.8']); return { text: `A basketball player makes each free throw with probability ${p}. She takes ${n} free throws. X is how many she makes.`, clue: `She takes ${n} free throws`,
+        vars: { n: V(n, `takes ${n} free throws`), p: V(+p, `probability ${p}`), q: q1(+p), x: sayX(near(n * p, 0, n)) } } },
+      () => { const n = ri(5, 12); return { text: `A card is drawn from a deck, its suit is noted, and the card is put back. This is done ${n} times. X is the number of hearts drawn.`, clue: 'the card is put back',
+        vars: { n: V(n, `done ${n} times`), p: V(0.25, 'hearts', '13 of the 52 cards'), q: q1(0.25), x: sayX(near(n / 4, 0, n)) } } },
     ],
     geometric: [
-      () => { const p = pickOne(['0.1', '0.2', '0.25', '0.3']); return { text: `A salesperson calls customers one at a time, and each call ends in a sale with probability ${p}. X is the number of calls until the first sale.`, clue: 'until the first sale' } },
-      () => ({ text: 'You roll a die until the first six shows up. X is the number of rolls.', clue: 'until the first six' }),
-      () => { const p = pickOne(['0.05', '0.1', '0.2']); return { text: `Each chip off a line is defective with probability ${p}. An inspector tests chips until the first defective one. X is the number of chips tested.`, clue: 'until the first defective one' } },
+      () => { const p = pickOne(['0.1', '0.2', '0.25', '0.3']); return { text: `A salesperson calls customers one at a time, and each call ends in a sale with probability ${p}. X is the number of calls until the first sale.`, clue: 'until the first sale',
+        vars: { p: V(+p, `probability ${p}`), q: q1(+p), x: sayX(ri(2, 5)) } } },
+      () => ({ text: 'You roll a die until the first six shows up. X is the number of rolls.', clue: 'until the first six',
+        vars: { p: { ...frac(1, 6), from: 'the first six', note: '1 face out of 6' }, q: { ...frac(5, 6), note: 'q = 1 − p' }, x: sayX(ri(2, 5)) } }),
+      () => { const p = pickOne(['0.05', '0.1', '0.2']); return { text: `Each chip off a line is defective with probability ${p}. An inspector tests chips until the first defective one. X is the number of chips tested.`, clue: 'until the first defective one',
+        vars: { p: V(+p, `probability ${p}`), q: q1(+p), x: sayX(ri(2, 5)) } } },
     ],
     negbin: [
-      () => { const r = ri(2, 5), p = pickOne(['0.2', '0.3', '0.4']); return { text: `Each well an oil company drills strikes oil with probability ${p}. X is the number of wells drilled until the ${ord(r)} strike.`, clue: `until the ${ord(r)} strike` } },
-      () => { const r = ri(2, 4), pct = pickOne([5, 10, 20]); return { text: `${pct}% of the lots a factory makes are defective. Lots are made until the ${ord(r)} defective lot. X is the number of lots made.`, clue: `until the ${ord(r)} defective lot` } },
-      () => { const r = ri(2, 5); return { text: `A player shoots free throws until she makes ${r} of them. X is the number of shots she takes.`, clue: `until she makes ${r} of them` } },
+      () => { const r = ri(2, 5), p = pickOne(['0.2', '0.3', '0.4']); return { text: `Each well an oil company drills strikes oil with probability ${p}. X is the number of wells drilled until the ${ord(r)} strike.`, clue: `until the ${ord(r)} strike`,
+        vars: { r: V(r, `${ord(r)} strike`), p: V(+p, `probability ${p}`), q: q1(+p), x: sayX(r + ri(1, 4)) } } },
+      () => { const r = ri(2, 4), pct = pickOne([5, 10, 20]); return { text: `${pct}% of the lots a factory makes are defective. Lots are made until the ${ord(r)} defective lot. X is the number of lots made.`, clue: `until the ${ord(r)} defective lot`,
+        vars: { r: V(r, `${ord(r)} defective lot`), p: V(pct / 100, `${pct}%`, `${pct}% = ${fmt(pct / 100)}`), q: q1(pct / 100), x: sayX(r + ri(1, 4)) } } },
+      () => { const r = ri(2, 5), p = pickOne(['0.6', '0.7', '0.8']); return { text: `A player makes each free throw with probability ${p}. She shoots until she makes ${r} of them. X is the number of shots she takes.`, clue: `until she makes ${r} of them`,
+        vars: { r: V(r, `makes ${r} of them`), p: V(+p, `probability ${p}`), q: q1(+p), x: sayX(r + ri(1, 3)) } } },
     ],
     hyper: [
-      () => { const N = ri(15, 40), r = ri(3, 8), n = ri(3, 6); return { text: `A shipment of ${N} parts has ${r} defective ones. An inspector picks ${n} parts at random, without replacement. X is the number of defective parts picked.`, clue: 'without replacement' } },
-      () => { const n = pickOne([5, 7, 13]); return { text: `You are dealt a ${n}-card hand from a standard 52-card deck. X is the number of hearts in your hand.`, clue: `dealt a ${n}-card hand` } },
-      () => { const n = ri(3, 6), W = ri(5, 12), M = ri(5, 12); return { text: `A committee of ${n} is chosen at random from a club of ${W} women and ${M} men. X is the number of women on it.`, clue: `A committee of ${n} is chosen` } },
+      () => { const N = ri(15, 40), r = ri(3, 8), n = ri(3, 6); return { text: `A shipment of ${N} parts has ${r} defective ones. An inspector picks ${n} parts at random, without replacement. X is the number of defective parts picked.`, clue: 'without replacement',
+        vars: { N: V(N, `shipment of ${N} parts`), r: V(r, `has ${r} defective`), n: V(n, `picks ${n} parts`), x: sayX(ri(1, 2)) } } },
+      () => { const n = pickOne([5, 7, 13]); return { text: `You are dealt a ${n}-card hand from a standard 52-card deck. X is the number of hearts in your hand.`, clue: `dealt a ${n}-card hand`,
+        vars: { N: V(52, '52-card deck'), r: V(13, 'hearts', '13 hearts in a deck'), n: V(n, `${n}-card hand`), x: sayX(ri(1, 3)) } } },
+      () => { const n = ri(3, 6), W = ri(5, 12), M = ri(5, 12); return { text: `A committee of ${n} is chosen at random from a club of ${W} women and ${M} men. X is the number of women on it.`, clue: `A committee of ${n} is chosen`,
+        vars: { N: V(W + M, `${W} women and ${M} men`, `${W} + ${M} people`), r: V(W, `${W} women`, 'the women are the “successes”'), n: V(n, `committee of ${n}`), x: sayX(ri(1, Math.min(3, n))) } } },
     ],
     poisson: [
-      () => { const l = ri(3, 12), m = pickOne([10, 15, 20, 30]); return { text: `A help desk gets an average of ${l} calls per hour. X is the number of calls in the next ${m} minutes.`, clue: `an average of ${l} calls per hour` } },
-      () => { const l = pickOne(['0.2', '0.5', '1.5']), s = ri(4, 12); return { text: `A textbook averages ${l} typos per page. X is the number of typos in a ${s}-page chapter.`, clue: `averages ${l} typos per page` } },
-      () => { const l = ri(2, 6), s = ri(2, 5); return { text: `A road has an average of ${l} potholes per mile. X is the number of potholes in a ${s}-mile stretch.`, clue: `an average of ${l} potholes per mile` } },
+      () => {
+        let l, m
+        do { l = ri(3, 12); m = pickOne([10, 15, 20, 30]) } while (!Number.isInteger((l * m * 4) / 60))
+        const k = (l * m) / 60
+        return { text: `A help desk gets an average of ${l} calls per hour. X is the number of calls in the next ${m} minutes.`, clue: `an average of ${l} calls per hour`,
+          vars: { lam: V(l, `${l} calls per hour`), t: { ...frac(m, 60), from: `next ${m} minutes`, note: `${m} min = ${m}/60 hour` }, k: V(k, null, 'k = λt, from the line above'), x: sayX(near(k, 0, 9)) } }
+      },
+      () => { const l = pickOne(['0.2', '0.5', '1.5']), s = ri(4, 12), k = +(l * s).toFixed(2); return { text: `A textbook averages ${l} typos per page. X is the number of typos in a ${s}-page chapter.`, clue: `averages ${l} typos per page`,
+        vars: { lam: V(+l, `${l} typos per page`), t: V(s, `${s}-page chapter`, 'pages'), k: V(k, null, 'k = λt, from the line above'), x: sayX(near(k, 0, 20)) } } },
+      () => { const l = ri(2, 6), s = ri(2, 5); return { text: `A road has an average of ${l} potholes per mile. X is the number of potholes in a ${s}-mile stretch.`, clue: `an average of ${l} potholes per mile`,
+        vars: { lam: V(l, `${l} potholes per mile`), t: V(s, `${s}-mile stretch`, 'miles'), k: V(l * s, null, 'k = λt, from the line above'), x: sayX(near(l * s, 0, 40)) } } },
     ],
     uniform: [
-      () => { const b = pickOne([10, 15, 20, 30]); return { text: `A bus is equally likely to arrive at any moment in the next ${b} minutes. X is when it arrives.`, clue: 'equally likely to arrive at any moment' } },
-      () => { const a = ri(0, 5), b = a + ri(4, 10); return { text: `A program picks a number X between ${a} and ${b}, with every value equally likely.`, clue: 'every value equally likely' } },
-      () => { const b = pickOne([30, 50, 100]); return { text: `A ${b} cm rod is cut at a point chosen uniformly along its length. X is where it is cut.`, clue: 'chosen uniformly' } },
+      () => { const b = pickOne([10, 15, 20, 30]); return { text: `A bus is equally likely to arrive at any moment in the next ${b} minutes. X is when it arrives.`, clue: 'equally likely to arrive at any moment',
+        vars: { A: V(0, null, 'it starts now: 0'), B: V(b, `next ${b} minutes`) } } },
+      () => { const a = ri(0, 5), b = a + ri(4, 10); return { text: `A program picks a number X between ${a} and ${b}, with every value equally likely.`, clue: 'every value equally likely',
+        vars: { A: V(a, `between ${a}`), B: V(b, `and ${b}`) } } },
+      () => { const b = pickOne([30, 50, 100]); return { text: `A ${b} cm rod is cut at a point chosen uniformly along its length. X is where it is cut.`, clue: 'chosen uniformly',
+        vars: { A: V(0, null, 'one end of the rod: 0'), B: V(b, `${b} cm rod`) } } },
     ],
     exponential: [
-      () => { const l = ri(3, 12); return { text: `Customers walk into a coffee shop at an average rate of ${l} per hour. X is the time until the first customer arrives.`, clue: 'the time until the first customer' } },
-      () => { const l = ri(2, 8); return { text: `A Geiger counter clicks ${l} times a minute on average. X is the wait for the first click.`, clue: 'the wait for the first click' } },
-      () => { const m = ri(2, 10); return { text: `A server crashes on average once every ${m} days. X is the time until its next crash.`, clue: 'the time until its next crash' } },
+      () => { const l = ri(3, 12), t = pickOne([0.25, 0.5]); return { text: `Customers walk into a coffee shop at an average rate of ${l} per hour. X is the time until the first customer arrives.`, clue: 'the time until the first customer',
+        vars: { lam: V(l, `${l} per hour`), t: V(t, null, `say we want P(X > ${t} hour)`) } } },
+      () => { const l = ri(2, 8), t = pickOne([0.5, 1]); return { text: `A Geiger counter clicks ${l} times a minute on average. X is the wait for the first click.`, clue: 'the wait for the first click',
+        vars: { lam: V(l, `${l} times a minute`), t: V(t, null, `say we want P(X > ${t} minute)`) } } },
+      () => { const m = ri(2, 10), t = ri(1, m); return { text: `A server crashes on average once every ${m} days. X is the time until its next crash.`, clue: 'the time until its next crash',
+        vars: { lam: { ...frac(1, m), from: `once every ${m} days`, note: `1 crash per ${m} days` }, t: V(t, null, `say we want P(X > ${t} days)`) } } },
     ],
     gamma: [
-      () => { const l = ri(3, 10), a = ri(2, 5); return { text: `Calls reach a help desk at an average rate of ${l} per hour. X is the time until the ${ord(a)} call.`, clue: `the time until the ${ord(a)} call` } },
-      () => { const l = ri(4, 12), a = ri(2, 5); return { text: `Emails arrive at an average of ${l} per hour. X is how long it takes for ${a} emails to arrive.`, clue: `how long it takes for ${a} emails` } },
+      () => { const l = ri(3, 10), a = ri(2, 5); return { text: `Calls reach a help desk at an average rate of ${l} per hour. X is the time until the ${ord(a)} call.`, clue: `the time until the ${ord(a)} call`,
+        vars: { al: V(a, `${ord(a)} call`), be: { ...frac(1, l), from: `${l} per hour`, note: 'β = 1 ÷ rate' } } } },
+      () => { const l = ri(4, 12), a = ri(2, 5); return { text: `Emails arrive at an average of ${l} per hour. X is how long it takes for ${a} emails to arrive.`, clue: `how long it takes for ${a} emails`,
+        vars: { al: V(a, `for ${a} emails`), be: { ...frac(1, l), from: `${l} per hour`, note: 'β = 1 ÷ rate' } } } },
     ],
     chi: [
-      () => { const g = ri(3, 20); return { text: `X has a chi-squared distribution with ${g} degrees of freedom. Find the value with area 0.05 to its right.`, clue: `chi-squared distribution with ${g} degrees of freedom` } },
-      () => { const g = ri(3, 20); return { text: `Use the χ² table with γ = ${g} to find the value of X that cuts off the top 1%.`, clue: 'the χ² table' } },
+      () => { const g = ri(3, 20); return { text: `X has a chi-squared distribution with ${g} degrees of freedom. Find the value with area 0.05 to its right.`, clue: `chi-squared distribution with ${g} degrees of freedom`,
+        vars: { ga: V(g, `${g} degrees of freedom`) } } },
+      () => { const g = ri(3, 20); return { text: `Use the χ² table with γ = ${g} to find the value of X that cuts off the top 1%.`, clue: 'the χ² table',
+        vars: { ga: V(g, `γ = ${g}`) } } },
     ],
     normal: [
-      () => ({ text: 'IQ scores are normally distributed with mean 100 and standard deviation 15. X is a random person’s IQ.', clue: 'normally distributed' }),
-      () => { const m = pickOne([63, 64, 65]); return { text: `Heights of adult women follow a bell curve with mean ${m} inches and standard deviation 2.5 inches. X is a random woman’s height.`, clue: 'follow a bell curve' } },
-      () => { const m = ri(65, 78), sd = ri(6, 10); return { text: `Exam scores are normal with μ = ${m} and σ = ${sd}. X is a random student’s score.`, clue: `normal with μ = ${m}` } },
+      () => ({ text: 'IQ scores are normally distributed with mean 100 and standard deviation 15. X is a random person’s IQ.', clue: 'normally distributed',
+        vars: { mu: V(100, 'mean 100'), sig: V(15, 'standard deviation 15'), x: V(100 + pickOne([-20, -15, 10, 15, 25, 30]), null, 'say X is this score') } }),
+      () => { const m = pickOne([63, 64, 65]); return { text: `Heights of adult women follow a bell curve with mean ${m} inches and standard deviation 2.5 inches. X is a random woman’s height.`, clue: 'follow a bell curve',
+        vars: { mu: V(m, `mean ${m} inches`), sig: V(2.5, 'standard deviation 2.5 inches'), x: V(m + pickOne([-4, -2.5, 2, 3, 5]), null, 'say X is this height') } } },
+      () => { const m = ri(65, 78), sd = ri(6, 10); return { text: `Exam scores are normal with μ = ${m} and σ = ${sd}. X is a random student’s score.`, clue: `normal with μ = ${m}`,
+        vars: { mu: V(m, `μ = ${m}`), sig: V(sd, `σ = ${sd}`), x: V(Math.min(100, m + pickOne([-12, -5, 8, 10, 15])), null, 'say X is this score') } } },
     ],
+  }
+
+  // ---------- plug it in: the story's numbers go into the formula ----------
+  const SYM = { n: 'n', p: 'p', q: 'q', x: 'x', r: 'r', N: 'N', k: 'k', t: 't', A: 'A', B: 'B', lam: '\\lambda', mu: '\\mu', sig: '\\sigma', al: '\\alpha', be: '\\beta', ga: '\\gamma' }
+  const CHIP_SYM = { lam: 'λ', mu: 'μ', sig: 'σ', al: 'α', be: 'β', ga: 'γ' }
+  const choose = (n, k) => {
+    if (k < 0 || k > n) return 0
+    let c = 1
+    for (let i = 1; i <= k; i++) c = (c * (n - k + i)) / i
+    return Math.round(c)
+  }
+  const fact = n => (n <= 1 ? 1 : n * fact(n - 1))
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a)
+  const approx = (x, d = 4) => {
+    let r = +x.toFixed(d)
+    if (r === 0 && x > 0) r = +x.toPrecision(2)
+    return `${Math.abs(r - x) < 1e-12 ? '=' : '\\approx'} ${r}`
+  }
+  // each line: a formula with slots (s(key) is the symbol, or the number once it is
+  // plugged in; mode 1 wraps a non-whole number in brackets, mode 2 any number), the
+  // order the numbers go in, and what it comes to
+  const PLUG = {
+    binomial: [{ order: ['n', 'p', 'q', 'x'], tex: s => `f(${s('x')}) = \\binom{${s('n')}}{${s('x')}}${s('p', 1)}^{${s('x')}}${s('q', 1)}^{${s('n')}-${s('x')}}`,
+      result: v => approx(choose(v.n, v.x) * v.p ** v.x * v.q ** (v.n - v.x)) }],
+    geometric: [{ order: ['p', 'q', 'x'], tex: s => `f(${s('x')}) = ${s('q', 1)}^{${s('x')}-1}${s('p', 2)}`, result: v => approx(v.q ** (v.x - 1) * v.p) }],
+    negbin: [{ order: ['r', 'p', 'q', 'x'], tex: s => `f(${s('x')}) = \\binom{${s('x')}-1}{${s('r')}-1}${s('p', 1)}^{${s('r')}}${s('q', 1)}^{${s('x')}-${s('r')}}`,
+      result: v => approx(choose(v.x - 1, v.r - 1) * v.p ** v.r * v.q ** (v.x - v.r)) }],
+    hyper: [{ order: ['N', 'r', 'n', 'x'], tex: s => `f(${s('x')}) = \\frac{\\binom{${s('r')}}{${s('x')}}\\binom{${s('N')}-${s('r')}}{${s('n')}-${s('x')}}}{\\binom{${s('N')}}{${s('n')}}}`,
+      result: v => approx((choose(v.r, v.x) * choose(v.N - v.r, v.n - v.x)) / choose(v.N, v.n)) }],
+    poisson: [
+      { order: ['lam', 't'], tex: s => `${s('k')} = ${s('lam')}${s('t', 2)}`, result: v => `= ${fmt(v.k)}` },
+      { order: ['k', 'x'], tex: s => `f(${s('x')}) = \\frac{e^{-${s('k')}}${s('k', 1)}^{${s('x')}}}{${s('x')}!}`, result: v => approx((Math.exp(-v.k) * v.k ** v.x) / fact(v.x)) },
+    ],
+    uniform: [{ order: ['A', 'B'], tex: s => `f(x) = \\frac{1}{${s('B')} - ${s('A')}}`, result: v => `= \\frac{1}{${v.B - v.A}} \\quad \\text{for } ${v.A} \\le x \\le ${v.B}` }],
+    exponential: [
+      { order: ['lam'], tex: s => `f(x) = ${s('lam')}e^{-${s('lam')}x}`, result: () => '\\quad \\text{for } x > 0' },
+      { order: ['lam', 't'], tex: s => `P(X > ${s('t')}) = e^{-${s('lam')}${s('t', 2)}}`, result: v => approx(Math.exp(-v.lam * v.t)) },
+    ],
+    gamma: [{ order: ['al', 'be'], tex: s => `f(x) = \\frac{x^{${s('al')}-1}e^{-x/${s('be', 1)}}}{\\Gamma(${s('al')})\\,${s('be', 1)}^{${s('al')}}}`,
+      result: v => {
+        const l = Math.round(1 / v.be), a = v.al, num = l ** a, den = fact(a - 1), g = gcd(num, den)
+        const coef = den / g === 1 ? `${num / g}` : `\\frac{${num / g}}{${den / g}}`
+        return `= ${coef}${a - 1 === 1 ? 'x' : `x^{${a - 1}}`}e^{-${l}x}`
+      } }],
+    chi: [
+      { order: ['ga'], tex: s => `\\alpha = \\frac{${s('ga')}}{2}`, result: v => `= ${fmt(v.ga / 2)}` },
+      { order: [], tex: () => '\\beta = 2', result: () => '\\quad \\text{(then read the } \\chi^2 \\text{ table)}' },
+    ],
+    normal: [
+      { order: ['mu', 'sig'], tex: s => `f(x) = \\frac{1}{\\sqrt{2\\pi}\\,${s('sig', 1)}}e^{-(x-${s('mu')})^2/2${s('sig', 2)}^2}`, result: null },
+      { order: ['x', 'mu', 'sig'], tex: s => `z = \\frac{${s('x')} - ${s('mu')}}{${s('sig')}}`, result: v => approx((v.x - v.mu) / v.sig, 2) },
+    ],
+  }
+
+  const wait = ms => new Promise(r => setTimeout(r, ms))
+  // send a copy of a chip's number from the chip to a spot in the formula
+  function fly(fromEl, toEl, text, cls) {
+    const a = fromEl.getBoundingClientRect()
+    const b = toEl.getBoundingClientRect()
+    const f = h('div', 'flyer ' + cls, text)
+    document.body.append(f)
+    const x0 = a.left + a.width / 2, y0 = a.top + a.height / 2
+    const x1 = b.left + b.width / 2, y1 = b.top + b.height / 2
+    const anim = f.animate(
+      [
+        { transform: `translate(${x0}px, ${y0}px) translate(-50%, -50%) scale(1.15)` },
+        { transform: `translate(${(x0 + x1) / 2}px, ${Math.min(y0, y1) - 40}px) translate(-50%, -50%) scale(1.25)`, offset: 0.45 },
+        { transform: `translate(${x1}px, ${y1}px) translate(-50%, -50%) scale(0.8)`, opacity: 0.4 },
+      ],
+      { duration: 560, easing: 'cubic-bezier(.45,0,.3,1)', fill: 'forwards' },
+    )
+    // a busy or backgrounded tab can stall an animation: never wait on it for long
+    return Promise.race([anim.finished.catch(() => {}), wait(800)]).then(() => f.remove())
+  }
+  // the story with one phrase lit up in a number's colour
+  function storyMark(text, phrase, cls) {
+    const p = h('p', 'story')
+    const at = phrase ? text.indexOf(phrase) : -1
+    if (at < 0) p.textContent = text
+    else p.append(document.createTextNode(text.slice(0, at)), h('mark', 'pvmark ' + cls, phrase), document.createTextNode(text.slice(at + phrase.length)))
+    return p
+  }
+  // the panel: chips for the story's numbers, the formula lines, and a replay.
+  // auto: play straight away (a right answer); otherwise it starts filled in
+  function plugPanel(p, { sheet = null, auto = false, next = null } = {}) {
+    const lines = PLUG[p.leaf]
+    const vars = p.vars
+    const val = Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, v.val]))
+    const keys = [...new Set(lines.flatMap(l => l.order))]
+    const color = Object.fromEntries(keys.map((k, i) => [k, 'pv' + (i % 5)]))
+    const el = h('div', 'plug')
+    const L = LEAVES[p.leaf]
+    el.append(h('h3', '', `${L.name} · plug it in`), h('p', 'plug-sub', 'Every number in the story has a spot in the formula.'))
+    const chips = h('div', 'plug-chips')
+    const box = h('div')
+    el.append(chips, box)
+    const acts = h('div', 'row-actions')
+    const replay = h('button', 'btn ghost', 'Replay')
+    replay.type = 'button'
+    acts.append(replay)
+    if (next) acts.append(next)
+    el.append(acts)
+
+    const lineTex = (line, done, withResult) => {
+      const s = (k, mode = 0) => {
+        let body = SYM[k]
+        if (done.has(k)) {
+          const t = vars[k].tex
+          body = mode === 2 || (mode === 1 && !/^\d+$/.test(t)) ? `\\left(${t}\\right)` : `{${t}}`
+        }
+        return color[k] ? `\\class{${color[k]}}{${body}}` : body
+      }
+      const r = withResult && line.result ? line.result(val) : ''
+      return line.tex(s) + (r ? ` \\class{pvres}{${r}}` : '')
+    }
+    const chipFor = k => {
+      let c = chips.querySelector(`[data-k="${k}"]`)
+      if (c) return c
+      const v = vars[k]
+      c = h('span', 'plug-chip ' + color[k], `${CHIP_SYM[k] ?? k} = ${v.txt}`)
+      c.dataset.k = k
+      const why = v.from ? `“${v.from}”${v.note ? ' · ' + v.note : ''}` : v.note
+      if (why) c.append(h('small', '', why))
+      chips.append(c)
+      return c
+    }
+    const story = () => sheet?.querySelector('.story')
+    const lightStory = (phrase, cls) => story()?.replaceWith(storyMark(p.text, phrase, cls))
+
+    function showFinal() {
+      box.replaceChildren()
+      for (const line of lines) {
+        line.order.forEach(chipFor)
+        const d = h('div', 'plug-line')
+        d.append(tex(lineTex(line, new Set(line.order), true)))
+        box.append(d)
+      }
+      if (sheet && p.clue) story()?.replaceWith(storyEl({ text: p.text, clue: p.clue }, true))
+    }
+    let run = 0
+    async function play() {
+      const me = ++run
+      const alive = () => me === run && el.isConnected
+      chips.replaceChildren()
+      box.replaceChildren()
+      for (const line of lines) {
+        const done = new Set()
+        const d = h('div', 'plug-line enter')
+        const draw = res => d.replaceChildren(tex(lineTex(line, done, res)))
+        draw(false)
+        box.append(d)
+        await wait(450)
+        for (const k of line.order) {
+          if (!alive()) return
+          const v = vars[k]
+          if (v.from) lightStory(v.from, color[k])
+          const chip = chipFor(k)
+          chip.animate([{ transform: 'scale(1.15)' }, { transform: 'none' }], { duration: 300 })
+          await wait(420)
+          if (!alive()) return
+          const spots = [...d.querySelectorAll(`svg g.${color[k]}`)]
+          await Promise.all(spots.map((g, i) => wait(i * 90).then(() => alive() && fly(chip, g, v.txt, color[k]))))
+          if (!alive()) return
+          done.add(k)
+          draw(false)
+          d.querySelectorAll(`svg g.${color[k]}`).forEach(g => g.classList.add('glow'))
+          tone(semis(523.25, 4 + done.size * 2), 0, 0.09, 'sine', 0.08)
+          await wait(260)
+        }
+        if (!alive()) return
+        if (line.result) {
+          await wait(200)
+          if (!alive()) return
+          draw(true)
+          d.classList.remove('enter')
+          void d.offsetWidth
+          d.classList.add('bump')
+          if (line.order.length) sfx.right(2)
+        }
+        await wait(500)
+      }
+      if (alive() && sheet && p.clue) story()?.replaceWith(storyEl({ text: p.text, clue: p.clue }, true))
+    }
+    replay.addEventListener('click', () => {
+      if (reduced()) showFinal()
+      else play()
+    })
+    if (auto && !reduced()) setTimeout(play, 0)
+    else showFinal()
+    return el
   }
 
   // the story with its deciding phrase highlighted (or plain, before the end)
@@ -2173,6 +2461,7 @@ window.MathJax = {
       hint: { text: `${path.map(x => x.b.a).join(' → ')}. ${path[path.length - 1].b.why}` },
       clue: sc.clue,
       leaf,
+      vars: sc.vars,
     }
   }
 
