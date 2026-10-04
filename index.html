@@ -997,11 +997,13 @@ window.MathJax = {
   const setEraseMode = on => {
     inkEraseMode = on
     inkEraseBtn.setAttribute('aria-pressed', String(on))
+    if (on) inkClear.hidden = false
   }
   inkEraseBtn.addEventListener('click', () => setEraseMode(!inkEraseMode))
   let inking = false
   let inkLast = null
   let inkErase = false
+  let stroke = null // { wasOn, side, travel } for the stroke in progress
   const pageSize = () => ({ w: document.documentElement.clientWidth, h: Math.max(document.documentElement.scrollHeight, innerHeight) })
   // keep = copy the strokes across (rotation, the page growing below them)
   function sizeInk(keep) {
@@ -1028,12 +1030,11 @@ window.MathJax = {
     if (snap) inkCtx.drawImage(snap, 0, 0, snap.width / dpr, snap.height / dpr)
   }
   function clearInk() {
+    stroke = null
     inking = false
     inkLast = null
     sizeInk(false)
     inkClear.hidden = true
-    sideArmed = false
-    armedStroke = false
     setEraseMode(false)
   }
   const onControl = e => e.target instanceof Element && e.target.closest('button, input, a, select, textarea, label')
@@ -1046,22 +1047,27 @@ window.MathJax = {
   let inkPointer = null
   const penLike = e => e.pointerType === 'pen' || (e.pointerType === 'mouse' && sideButton(e))
   // On Samsung the side button usually arrives as a right click (a context menu,
-  // or a button-2 press), not as a held button. A right click arms the eraser:
-  // the pen's next stroke erases, then it goes back to writing. Pressed during a
-  // stroke, the rest of that stroke erases.
-  let sideArmed = false
-  let armedStroke = false
-  function armEraser(e) {
+  // or a button-2 press), not as a held button, and the browser can cut a long
+  // drag short. So the side button toggles the eraser and it stays on across
+  // strokes. It turns on the moment it is clicked (mid-stroke, the rest of the
+  // stroke erases). It turns off on a click with the pen lifted, or a tap with
+  // the button pressed; a drag with the button pressed keeps erasing. Repeat
+  // clicks the browser fires during one press are ignored.
+  let toggledAt = 0
+  function sideToggle(e) {
     if (onControl(e)) return
     e.preventDefault()
     window.getSelection()?.removeAllRanges()
-    sideArmed = true
-    if (inking) {
-      inkErase = true
-      armedStroke = true
+    const now = Date.now()
+    if (stroke) stroke.side = true
+    if (!inkEraseMode) {
+      setEraseMode(true)
+      toggledAt = now
+      if (inking) inkErase = true
+    } else if (!inking && now - toggledAt > 800) {
+      setEraseMode(false)
+      toggledAt = now
     }
-    inkEraseBtn.setAttribute('aria-pressed', 'true')
-    inkClear.hidden = false
   }
   window.addEventListener('pointerdown', e => {
     penCheck(e)
@@ -1070,13 +1076,20 @@ window.MathJax = {
     if (Math.abs(parseFloat(ink.style.width) - w) > 1 || parseFloat(ink.style.height) < h) sizeInk(true)
     inking = true
     inkPointer = e.pointerId
-    inkErase = sideButton(e) || sideArmed
-    armedStroke = sideArmed
+    inkErase = sideButton(e)
     inkLast = onPage(e)
+    stroke = { wasOn: inkEraseMode, side: false, travel: 0 }
     e.preventDefault()
   }, { passive: false })
   window.addEventListener('pointermove', e => {
     penCheck(e)
+    // the browser cut the stroke short but the pen is still down: pick it back up
+    if (!inking && inkEraseMode && penLike(e) && e.buttons !== 0 && !onControl(e)) {
+      inking = true
+      inkPointer = e.pointerId
+      inkLast = onPage(e)
+      stroke = { wasOn: true, side: false, travel: 0 }
+    }
     if (!inking || e.pointerId !== inkPointer) return
     e.preventDefault()
     const erase = inkEraseMode || inkErase || sideButton(e)
@@ -1088,17 +1101,18 @@ window.MathJax = {
     const at = onPage(e)
     inkCtx.lineTo(at.x, at.y)
     inkCtx.stroke()
+    if (stroke) stroke.travel += Math.hypot(at.x - inkLast.x, at.y - inkLast.y)
     inkLast = at
     if (!erase) inkClear.hidden = false
   }, { passive: false })
   const inkUp = e => {
     penCheck(e)
-    // a stroke made with the eraser armed by the side button uses it up
-    if (inking && armedStroke) {
-      sideArmed = false
-      armedStroke = false
-      inkEraseBtn.setAttribute('aria-pressed', String(inkEraseMode))
+    // a tap with the side button pressed, eraser already on: switch back to writing
+    if (stroke?.side && stroke.wasOn && stroke.travel < 12 && Date.now() - toggledAt > 800) {
+      setEraseMode(false)
+      toggledAt = Date.now()
     }
+    stroke = null
     inking = false
     inkErase = false
     inkLast = null
@@ -1112,10 +1126,10 @@ window.MathJax = {
     if (inking || [...e.touches].some(t => t.touchType === 'stylus')) e.preventDefault()
   }, { passive: false })
   // side-button drags open the context menu or start selecting text; keep both quiet away from controls
-  window.addEventListener('contextmenu', armEraser)
-  window.addEventListener('mousedown', e => { if (e.button === 2) armEraser(e) })
+  window.addEventListener('contextmenu', sideToggle)
+  window.addEventListener('mousedown', e => { if (e.button === 2) sideToggle(e) })
   window.addEventListener('selectstart', e => {
-    if (inking || sideArmed || !(e.target instanceof Element && e.target.closest('input, textarea'))) e.preventDefault()
+    if (inking || inkEraseMode || !(e.target instanceof Element && e.target.closest('input, textarea'))) e.preventDefault()
   })
 
   // Pen check: open the page with #pen and a small box shows what the tablet
@@ -1125,7 +1139,7 @@ window.MathJax = {
     if (!penBox) return
     penBox.textContent =
       `event    ${e.type}\ntype     ${e.pointerType || '(none)'}\nbutton   ${e.button}\nbuttons  ${e.buttons}\npressure ${e.pressure?.toFixed?.(2) ?? '-'}\n` +
-      `erasing  ${inking && (inkEraseMode || inkErase || sideButton(e)) ? 'YES' : 'no'}`
+      `eraser   ${inkEraseMode ? 'ON' : 'off'}\nerasing  ${inking && (inkEraseMode || inkErase || sideButton(e)) ? 'YES' : 'no'}`
   }
   window.addEventListener('contextmenu', e => penBox && (penBox.textContent += `\ncontextmenu (${e.pointerType || 'no type'})`), true)
   window.addEventListener('resize', () => sizeInk(true))
