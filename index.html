@@ -551,6 +551,9 @@ mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); bor
 .tg-step { margin: 6px 0; }
 .tg-ans { margin: 8px 0 0; font-weight: 700; color: var(--rule); font-size: 1.05rem; }
 .tg-ex .tlook { margin: 6px 0; }
+.learn-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 10px 0; padding: 8px 12px; border: 1.5px dashed var(--gold); border-radius: 10px; }
+.learn-note { flex: 1 1 220px; color: var(--muted); font-size: 0.92rem; }
+.learn-tag { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold); }
 /* the calculator floats over everything but the confetti, and stays where it is dragged */
 .calc { position: fixed; z-index: 35; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: min(300px, calc(100vw - 32px)); padding: 10px; border: 2px solid var(--rule); border-radius: 14px; background: var(--sheet); box-shadow: var(--shadow); }
 .calc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -2px 0 8px; cursor: grab; touch-action: none; user-select: none; }
@@ -1331,7 +1334,12 @@ window.MathJax = {
     const back = h('button', 'btn ghost', 'Map')
     back.type = 'button'
     back.addEventListener('click', renderMap)
-    acts.append(go, paper, back)
+    // try it or have it shown, as many as you like; nothing counts
+    const learn = h('button', 'btn ghost')
+    learn.type = 'button'
+    learn.append(document.createTextNode('Learn mode'), h('span', 'mode', 'try it or Show me · doesn’t count'))
+    learn.addEventListener('click', () => startLearn(short))
+    acts.append(go, learn, paper, back)
     sheet.append(acts)
     view.append(sheet)
     go.focus()
@@ -1389,6 +1397,56 @@ window.MathJax = {
     }
     round = { short, paper, queue, at: 0, combo: 0, best: 0, misses: 0, marks: [] }
     showQuestion()
+  }
+
+  // learn mode: one question after another, tried or shown; it never counts or ends
+  const learnQ = short => {
+    const level = isReview(short) ? pickOne(REVIEW[short]) : short
+    return { p: problemFor(level), level: isReview(short) ? level : undefined, seen: 0, missed: false }
+  }
+  async function startLearn(short) {
+    view.replaceChildren(h('p', 'loading', 'Shuffling the deck…'))
+    await mathBoot
+    round = { short, paper: false, learn: true, queue: [learnQ(short)], at: 0, combo: 0, best: 0, misses: 0, marks: [] }
+    showQuestion()
+  }
+  // Show me: the right answer picked and checked for you (it plays the same animation
+  // as a right answer); a build plays whole
+  function learnBar(p, sheet) {
+    const bar = h('div', 'learn-bar')
+    const show = h('button', 'btn ghost learn-show', 'Show me')
+    show.type = 'button'
+    const done = h('button', 'btn ghost', 'Done')
+    done.type = 'button'
+    done.addEventListener('click', () => openCard(round.short))
+    bar.append(h('span', 'learn-note', 'Learn mode: try it, or tap Show me. Nothing here counts.'), show, done)
+    show.addEventListener('click', () => {
+      if (round.locked) return
+      show.disabled = true
+      if (p.buildIt) {
+        round.locked = true
+        sheet.querySelectorAll('.pick, .mgf.build').forEach(x => x.remove())
+        const next = h('button', 'btn', 'Next')
+        next.type = 'button'
+        next.addEventListener('click', advance)
+        const panel = mgfPlayer(p.mgf.build, { auto: true, next })
+        sheet.append(panel)
+        panel.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+        return
+      }
+      const w = sheet.querySelector('.pick')
+      if (!w?.pickNth || !(w.correctIndex >= 0)) return
+      w.querySelector('.pick-label').textContent = 'The answer'
+      w.pickNth(w.correctIndex)
+      w.querySelector('.btn')?.click()
+    })
+    return bar
+  }
+
+  // once a learn-mode question is answered, there is nothing left to show
+  const learnAnswered = () => {
+    const b = view.querySelector('.learn-show')
+    if (b) b.disabled = true
   }
 
   // one question from a level: a distribution story, or one of the level's kinds
@@ -1487,7 +1545,7 @@ window.MathJax = {
       const mark = round.marks[i]
       prog.append(h('i', mark === 'ok' ? 'ok' : mark === 'bad' ? 'bad' : i === round.at ? 'now' : ''))
     })
-    top.append(prog)
+    top.append(round.learn ? h('span', 'learn-tag', 'Learn mode · doesn’t count') : prog)
     sheet.append(top)
     sheet.append(h('div', 'eyebrow', round.short + (q.level ? ' · ' + q.level : '') + (round.paper ? ' · paper mode' : '') + (q.seen > 1 ? ' · second chance' : '')))
     if (p.ask) sheet.append(h('p', 'ask', p.ask))
@@ -1495,6 +1553,7 @@ window.MathJax = {
     const qMath = tex(p.latex)
     qMath.classList.add('q-math')
     sheet.append(qMath)
+    if (round.learn) sheet.append(learnBar(p, sheet))
     if (round.paper) {
       paperQuestion(p, sheet)
       return
@@ -1512,13 +1571,15 @@ window.MathJax = {
       return
     }
     const opts = choicesFor(p)
-    sheet.append(pickBox({
+    const box = pickBox({
       placeholder: 'Choose an answer…',
       label: 'Answers',
       cls: 'answers',
       items: opts.map((o, i) => ({ key: i, row: () => optNodes(o), shown: () => optNodes(o) })),
       onCheck: (i, ui) => answer(i, opts, sheet, ui),
-    }))
+    })
+    box.correctIndex = opts.findIndex(o => o.correct)
+    sheet.append(box)
     view.append(sheet)
     window.scrollTo({ top: 0 })
   }
@@ -1534,6 +1595,12 @@ window.MathJax = {
   }
   // the streak, a sound and the progress mark for a right answer
   function award() {
+    if (round.learn) {
+      round.combo++
+      sfx.right(round.combo)
+      learnAnswered()
+      return
+    }
     track(true)
     state.answered++
     state.correct++
@@ -1545,6 +1612,12 @@ window.MathJax = {
   }
   // a miss: the streak resets, and the question comes back at the end of the round (up to twice)
   function miss(q) {
+    if (round.learn) {
+      round.combo = 0
+      sfx.wrong()
+      learnAnswered()
+      return
+    }
     track(false)
     state.answered++
     round.combo = 0
@@ -1559,7 +1632,7 @@ window.MathJax = {
   }
   function gotIt(q) {
     const acts = h('div', 'row-actions')
-    const cont = h('button', 'btn', q.seen < 3 ? 'Got it · it comes back later' : 'Got it')
+    const cont = h('button', 'btn', round.learn ? 'Next' : q.seen < 3 ? 'Got it · it comes back later' : 'Got it')
     cont.type = 'button'
     cont.addEventListener('click', advance)
     acts.append(cont)
@@ -1744,7 +1817,9 @@ window.MathJax = {
         shown: () => [h('b', 'choice-name', L.name), tex(L.tex, false)],
       }
     })
-    sheet.append(pickBox({ placeholder: 'Choose a distribution…', label: 'Distributions', items, onCheck: (k, ui) => answerPick(k, p, sheet, ui) }))
+    const box = pickBox({ placeholder: 'Choose a distribution…', label: 'Distributions', items, onCheck: (k, ui) => answerPick(k, p, sheet, ui) })
+    box.correctIndex = PICK_ORDER.indexOf(p.leaf)
+    sheet.append(box)
   }
   function answerPick(pick, p, sheet, { sel, check, wrap }) {
     if (round.locked || !LEAVES[pick]) return
@@ -1909,6 +1984,7 @@ window.MathJax = {
     if (!round || screen !== 'question') return
     round.locked = false
     round.at++
+    if (round.learn && round.at >= round.queue.length) round.queue.push(learnQ(round.short))
     if (round.at >= round.queue.length) finish()
     else showQuestion()
   }
@@ -4333,7 +4409,7 @@ window.MathJax = {
       const q = round.queue[round.at]
       round.locked = true
       const all = firstTry === steps.length
-      const sum = h('p', 'build-sum ' + (all ? 'ok' : 'bad'), all ? `All ${steps.length} steps right: that is the whole MGF.` : `${firstTry} of ${steps.length} steps right first time. The build above is the whole MGF; this one comes back later.`)
+      const sum = h('p', 'build-sum ' + (all ? 'ok' : 'bad'), all ? `All ${steps.length} steps right: that is the whole MGF.` : `${firstTry} of ${steps.length} steps right first time. The build above is the whole MGF${round.learn ? '.' : '; this one comes back later.'}`)
       sheet.append(sum)
       if (all) {
         award()

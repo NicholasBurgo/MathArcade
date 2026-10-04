@@ -51,6 +51,10 @@ a right answer plays an animation that works the problem out.
 - **World 5 · Everything** — one question from every level.
 - **Practice test** — one written question per level, timed, graded after you hand it in.
 - **Paper mode** — every level without choices, as on the real test.
+- **Learn mode** — on every level's card: one question after another from that level. Try
+  it, or tap Show me to have the right answer picked and its animation played (an MGF build
+  plays whole). Nothing in learn mode counts: no stars, readiness or stats, and misses don't
+  come back.
 - **Ready** — every topic on the review list, weakest first, with how ready you are for
   it and the levels that drill it (tap one to practise). A level counts its best round
   (stars), your last 12 first tries on it, and its question on the last practice test; the
