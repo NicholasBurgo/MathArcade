@@ -340,8 +340,9 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .twalk { margin-top: 10px; }
 .twalk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 6px 0 10px; }
 .twalk-hint { color: var(--muted); font-size: 0.9rem; }
-.lineage-scroll { overflow-x: auto; overflow-y: hidden; padding: 4px 0 10px; border: 1px solid var(--rule-soft); border-radius: 12px; background: var(--paper); }
-.lineage { display: block; margin: 0 auto; font-family: var(--body); }
+.lineage-scroll { padding: 8px; border: 1px solid var(--rule-soft); border-radius: 12px; background: var(--paper); }
+.lineage { display: block; width: 100%; height: auto; margin: 0 auto; font-family: var(--body); }
+.sheet.wide { --w: min(900px, calc(100vw - 32px)); width: var(--w); margin-inline: calc((100% - var(--w)) / 2); }
 .lineage .lt-line { fill: none; stroke: var(--rule-soft); stroke-width: 2; }
 .lineage .lt-glow { fill: none; stroke: var(--gold); stroke-width: 3.5; stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0; }
 .lineage .lt-glow.on { opacity: 1; stroke-dashoffset: 0; transition: stroke-dashoffset 0.7s ease-out; }
@@ -352,10 +353,10 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .lineage .lt-node.leaf { cursor: pointer; }
 .lineage .lt-node.leaf:hover rect, .lineage .lt-node.leaf:focus-visible rect { fill: var(--gold-soft); }
 .lineage .lt-node { transition: opacity 0.35s; outline: none; }
-.lineage .lt-ans { fill: var(--muted); font-size: 11px; }
-.lineage .lt-q { fill: var(--ink); font-size: 12.5px; font-weight: 700; }
-.lineage .lt-name { fill: var(--ink); font-family: var(--display); font-size: 15px; font-weight: 800; }
-.lineage .lt-sec { fill: var(--muted); font-family: var(--mono); font-size: 10.5px; }
+.lineage .lt-ans { fill: var(--muted); font-size: 12px; }
+.lineage .lt-q { fill: var(--ink); font-size: 13.5px; font-weight: 700; }
+.lineage .lt-name { fill: var(--ink); font-family: var(--display); font-size: 17px; font-weight: 800; }
+.lineage .lt-sec { fill: var(--muted); font-family: var(--mono); font-size: 11px; }
 .lineage.walking .lt-node { opacity: 0.35; }
 .lineage.walking .lt-node.lit { opacity: 1; }
 .lineage .lt-node.nope { opacity: 0.12 !important; }
@@ -363,7 +364,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .lineage .lt-node.leaf.lit rect { fill: var(--gold); stroke: var(--gold); }
 .lineage .lt-node.leaf.lit text { fill: #17241c; }
 .lineage .lt-node.here rect { stroke: var(--gold); stroke-width: 3; }
-.lt-caption { margin-top: 10px; padding: 10px 14px; border-left: 4px solid var(--gold); background: var(--paper); border-radius: 0 10px 10px 0; animation: line-in 0.3s ease-out; }
+.lt-caption { margin: 0 0 10px; padding: 10px 14px; border-left: 4px solid var(--gold); background: var(--paper); border-radius: 0 10px 10px 0; animation: line-in 0.3s ease-out; }
 .lt-caption p { margin: 2px 0; }
 .lt-ask { font-weight: 700; color: var(--rule); }
 .lt-why { color: var(--muted); }
@@ -1356,6 +1357,7 @@ window.MathJax = {
     sheet.append(h('h2', '', short))
     const ul = h('ul', 'points')
     if (isTree(short)) {
+      sheet.classList.add('wide')
       if (!mathReady) mathBoot.then(() => { if (screen === 'card' && mathReady) openCard(short) })
       sheet.append(h('p', 'paper-note', short === TREE_LEVEL2
         ? 'Test-style stories with traps: a rate that is really a fixed number of tries, a wait that is really uniform, a gamma that is really chi-squared, a pdf or an MGF to recognise. Ask what X counts or measures, then walk the tree.'
@@ -3630,11 +3632,12 @@ window.MathJax = {
     return c
   }
   // ---------- the tree, animated: which distribution, and why ----------
-  // A family-tree chart: the first question on top, each answer a box below its
-  // question, the ten distributions at the ends. Playing a path draws the line down
-  // to each answer, fades the other answers, says why, and opens the distribution.
+  // A family-tree chart on its side: the first question on the left, each answer a
+  // box to the right of its question, the ten distributions down the right. Playing a
+  // path draws the line to each answer, fades the other answers, says why, and opens
+  // the distribution. Sideways, it fits a tablet held upright at full size.
   function treeWalk({ leaf: only = null } = {}) {
-    const COL = 124, BOXW = 114, ROW = 112, TOP = 8
+    const COLW = 156, BOXW = 134, ROW = 90, PAD = 4
     // the nodes: the root question, then one per answer (its next question, or its distribution)
     const nodes = []
     const add = (parent, b, depth) => {
@@ -3645,19 +3648,20 @@ window.MathJax = {
       return n
     }
     const root = add(null, null, 0)
-    // leaves left to right; each parent centred over its children
-    let col = 0
+    // the distributions top to bottom, one row each; each parent level with the middle of its children
+    let row = 0
     const place = n => {
-      if (!n.kids.length) n.x = col++ * COL + COL / 2
+      if (!n.kids.length) n.cy = PAD + row++ * ROW + ROW / 2
       else {
         n.kids.forEach(place)
-        n.x = (n.kids[0].x + n.kids[n.kids.length - 1].x) / 2
+        n.cy = (n.kids[0].cy + n.kids[n.kids.length - 1].cy) / 2
       }
-      n.y = TOP + n.depth * ROW
+      n.x = PAD + n.depth * COLW
     }
     place(root)
-    const W = col * COL, H = TOP + (Math.max(...nodes.map(n => n.depth)) + 1) * ROW
-    const svg = svgEl('svg', { class: 'lineage', width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Decision tree: which distribution' })
+    const W = PAD * 2 + Math.max(...nodes.map(n => n.depth)) * COLW + BOXW, H = PAD * 2 + row * ROW
+    const svg = svgEl('svg', { class: 'lineage', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Decision tree: which distribution' })
+    svg.style.maxWidth = W + 'px'
     const lines = svgEl('g')
     svg.append(lines)
     // word-wrap for the boxes (SVG text does not wrap)
@@ -3678,15 +3682,16 @@ window.MathJax = {
       const rows = []
       if (n.answer) rows.push(...wrapText(n.answer, 17).map(t => ['ans', t]))
       if (n.leaf) rows.push(...wrapText(LEAVES[n.leaf].name.toUpperCase(), 13).map(t => ['name', t]), ['sec', LEAVES[n.leaf].sec])
-      else if (n.q) rows.push(...wrapText(n.q, 17).map(t => ['q', t]))
-      const lh = { ans: 13, q: 15, name: 17, sec: 13 }
+      else if (n.q) rows.push(...wrapText(n.q, 16).map(t => ['q', t]))
+      const lh = { ans: 15, q: 17, name: 19, sec: 14 }
       const hgt = rows.reduce((s, [k]) => s + lh[k], 0) + 14
       n.h = hgt
-      g.append(svgEl('rect', { x: n.x - BOXW / 2, y: n.y, width: BOXW, height: hgt, rx: 9 }))
+      n.y = n.cy - hgt / 2
+      g.append(svgEl('rect', { x: n.x, y: n.y, width: BOXW, height: hgt, rx: 9 }))
       let ty = n.y + 7
       for (const [k, t] of rows) {
         ty += lh[k]
-        g.append(svgEl('text', { x: n.x, y: ty - 3, class: 'lt-' + k, 'text-anchor': 'middle' }, t))
+        g.append(svgEl('text', { x: n.x + BOXW / 2, y: ty - 3, class: 'lt-' + k, 'text-anchor': 'middle' }, t))
       }
       if (n.leaf) {
         g.setAttribute('role', 'button')
@@ -3698,10 +3703,10 @@ window.MathJax = {
       n.g = g
       svg.append(g)
     }
-    // family-tree lines: down from the parent, across, down to the child
+    // family-tree lines: out of the parent, along, into the child
     for (const n of nodes) if (n.parent) {
-      const p = n.parent, y1 = p.y + p.h, mid = y1 + (n.y - y1) / 2
-      const d = `M${p.x},${y1} V${mid} H${n.x} V${n.y}`
+      const p = n.parent, x1 = p.x + BOXW, mid = x1 + (n.x - x1) / 2
+      const d = `M${x1},${p.cy} H${mid} V${n.cy} H${n.x}`
       lines.append(n.line = svgEl('path', { d, class: 'lt-line' }))
       lines.append(n.glow = svgEl('path', { d, class: 'lt-glow', pathLength: 100 }))
     }
@@ -3719,14 +3724,12 @@ window.MathJax = {
     bar.append(playAll, stop, h('span', 'twalk-hint', only ? '' : 'or tap a distribution to see only its path'))
     const scroller = h('div', 'lineage-scroll')
     scroller.append(svg)
+    // the caption sits above the tree, so the words stay in view while the path plays
     const caption = h('div', 'lt-caption')
     caption.hidden = true
-    wrap.append(bar, scroller, caption)
+    wrap.append(bar, caption, scroller)
 
-    const follow = n => {
-      const want = n.x - scroller.clientWidth / 2
-      scroller.scrollTo({ left: Math.max(0, want), behavior: reduced() ? 'auto' : 'smooth' })
-    }
+    const follow = n => n.g.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
     function reset() {
       svg.classList.remove('walking')
       for (const n of nodes) {
@@ -3788,7 +3791,6 @@ window.MathJax = {
         if (!alive()) return
         dot.style.display = 'none'
         caption.append(leafCard(leaf))
-        caption.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
         sfx.right(2)
         await wait(reduced() ? 0 : 4500)
         if (!alive()) return
