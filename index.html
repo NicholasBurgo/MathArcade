@@ -4791,6 +4791,7 @@ window.MathJax = {
 
     // the question's numbers, and which of them the work uses (a colour each)
     const rows = work ? workRows(work) : []
+    const lastRow = rows.length - 1
     const { used, links, isAnswer } = linkWork(p, rows, level)
     // colour only the linked spots, by position
     const wrapChunk = (r, j, c) => {
