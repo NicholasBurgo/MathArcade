@@ -25,8 +25,11 @@ a right answer plays an animation that works the problem out.
   can walk the chart to the right one. Under the chart, a shape guide shows how to tell
   a distribution from its pdf or MGF: each shape with an example in matching colours and
   how to read off every number. Questions that give a formula read it first.
-- **World 0 · Parameters and possible values** — read off p, r, n, N or k from a story,
-  and the values X can take.
+- **World 0 · Read off the numbers** — the distribution is named; read one of its numbers
+  off the story (n, p, r, N or k, with k = λs in the rate's units) or say what values X
+  can take. A right answer lights each number's words in the story in its colour, lands it
+  on its letter with what the letter means, and says why X runs where it does. The card is
+  a table of every letter for the five discrete distributions, and plays one of each.
 - **World 0 · Build the MGF** — where every MGF comes from: the recipe m(t) = E[e^(tX)]
   (multiply the pdf by e^(tx), add it up with Σ or ∫, simplify), then the moves (combine
   exponents, pull out constants, the series rule, the key integral). Each build plays line
