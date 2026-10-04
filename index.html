@@ -1487,7 +1487,7 @@ window.MathJax = {
       if (picked.length === WRONG) break
       if (!Number.isFinite(c) || Math.abs(c - a) < tol || (a >= 0 && c < 0)) continue
       const l = fmtChoice(c)
-      if (used.has(l)) continue
+      if (used.has(l) || Math.abs(parseFloat(l) - a) < tol) continue
       used.add(l)
       picked.push(c)
     }
@@ -1495,7 +1495,7 @@ window.MathJax = {
     while (picked.length < WRONG) {
       const c = a + (Number.isInteger(a) ? bump : bump * 0.15)
       const l = fmtChoice(c)
-      if (!used.has(l)) {
+      if (!used.has(l) && Math.abs(parseFloat(l) - a) >= tol) {
         used.add(l)
         picked.push(c)
       }
@@ -3075,19 +3075,8 @@ window.MathJax = {
     }
     return out
   }
-  const sameNum = (a, b) => Math.abs(a - b) < 1e-9
   // 0, 1 and 2 turn up everywhere (1 − p, 2σ²…): never claim those came from the question
   const linkable = v => !(Number.isInteger(v) && Math.abs(v) <= 2)
-  const wrapNums = (latex, colorOf) => {
-    let out = '', at = 0
-    for (const t of numberTokens(latex, true)) {
-      const c = colorOf(t.val)
-      if (!c) continue
-      out += latex.slice(at, t.start) + `{\\class{${c}}{${latex.slice(t.start, t.end)}}}`
-      at = t.end
-    }
-    return out + latex.slice(at)
-  }
   // split LaTeX at its top level (outside braces and \left…\right) where sepAt(i) says so
   function splitTop(src, sepAt) {
     const parts = []
@@ -3110,8 +3099,8 @@ window.MathJax = {
         i += m[0].length - 1
         continue
       }
-      if (c === '{') d++
-      else if (c === '}') d--
+      if (c === '{' || c === '(') d++
+      else if (c === '}' || c === ')') d--
       else if (d === 0 && i > from) {
         const n = sepAt(src, i)
         if (n) {
@@ -3137,14 +3126,16 @@ window.MathJax = {
       .filter(Boolean)
       .map(r => splitTop(r, (src, i) => (src[i] === '=' ? 1 : (/^\\approx(?![a-zA-Z])|^\\to(?![a-zA-Z])/.exec(src.slice(i)) ?? [''])[0].length)))
   }
-  // a few words of the question around a number, for its chip
-  function around(text, tok) {
-    const at = text.indexOf(tok)
-    if (at < 0) return null
-    const left = text.slice(0, at).split(/[.;?!]|, | and | with | of | from /).pop()
-    const right = text.slice(at + tok.length).split(/[.;?!,]| and | with /)[0]
-    const phrase = (left + tok + right).trim()
-    return phrase.length > 44 ? phrase.slice(0, 43) + '…' : phrase
+  // a few words of the question around the number at q (its own spot, not a search)
+  function around(text, q) {
+    const tok = text.slice(q.start, q.end)
+    const leftClause = text.slice(0, q.start).split(/[.;?!]\s|, | and | with /).pop()
+    const rightClause = text.slice(q.end).split(/[.;?!,]| and | with /)[0]
+    let left = (leftClause.match(/(?:\S+\s+){0,3}$/) ?? [''])[0]
+    const right = (rightClause.match(/^\S*(?:\s+\S+){0,2}/) ?? [''])[0]
+    // a bare number ("an IQ score of 93?"): reach back past the clause break
+    if (!left.trim() && !right.trim()) left = (text.slice(0, q.start).match(/(?:\S+\s+){0,4}$/) ?? [''])[0]
+    return (left + tok + right).trim()
   }
 
   // the table cells a worked answer reads, found by checking the class's own table
@@ -3201,6 +3192,50 @@ window.MathJax = {
     return out
   }
 
+  // Which numbers in the work came from the question. A number is linked only when its
+  // exact spelling ("0.5000" is not "0.5") appears once in the question and once in the
+  // work, outside results ("= 0.75") and the answer, and outside \max(…) (whose inputs
+  // are worked out). Anything less certain stays unlinked: a link must never mislead.
+  function linkWork(p, rows) {
+    const lastRow = rows.length - 1
+    const isAnswer = (r, j) => r === lastRow && j === rows[r].length - 1 && rows[r].length > 1
+    const spell = t => t.tok.replace('−', '-')
+    const colourable = new Set(numberTokens(p.latex ?? '', true).map(t => t.start))
+    const q = [
+      ...numberTokens(p.text ?? '', false).map(t => ({ ...t, inText: true })),
+      ...numberTokens(p.latex ?? '', true, true).map(t => ({ ...t, inText: false, colourable: colourable.has(t.start) })),
+    ].filter(t => linkable(t.val))
+    const cands = []
+    rows.forEach((row, r) => row.forEach((c, j) => {
+      if (isAnswer(r, j) || /^\s*(=|\\approx)\s*-?[\d.]+(\\ldots)?\s*[,:]?\s*$/.test(c)) return
+      const skip = []
+      for (const m of c.matchAll(/\\max\(/g)) {
+        let d = 0, k = m.index + 4
+        for (; k < c.length; k++) {
+          if (c[k] === '(') d++
+          else if (c[k] === ')' && --d === 0) break
+        }
+        skip.push([m.index, k])
+      }
+      for (const t of numberTokens(c, true)) if (linkable(t.val) && !skip.some(([a, b]) => t.start >= a && t.start <= b)) cands.push({ r, j, ...t })
+    }))
+    const used = [], links = []
+    for (const t of cands) {
+      const sp = spell(t)
+      const inQ = q.filter(x => spell(x) === sp)
+      // once in the story and once more in the formula is the same number said twice
+      const inStory = inQ.filter(x => x.inText)
+      const once = inQ.length === 1 || (inQ.length === 2 && inStory.length === 1)
+      if (!once || cands.filter(x => spell(x) === sp).length !== 1) continue
+      const src = inStory[0] ?? inQ[0]
+      if (used.length >= 5) continue
+      const u = { src, tok: sp, val: t.val, cls: 'pv' + used.length, where: src.inText ? around(p.text, src) : null }
+      used.push(u)
+      links.push({ r: t.r, j: t.j, start: t.start, end: t.end, u })
+    }
+    return { used, links, isAnswer }
+  }
+
   function workPanel(p, { sheet = null, auto = false, next = null, level = null } = {}) {
     // lettered options have no numbers to work, just the reason
     const work = p.options ? null : p.answerLatex ?? null
@@ -3224,21 +3259,16 @@ window.MathJax = {
     el.append(acts)
 
     // the question's numbers, and which of them the work uses (a colour each)
-    const qNums = [...numberTokens(p.text ?? '', false), ...numberTokens(p.latex ?? '', true, true)].filter(t => linkable(t.val))
     const rows = work ? workRows(work) : []
-    const lastRow = rows.length - 1
-    // the answer itself is never linked: a result can equal a given number by chance
-    const isAnswer = (r, j) => r === lastRow && j === rows[r].length - 1 && rows[r].length > 1
-    const linkedPart = rows.flatMap((row, r) => row.filter((_, j) => !isAnswer(r, j))).join(' ')
-    const used = []
-    for (const t of numberTokens(linkedPart, true)) {
-      if (!linkable(t.val) || used.some(u => sameNum(u.val, t.val))) continue
-      const q = qNums.find(x => sameNum(x.val, t.val))
-      if (q && used.length < 5) used.push({ val: t.val, tok: q.tok.replace('−', '-'), cls: 'pv' + used.length, where: around(p.text ?? '', q.tok) })
+    const { used, links, isAnswer } = linkWork(p, rows)
+    // colour only the linked spots, by position
+    const wrapChunk = (r, j, c) => {
+      let out = c
+      for (const l of links.filter(l => l.r === r && l.j === j).sort((a, b) => b.start - a.start)) out = out.slice(0, l.start) + `{\\class{${l.u.cls}}{${out.slice(l.start, l.end)}}}` + out.slice(l.end)
+      return out
     }
-    const colorOf = v => used.find(u => sameNum(u.val, v))?.cls
     const rowTex = (r, n) =>
-      rows[r].slice(0, n).map((c, j) => (isAnswer(r, j) ? `\\class{pvres}{{}${c}}` : wrapNums(c, colorOf))).join('')
+      rows[r].slice(0, n).map((c, j) => (isAnswer(r, j) ? `\\class{pvres}{{}${c}}` : wrapChunk(r, j, c))).join('')
     // the question itself, with the numbers lit up in their colours
     const story = () => sheet?.querySelector('.story')
     const qMath = () => sheet?.querySelector('.q-math')
@@ -3247,17 +3277,18 @@ window.MathJax = {
       if (p.text && story()) {
         const para = h('p', 'story')
         let at = 0
-        for (const t of numberTokens(p.text, false)) {
-          const c = colorOf(t.val)
-          if (!c) continue
-          para.append(document.createTextNode(p.text.slice(at, t.start)), h('mark', 'pvmark ' + c, p.text.slice(t.start, t.end)))
-          at = t.end
+        for (const u of used.filter(u => u.src.inText).sort((a, b) => a.src.start - b.src.start)) {
+          para.append(document.createTextNode(p.text.slice(at, u.src.start)), h('mark', 'pvmark ' + u.cls, p.text.slice(u.src.start, u.src.end)))
+          at = u.src.end
         }
         para.append(document.createTextNode(p.text.slice(at)))
         story().replaceWith(para)
       }
-      if (p.latex && qMath()) {
-        const m = tex(wrapNums(p.latex, colorOf))
+      const inMath = used.filter(u => !u.src.inText && u.src.colourable)
+      if (p.latex && qMath() && inMath.length) {
+        let l = p.latex
+        for (const u of inMath.sort((a, b) => b.src.start - a.src.start)) l = l.slice(0, u.src.start) + `{\\class{${u.cls}}{${l.slice(u.src.start, u.src.end)}}}` + l.slice(u.src.end)
+        const m = tex(l)
         m.classList.add('q-math')
         qMath().replaceWith(m)
       }
