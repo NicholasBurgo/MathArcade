@@ -45,7 +45,9 @@ a right answer plays an animation that works the problem out.
   doesn't already cover, with no kind of question in two levels. A right answer shows the
   work step by step, with the question's numbers linked to where they land, the table
   lookup and a graph when the question names a distribution. Answers are picked from a
-  dropdown list, as in World 0. Each world ends with a review level.
+  dropdown list, as in World 0. Each world ends with a review level. World 1's cards work
+  every kind of table lookup on the printed tables (left, right and between areas, backwards
+  from an area, cumulative binomial rows, chi-squared columns), each played step by step.
 - **World 5 · Everything** — one question from every level.
 - **Practice test** — one written question per level, timed, graded after you hand it in.
 - **Paper mode** — every level without choices, as on the real test.
