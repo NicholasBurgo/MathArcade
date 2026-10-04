@@ -337,7 +337,23 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 }
 .choice .val { overflow-x: auto; overflow-y: hidden; font-size: 1.05rem; padding-block: 2px; }
 .choice .val .choice-name { display: block; margin-bottom: 2px; }
-.oleaf .math-i { display: block; margin-top: 2px; }
+.twalk { margin-top: 10px; }
+.twalk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 6px 0 10px; }
+.twalk-hint { color: var(--muted); font-size: 0.9rem; }
+.tw .tw-leaf { border: 0; border-left: 3px solid var(--gold); color: var(--ink); font: inherit; font-size: 0.92rem; cursor: pointer; text-align: left; }
+.tw .tw-leaf:hover { background: var(--gold-soft); }
+.tw .oq, .tw .oa, .tw .tw-leaf, .tw .tw-why, .tw .tw-card { transition: opacity 0.35s, background 0.35s, color 0.35s; }
+.tw.walking .oq, .tw.walking .oa, .tw.walking .tw-leaf { opacity: 0.3; }
+.tw.walking .lit { opacity: 1; }
+.tw .oq.lit { background: var(--rule); color: var(--sheet); }
+.tw .oa.lit { background: var(--green-soft); color: var(--ink); border-radius: 6px; padding: 2px 6px; margin-left: -6px; }
+.tw .oa.nope { opacity: 0.18; text-decoration: line-through; }
+.tw .tw-leaf.lit { background: var(--gold); color: #17241c; }
+.tw .here { box-shadow: 0 0 0 3px var(--gold); }
+.tw .tw-why { margin: 4px 0 2px; padding: 6px 10px; border-left: 3px solid var(--green); background: var(--paper); font-size: 0.92rem; animation: line-in 0.35s ease-out; }
+.tw .tw-card { animation: line-in 0.35s ease-out; }
+.tw .tw-card .leafcard { margin-top: 8px; }
+.tw-open { margin-top: 10px; }
 .leafcard .math-i { font-size: 1.05rem; }
 .choice .val mjx-container { margin: 0 !important; }
 .choice.right { background: var(--green-soft); border-color: var(--green); }
@@ -1328,10 +1344,8 @@ window.MathJax = {
       if (!mathReady) mathBoot.then(() => { if (screen === 'card' && mathReady) openCard(short) })
       sheet.append(h('p', 'paper-note', short === TREE_LEVEL2
         ? 'Test-style stories with traps: a rate that is really a fixed number of tries, a wait that is really uniform, a gamma that is really chi-squared, a pdf or an MGF to recognise. Ask what X counts or measures, then walk the tree.'
-        : 'Every question starts here. Read the tree top to bottom, then name the distribution for each story.'))
-      const o = h('div', 'outline')
-      o.append(outline(TREE))
-      sheet.append(o)
+        : 'Every question starts here. Ask the questions top to bottom about what X is doing; each answer narrows it down until one distribution is left. Play the paths to watch it decide.'))
+      sheet.append(treeWalk())
     } else {
       if (isReview(short)) {
         ul.append(h('li', '', short === 'Everything'
@@ -1644,6 +1658,14 @@ window.MathJax = {
     why.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
   }
 
+  // a button that plays the tree's path to one distribution, right where it is
+  function walkButton(leaf) {
+    const b = h('button', 'btn ghost tw-open', 'Walk the tree to the answer')
+    b.type = 'button'
+    b.addEventListener('click', () => b.replaceWith(treeWalk({ leaf })))
+    return b
+  }
+
   function showPlug(p, sheet) {
     const next = h('button', 'btn', 'Next')
     next.type = 'button'
@@ -1752,6 +1774,7 @@ window.MathJax = {
     if (p.clue) sheet.querySelector('.story')?.replaceWith(storyEl({ text: p.text, clue: p.clue }, true))
     if (p.trap) why.append(h('p', 'trap', 'The trap: ' + p.trap))
     why.append(leafCard(p.leaf))
+    why.append(walkButton(p.leaf))
     const { acts, cont } = gotIt(q)
     why.append(acts)
     sheet.append(why)
@@ -1765,7 +1788,7 @@ window.MathJax = {
   function solution(p) {
     if (p.leaf) {
       const box = h('div', 'reveal-box')
-      box.append(h('h3', '', 'Answer'), leafCard(p.leaf), h('h3', '', 'How the tree gets there'), h('p', '', p.hint.text))
+      box.append(h('h3', '', 'Answer'), leafCard(p.leaf), h('h3', '', 'How the tree gets there'), h('p', '', p.hint.text), walkButton(p.leaf))
       if (p.vars) box.append(plugPanel(p))
       return box
     }
@@ -3576,25 +3599,113 @@ window.MathJax = {
     c.append(t, pdf, row('Use case', L.use), row('X is', L.x), row('Key', L.key))
     return c
   }
-  // the whole tree as an outline: questions, the answers that branch, the leaves
-  function outline(node) {
-    const wrap = h('div')
-    wrap.append(h('span', 'oq', node.q))
-    const ul = h('ul')
-    for (const b of node.branches) {
-      const li = h('li')
-      const a = h('span', 'oa')
-      a.append(h('b', '', b.a), document.createTextNode(' · ' + b.more))
-      li.append(a)
-      if (b.leaf) {
-        const L = LEAVES[b.leaf]
-        const lf = h('span', 'oleaf')
-        lf.append(h('b', '', L.name), document.createTextNode(` ${L.sec} · ${L.use}`), tex(L.tex, false))
-        li.append(lf)
-      } else li.append(outline(b.node))
-      ul.append(li)
+  // ---------- the tree, animated: which distribution, and why ----------
+  // The questions and answers as a tree. Playing a path dims the rest, lights each
+  // question and the answer that leads on (crossing out the others), says why, and
+  // opens the distribution at the end: its formula, when to use it, what X is.
+  function treeWalk({ leaf: only = null } = {}) {
+    const wrap = h('div', 'twalk')
+    const bar = h('div', 'twalk-bar')
+    const playAll = h('button', 'btn', only ? '▶ Play it again' : '▶ Play every path')
+    playAll.type = 'button'
+    const stop = h('button', 'btn ghost', 'Stop')
+    stop.type = 'button'
+    stop.hidden = true
+    bar.append(playAll, stop, h('span', 'twalk-hint', only ? '' : 'or tap a distribution to see only its path'))
+    const tree = h('div', 'outline tw')
+    const paths = {} // leaf -> the elements from the top question to it
+    const kids = new Map() // question -> its answers
+    function build(node, trail) {
+      const box = h('div')
+      const q = h('span', 'oq tw-q', node.q)
+      box.append(q)
+      const ul = h('ul')
+      const answers = []
+      for (const b of node.branches) {
+        const li = h('li')
+        const a = h('div', 'oa tw-a')
+        a.append(h('b', '', b.a), document.createTextNode(' · ' + b.more))
+        const why = h('p', 'tw-why', b.why)
+        why.hidden = true
+        li.append(a)
+        answers.push(a)
+        if (b.leaf) {
+          const L = LEAVES[b.leaf]
+          const chip = h('button', 'oleaf tw-leaf')
+          chip.type = 'button'
+          chip.append(h('b', '', L.name), document.createTextNode(' ' + L.sec))
+          chip.addEventListener('click', () => play([b.leaf]))
+          const card = h('div', 'tw-card')
+          card.append(leafCard(b.leaf))
+          card.hidden = true
+          li.append(why, chip, card)
+          paths[b.leaf] = [...trail, { q, a, why }, { chip, card }]
+        } else {
+          li.append(why, build(b.node, [...trail, { q, a, why }]))
+        }
+        ul.append(li)
+      }
+      kids.set(q, answers)
+      box.append(ul)
+      return box
     }
-    wrap.append(ul)
+    tree.append(build(TREE, []))
+    wrap.append(bar, tree)
+
+    const all = sel => tree.querySelectorAll(sel)
+    function reset() {
+      tree.classList.remove('walking')
+      for (const el of all('.lit, .nope, .here')) el.classList.remove('lit', 'nope', 'here')
+      for (const el of all('.tw-why, .tw-card')) el.hidden = true
+    }
+    const here = el => {
+      for (const x of all('.here')) x.classList.remove('here')
+      el.classList.add('lit', 'here')
+      el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+    }
+    let run = 0
+    async function play(leaves) {
+      const me = ++run
+      const alive = () => me === run && wrap.isConnected
+      playAll.hidden = true
+      stop.hidden = false
+      for (const leaf of leaves) {
+        reset()
+        tree.classList.add('walking')
+        const steps = paths[leaf]
+        for (const step of steps.slice(0, -1)) {
+          here(step.q)
+          tone(semis(523.25, 4), 0, 0.08, 'sine', 0.06)
+          await wait(reduced() ? 0 : 800)
+          if (!alive()) return
+          for (const other of kids.get(step.q)) if (other !== step.a) other.classList.add('nope')
+          here(step.a)
+          step.why.hidden = false
+          step.why.classList.add('lit')
+          tone(semis(523.25, 9), 0, 0.08, 'sine', 0.06)
+          await wait(reduced() ? 0 : 2000)
+          if (!alive()) return
+        }
+        const end = steps[steps.length - 1]
+        here(end.chip)
+        end.card.hidden = false
+        end.card.classList.add('lit')
+        end.card.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+        sfx.right(2)
+        await wait(reduced() ? 0 : 4200)
+        if (!alive()) return
+      }
+      playAll.hidden = false
+      stop.hidden = true
+    }
+    playAll.addEventListener('click', () => play(only ? [only] : PICK_ORDER))
+    stop.addEventListener('click', () => {
+      run++
+      reset()
+      playAll.hidden = false
+      stop.hidden = true
+    })
+    if (only) setTimeout(() => play([only]), 0)
     return wrap
   }
 
