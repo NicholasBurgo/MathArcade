@@ -1133,7 +1133,7 @@ window.MathJax = {
   // the button pressed; a drag with the button pressed keeps erasing. Repeat
   // clicks the browser fires during one press are ignored.
   let toggledAt = 0
-  let lastTap = null // { t, at } of the last pen tap (no drag), for double taps
+  let taps = [] // { t, at } of the pen taps (no drag) in a row, for triple taps
   function sideToggle(e) {
     if (onControl(e)) return
     e.preventDefault()
@@ -1192,12 +1192,15 @@ window.MathJax = {
       setEraseMode(false)
       toggledAt = Date.now()
     } else if (stroke && !stroke.side && stroke.travel < 12 && e.type === 'pointerup') {
-      // a quick double tap in one spot with the pen tip flips the eraser, on or off
+      // three quick taps in one spot with the pen tip flip the eraser, on or off
       const now = Date.now()
       const at = stroke.at
-      if (lastTap && now - lastTap.t < 350 && Math.hypot(at.x - lastTap.at.x, at.y - lastTap.at.y) < 40) {
-        // turning it on: wipe the two dots the taps left
-        if (!inkEraseMode) for (const dot of [lastTap.at, at]) {
+      const prev = taps[taps.length - 1]
+      if (prev && now - prev.t < 400 && Math.hypot(at.x - taps[0].at.x, at.y - taps[0].at.y) < 40) taps.push({ t: now, at })
+      else taps = [{ t: now, at }]
+      if (taps.length === 3) {
+        // turning it on: wipe the dots the taps left
+        if (!inkEraseMode) for (const dot of taps.map(x => x.at)) {
           inkCtx.save()
           inkCtx.globalCompositeOperation = 'destination-out'
           inkCtx.beginPath()
@@ -1207,8 +1210,8 @@ window.MathJax = {
         }
         setEraseMode(!inkEraseMode)
         toggledAt = now
-        lastTap = null
-      } else lastTap = { t: now, at }
+        taps = []
+      }
     }
     stroke = null
     inking = false
