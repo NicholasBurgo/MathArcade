@@ -368,6 +368,33 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 40; }
 /* S Pen ink: laid over the whole page, never in the way of a tap */
 #ink { position: absolute; top: 0; left: 0; z-index: 25; pointer-events: none; }
+/* ---------- the pet ---------- */
+.pet { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 18px; align-items: center; margin-top: 14px; padding: 14px 18px; background: var(--sheet); border: 1.5px solid var(--rule-soft); border-radius: 16px; }
+.pet-sprite { position: relative; width: 132px; height: 132px; border: 0; padding: 0; background: none; cursor: pointer; }
+.pet-sprite svg, .buddy svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.pet-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.pet-name button { border: 0; background: none; padding: 0; cursor: pointer; font-family: var(--display); font-size: 1.7rem; font-weight: 800; text-transform: uppercase; color: var(--ink); line-height: 1; }
+.pet-name input { font: inherit; font-family: var(--display); font-size: 1.5rem; width: 9ch; padding: 2px 6px; border: 1.5px solid var(--rule); border-radius: 8px; background: var(--paper); color: var(--ink); }
+.pet-name span { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+.meters { display: grid; gap: 5px; margin: 8px 0 6px; max-width: 360px; }
+.meter { display: grid; grid-template-columns: 78px minmax(0, 1fr) 40px; align-items: center; gap: 8px; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.meter .bar { height: 8px; border-radius: 4px; background: var(--rule-soft); overflow: hidden; }
+.meter .bar i { display: block; height: 100%; border-radius: 4px; background: var(--green); transition: width 0.5s ease; }
+.meter .bar i.low { background: var(--red); }
+.meter .bar i.grow { background: var(--gold); }
+.meter b { color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+.pet-status { margin: 0; color: var(--muted); font-size: 0.95rem; max-width: 52ch; }
+.bubble { position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); width: max-content; max-width: min(300px, 80vw); padding: 8px 12px; border-radius: 12px; background: var(--ink); color: var(--paper); font-size: 0.85rem; line-height: 1.4; text-align: left; z-index: 3; animation: toast 4.5s ease-out forwards; pointer-events: none; }
+.buddy { position: fixed; z-index: 24; left: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: 64px; height: 64px; pointer-events: none; }
+@keyframes idle { 50% { transform: translateY(-4px); } }
+@keyframes cheer { 30% { transform: translateY(-16px) scale(1.06); } 60% { transform: translateY(0) scale(0.97); } }
+@keyframes oops { 20%, 60% { transform: rotate(-8deg); } 40%, 80% { transform: rotate(8deg); } }
+@keyframes evolve { 0% { transform: scale(1); filter: brightness(1); } 40% { transform: scale(1.25); filter: brightness(1.8); } 100% { transform: scale(1); filter: brightness(1); } }
+.critter { transform-origin: 50% 90%; animation: idle 2.4s ease-in-out infinite; }
+.cheer .critter { animation: cheer 0.6s ease-out; }
+.oops .critter { animation: oops 0.5s ease-in-out; }
+.evolving .critter { animation: evolve 1.2s ease-out; }
+@media (max-width: 520px) { .pet { grid-template-columns: 1fr; justify-items: center; text-align: center; } .meters { width: 100%; } .pet-name { justify-content: center; } }
 .ink-clear {
   position: fixed; z-index: 26;
   right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
@@ -410,6 +437,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 <canvas id="fx" aria-hidden="true"></canvas>
 <canvas id="ink" aria-hidden="true"></canvas>
 <button class="ink-clear" id="ink-clear" type="button" hidden>Clear ink</button>
+<div class="buddy" id="buddy" aria-hidden="true" hidden></div>
 
 <script>
 window.MathJax = {
@@ -581,7 +609,7 @@ window.MathJax = {
 
   // ---------- progress ----------
   const LOCAL_KEY = 'math3800-arcade.v1'
-  const fresh = () => ({ v: 1, xp: 0, stars: {}, plays: {}, lastDay: null, days: 0, muted: false, answered: 0, correct: 0, boss: null, updated: 0 })
+  const fresh = () => ({ v: 1, xp: 0, stars: {}, plays: {}, lastDay: null, days: 0, muted: false, answered: 0, correct: 0, boss: null, pet: null, updated: 0 })
   let state = fresh()
   try {
     const s = JSON.parse(localStorage.getItem(LOCAL_KEY))
@@ -727,6 +755,219 @@ window.MathJax = {
     s.textContent = text
     document.body.append(s)
     setTimeout(() => s.remove(), 1650)
+  }
+
+  // ---------- the pet: it eats right answers and evolves through the distributions ----------
+  const STAGES = [
+    { name: 'Egg', says: 'something is in there', at: 0 },
+    { name: 'Bernoulli', says: 'one trial at a time', at: 3 },
+    { name: 'Binomial', says: 'counts its wins', at: 40 },
+    { name: 'Poisson', says: 'lives at a steady rate', at: 120 },
+    { name: 'Gamma', says: 'patiently waits for things', at: 260 },
+    { name: 'Normal', says: 'perfectly balanced, the final form', at: 450 },
+  ]
+  const BOSS_FOR_FINAL = 17
+  const clamp = v => Math.max(0, Math.min(100, v))
+  function newPet() {
+    return { name: 'Sigma', stage: 0, growth: 0, full: 70, happy: 70, last: Date.now(), starving: null, best: 0 }
+  }
+  // hunger and boredom build up while you are away; a day starving costs a stage
+  function petTick() {
+    const pet = (state.pet ??= newPet())
+    const now = Date.now()
+    const hours = Math.max(0, (now - pet.last) / 3.6e6)
+    pet.last = now
+    const before = pet.full
+    pet.full = clamp(pet.full - hours * 5)
+    pet.happy = clamp(pet.happy - hours * 2)
+    if (pet.full > 0) pet.starving = null
+    else if (pet.starving == null) pet.starving = now - Math.max(0, hours - before / 5) * 3.6e6
+    if (pet.stage > 1 && pet.starving != null && now - pet.starving > 24 * 3.6e6) {
+      const from = STAGES[pet.stage].name
+      pet.stage--
+      // back to halfway through the lower stage: it has to earn the form again
+      pet.growth = STAGES[pet.stage].at + Math.floor((STAGES[pet.stage + 1].at - STAGES[pet.stage].at) / 2)
+      pet.starving = now
+      pet.happy = 20
+      pet.note = `${pet.name} went hungry for a day and devolved from ${from} to ${STAGES[pet.stage].name}. Feed it a level to win it back.`
+      return true
+    }
+    return false
+  }
+  const petMood = pet =>
+    pet.stage === 0 ? 'egg' : pet.full <= 0 ? 'sick' : pet.full < 30 ? 'hungry' : pet.happy < 30 ? 'sad' : pet.happy > 70 && pet.full > 50 ? 'happy' : 'ok'
+  // what stands between the pet and its next form, if anything
+  function evolveBlock(pet) {
+    const next = STAGES[pet.stage + 1]
+    if (!next) return null
+    if (pet.growth < next.at) return `${next.at - pet.growth} more growth to become ${next.name}.`
+    if (pet.stage > 0 && pet.full < 40) return `Ready to become ${next.name}, but too hungry. Answer a few questions.`
+    if (pet.stage > 0 && pet.happy < 40) return `Ready to become ${next.name}, but too sad. Clear a level.`
+    if (pet.stage + 1 === STAGES.length - 1 && (state.boss?.best ?? 0) < BOSS_FOR_FINAL) return `The final form needs a Final Boss score of ${BOSS_FOR_FINAL}+.`
+    return ''
+  }
+  function petEvolve() {
+    const pet = state.pet
+    while (evolveBlock(pet) === '') {
+      pet.stage++
+      pet.best = Math.max(pet.best, pet.stage)
+      const s = STAGES[pet.stage]
+      setTimeout(() => {
+        toast(pet.stage === 1 ? `${pet.name} hatched!` : `${pet.name} evolved into ${s.name}!`)
+        sfx.levelUp()
+        burst(140)
+        document.querySelectorAll('.pet-sprite, .buddy').forEach(el => {
+          el.classList.remove('evolving')
+          void el.offsetWidth
+          el.classList.add('evolving')
+        })
+      }, 500)
+    }
+  }
+  // right answers are snacks, cleared levels are meals, misses sting a little
+  function petFeed({ full = 0, happy = 0, growth = 0 }) {
+    petTick()
+    const pet = state.pet
+    if (full > 0) pet.note = null
+    pet.full = clamp(pet.full + full)
+    pet.happy = clamp(pet.happy + happy)
+    pet.growth += growth
+    petEvolve()
+    renderBuddy()
+  }
+  function react(kind) {
+    const b = document.getElementById('buddy')
+    b.classList.remove('cheer', 'oops')
+    void b.offsetWidth
+    b.classList.add(kind)
+  }
+
+  // the critter, drawn per stage and mood
+  function petSvg(pet) {
+    const mood = petMood(pet)
+    const P = [
+      null,
+      { body: '<circle cx="60" cy="82" r="26"/>', extra: '<line x1="60" y1="56" x2="60" y2="38" stroke-width="2.5"/><circle cx="60" cy="35" r="5"/>', face: [60, 80], fill: '--green-soft', line: '--green' },
+      { body: '<path d="M30 108 V70 Q30 50 60 50 Q90 50 90 70 V108 Z"/>', extra: '<rect x="36" y="38" width="10" height="14" rx="2"/><rect x="55" y="28" width="10" height="24" rx="2"/><rect x="74" y="42" width="10" height="10" rx="2"/>', face: [60, 78], fill: '--gold-soft', line: '--gold' },
+      { body: '<path d="M18 108 C22 70 34 40 50 40 C66 40 78 70 102 108 Z"/>', extra: '', face: [50, 70], fill: '--red-soft', line: '--red' },
+      { body: '<path d="M12 108 C16 60 30 36 44 36 C60 36 70 64 112 108 Z"/>', extra: '<path d="M96 104 q10 -6 14 -18" fill="none" stroke-width="2.5"/>', face: [44, 66], fill: '--rule-soft', line: '--rule' },
+      { body: '<path d="M8 108 C34 108 40 34 60 34 C80 34 86 108 112 108 Z"/>', extra: '<path d="M46 32 L48 18 L54 26 L60 14 L66 26 L72 18 L74 32 Z" fill="var(--gold)" stroke="var(--gold)"/>', face: [60, 68], fill: '--gold-soft', line: '--gold' },
+    ][pet.stage]
+    const shadow = '<ellipse cx="60" cy="112" rx="34" ry="5" fill="var(--rule-soft)" stroke="none"/>'
+    if (!P) {
+      return `<svg viewBox="0 0 120 120" role="img" aria-label="An egg">${shadow}<g class="critter" fill="var(--sheet)" stroke="var(--rule)" stroke-width="3">
+        <ellipse cx="60" cy="68" rx="30" ry="40"/><circle cx="48" cy="56" r="5" fill="var(--rule-soft)" stroke="none"/><circle cx="70" cy="76" r="7" fill="var(--rule-soft)" stroke="none"/><circle cx="56" cy="90" r="4" fill="var(--rule-soft)" stroke="none"/>
+        ${pet.growth > 0 ? '<path d="M44 46 l6 6 l5 -7 l6 6" fill="none" stroke-width="2"/>' : ''}</g></svg>`
+    }
+    const [x, y] = P.face
+    const eyes = {
+      happy: `<path d="M${x - 15} ${y} q5 -7 10 0 M${x + 5} ${y} q5 -7 10 0" fill="none" stroke-width="2.5"/>`,
+      ok: `<circle cx="${x - 10}" cy="${y}" r="3.2"/><circle cx="${x + 10}" cy="${y}" r="3.2"/>`,
+      hungry: `<circle cx="${x - 10}" cy="${y}" r="3.2"/><circle cx="${x + 10}" cy="${y}" r="3.2"/>`,
+      sad: `<circle cx="${x - 10}" cy="${y + 1}" r="3"/><circle cx="${x + 10}" cy="${y + 1}" r="3"/><path d="M${x - 15} ${y - 7} l8 3 M${x + 15} ${y - 7} l-8 3" fill="none" stroke-width="2"/>`,
+      sick: `<path d="M${x - 13} ${y - 3} l6 6 m0 -6 l-6 6 M${x + 7} ${y - 3} l6 6 m0 -6 l-6 6" fill="none" stroke-width="2"/>`,
+    }[mood]
+    const mouth = {
+      happy: `<path d="M${x - 8} ${y + 9} q8 9 16 0" fill="none" stroke-width="2.5"/>`,
+      ok: `<path d="M${x - 6} ${y + 10} q6 5 12 0" fill="none" stroke-width="2.5"/>`,
+      hungry: `<ellipse cx="${x}" cy="${y + 12}" rx="5" ry="6" fill="var(--ink)"/>`,
+      sad: `<path d="M${x - 7} ${y + 14} q7 -6 14 0" fill="none" stroke-width="2.5"/>`,
+      sick: `<path d="M${x - 8} ${y + 12} q4 -4 8 0 q4 4 8 0" fill="none" stroke-width="2.5"/>`,
+    }[mood]
+    const cheeks = mood === 'happy' ? `<circle cx="${x - 18}" cy="${y + 7}" r="4" fill="var(--red)" opacity="0.35" stroke="none"/><circle cx="${x + 18}" cy="${y + 7}" r="4" fill="var(--red)" opacity="0.35" stroke="none"/>` : ''
+    return `<svg viewBox="0 0 120 120" role="img" aria-label="${STAGES[pet.stage].name}, feeling ${mood}">${shadow}
+      <g class="critter" fill="var(${P.fill})" stroke="var(${P.line})" stroke-width="3" stroke-linejoin="round">
+        ${P.extra}${P.body}
+        <g fill="var(--ink)" stroke="var(--ink)">${eyes}${mouth}</g>${cheeks}
+      </g></svg>`
+  }
+
+  function petStatus(pet) {
+    if (pet.note) return pet.note
+    const mood = petMood(pet)
+    if (pet.stage === 0) return `An egg. Answer ${Math.max(1, STAGES[1].at - pet.growth)} more question${STAGES[1].at - pet.growth === 1 ? '' : 's'} right to hatch it.`
+    if (mood === 'sick') {
+      const left = pet.starving ? Math.max(1, Math.ceil(24 - (Date.now() - pet.starving) / 3.6e6)) : 24
+      return pet.stage > 1 ? `${pet.name} is starving and will devolve in about ${left} h. One level fixes it.` : `${pet.name} is starving. One level fixes it.`
+    }
+    if (mood === 'hungry') return `${pet.name} is hungry. Every right answer is a snack.`
+    if (mood === 'sad') return `${pet.name} is bored. Clear a level to cheer it up.`
+    const block = evolveBlock(pet)
+    return block || `${pet.name} is in its final form. Keep it fed until Tuesday.`
+  }
+
+  // the pet card on the map
+  function petCard() {
+    petTick()
+    const pet = state.pet
+    const card = h('section', 'pet')
+    const sprite = h('button', 'pet-sprite')
+    sprite.type = 'button'
+    sprite.setAttribute('aria-label', `${pet.name}: tap for a study tip`)
+    sprite.innerHTML = petSvg(pet)
+    let tipped = 0
+    sprite.addEventListener('click', () => {
+      const tips = Object.values(CARDS).flat()
+      sprite.querySelector('.bubble')?.remove()
+      const b = h('span', 'bubble', pet.stage === 0 ? '…tap tap… (it wiggles)' : pickOne(tips))
+      sprite.append(b)
+      sprite.classList.remove('cheer')
+      void sprite.offsetWidth
+      sprite.classList.add('cheer')
+      // a little attention cheers it up, a few times a visit
+      if (tipped++ < 5) pet.happy = clamp(pet.happy + 1)
+      sfx.right(0)
+    })
+    const info = h('div')
+    const nameRow = h('div', 'pet-name')
+    const nameBtn = h('button', '', pet.name)
+    nameBtn.type = 'button'
+    nameBtn.title = 'Rename'
+    nameBtn.addEventListener('click', () => {
+      const input = h('input')
+      input.id = 'pet-name'
+      input.value = pet.name
+      input.maxLength = 14
+      input.setAttribute('aria-label', 'Pet name')
+      const done = () => {
+        pet.name = input.value.trim() || pet.name
+        save()
+        renderMap()
+      }
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') done() })
+      input.addEventListener('blur', done)
+      nameBtn.replaceWith(input)
+      input.focus()
+      input.select()
+    })
+    nameRow.append(nameBtn, h('span', '', `Stage ${pet.stage}/5 · ${STAGES[pet.stage].name} · ${STAGES[pet.stage].says}`))
+    const meters = h('div', 'meters')
+    const meter = (label, value, cls) => {
+      const m = h('div', 'meter')
+      const bar = h('div', 'bar')
+      const fill = h('i', cls)
+      fill.style.width = Math.round(value) + '%'
+      bar.append(fill)
+      m.append(h('span', '', label), bar, h('b', '', Math.round(value) + '%'))
+      return m
+    }
+    meters.append(meter('Fullness', pet.full, pet.full < 30 ? 'low' : ''), meter('Happiness', pet.happy, pet.happy < 30 ? 'low' : ''))
+    const next = STAGES[pet.stage + 1]
+    if (next) {
+      const from = STAGES[pet.stage].at
+      meters.append(meter('Growth', Math.min(100, ((pet.growth - from) / (next.at - from)) * 100), 'grow'))
+    }
+    info.append(nameRow, meters, h('p', 'pet-status', petStatus(pet)))
+    card.append(sprite, info)
+    return card
+  }
+
+  // the small one in the corner while you answer
+  function renderBuddy() {
+    const b = document.getElementById('buddy')
+    if (!b || !state.pet) return
+    b.hidden = !['question', 'boss'].includes(screen)
+    b.innerHTML = petSvg(state.pet)
   }
 
   // ---------- S Pen ink: only a stylus writes; fingers and the mouse scroll and tap ----------
@@ -917,11 +1158,12 @@ window.MathJax = {
     const fig = h('figure', 'bell')
     fig.innerHTML = bellSvg(r)
     const cap = h('figcaption')
-    cap.append(h('b', '', grade(r)))
+    cap.append(h('b', '', r >= 0.6 ? grade(r) : '–'))
     cap.append(document.createTextNode(`Readiness ${Math.round(r * 100)}%`))
     fig.append(cap)
     hero.append(words, fig)
     view.append(hero)
+    view.append(petCard())
 
     const next = nextUp()
     const cta = h('button', 'cta')
@@ -1101,6 +1343,8 @@ window.MathJax = {
     sfx.right(round.combo)
     if (round.combo === 3 || round.combo === 6 || round.combo === 10) toast(`${tier}σ streak · ×${MULT[tier]}`)
     if (level(state.xp) > before) setTimeout(() => { toast(`Level ${level(state.xp)}!`); sfx.levelUp(); burst(80) }, 300)
+    petFeed({ full: 4, happy: round.combo === 3 || round.combo === 6 || round.combo === 10 ? 6 : 1, growth: base >= 20 ? 2 : 1 })
+    react('cheer')
     hud()
   }
   // a miss: the streak resets, and the question comes back at the end of the round (up to twice)
@@ -1114,6 +1358,8 @@ window.MathJax = {
     round.marks[round.at] = 'bad'
     if (q.seen < 3) round.queue.push(q)
     sfx.wrong()
+    petFeed({ happy: -1 })
+    react('oops')
     hud()
   }
   function gotIt(q) {
@@ -1298,6 +1544,7 @@ window.MathJax = {
     const prev = state.stars[r.short] || 0
     state.stars[r.short] = Math.max(prev, stars)
     state.plays[r.short] = (state.plays[r.short] || 0) + 1
+    petFeed({ full: 6 * stars, happy: 5 * stars, growth: 3 * stars })
     markDay()
     save()
     hud()
@@ -1552,6 +1799,7 @@ window.MathJax = {
     const gain = 15 * ok + (r >= 0.9 ? 150 : r >= 0.7 ? 75 : 0)
     state.xp += gain
     state.boss = { best: Math.max(state.boss?.best ?? 0, ok), runs: (state.boss?.runs ?? 0) + 1, last: ok }
+    petFeed({ full: 30, happy: r >= 0.7 ? 30 : 10, growth: ok })
     markDay()
     save()
     hud()
@@ -1938,7 +2186,16 @@ window.MathJax = {
   })
 
   // a new screen (question, card, results) starts with a clean page
-  new MutationObserver(clearInk).observe(document.getElementById('view'), { childList: true })
+  new MutationObserver(() => {
+    clearInk()
+    renderBuddy()
+  }).observe(document.getElementById('view'), { childList: true })
+  if (petTick()) setTimeout(() => toast('Devolved…'), 600)
+  // a long-open tab gets hungry too
+  setInterval(() => {
+    petTick()
+    if (screen === 'map') renderMap()
+  }, 10 * 60 * 1000)
   hud()
   renderMap()
   connect()
