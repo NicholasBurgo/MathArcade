@@ -114,9 +114,6 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 }
 .stat { display: flex; align-items: baseline; gap: 6px; font-family: var(--mono); font-size: 0.85rem; color: var(--muted); }
 .stat b { font-family: var(--display); font-size: 1.35rem; color: var(--ink); font-variant-numeric: tabular-nums; }
-.lvl { display: grid; gap: 3px; min-width: 112px; }
-.lvl-bar { height: 6px; border-radius: 3px; background: var(--rule-soft); overflow: hidden; }
-.lvl-bar i { display: block; height: 100%; background: var(--gold); transition: width 0.5s ease; }
 .tools { display: flex; gap: 6px; }
 .tool {
   border: 1.5px solid var(--rule);
@@ -288,10 +285,6 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .progress i.ok { background: var(--graphite); border-color: var(--graphite); }
 .progress i.bad { background: var(--red); border-color: var(--red); }
 .progress i.now { border-color: var(--rule); }
-.combo { display: flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
-.combo span { padding: 2px 7px; border-radius: 999px; border: 1.5px solid var(--rule-soft); }
-.combo span.on { background: var(--gold); border-color: var(--gold); color: var(--sheet); }
-.combo strong { color: var(--ink); font-family: var(--display); font-size: 1.15rem; margin-right: 4px; }
 
 .ask { margin: 14px 0 4px; font-weight: 700; }
 .story { margin: 4px 0; max-width: 64ch; }
@@ -480,13 +473,6 @@ mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); bor
 .why { margin-top: 14px; padding: 12px 14px; border-left: 4px solid var(--red); background: var(--red-soft); border-radius: 0 10px 10px 0; }
 .why h3 { margin: 0 0 4px; font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--red); }
 .why p { margin: 4px 0; }
-.pop {
-  position: fixed; z-index: 30; pointer-events: none;
-  font-family: var(--display); font-weight: 800; font-size: 1.9rem; color: var(--gold);
-  text-shadow: 0 2px 0 var(--sheet);
-  animation: pop 0.9s ease-out forwards;
-}
-@keyframes pop { from { transform: translateY(0) scale(0.8); opacity: 1; } to { transform: translateY(-60px) scale(1.15); opacity: 0; } }
 .toast {
   position: fixed; left: 50%; top: 30%; z-index: 30; transform: translateX(-50%);
   padding: 12px 22px; border-radius: 14px; background: var(--gold); color: var(--sheet);
@@ -550,10 +536,6 @@ mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); bor
 <div class="app">
   <header class="hud">
     <button class="wordmark" id="home" type="button">Math 3800 Arcade</button>
-    <div class="stat lvl" title="XP: every right answer earns some, streaks earn more">
-      <span>LV <b id="lvl">1</b> · <span id="xp">0</span> XP</span>
-      <div class="lvl-bar"><i id="lvlbar" style="width:0%"></i></div>
-    </div>
     <div class="stat" title="Days in a row you've played"><b id="days">0</b>day streak</div>
     <div class="tools">
       <button class="tool" id="open-tables" type="button">Tables</button>
@@ -755,9 +737,10 @@ window.MathJax = {
 
   // ---------- progress ----------
   const LOCAL_KEY = 'math3800-arcade.v1'
-  const fresh = () => ({ v: 1, xp: 0, stars: {}, plays: {}, lastDay: null, days: 0, muted: false, answered: 0, correct: 0, boss: null, updated: 0 })
-  // progress saved before the pet was taken out still carries it
+  const fresh = () => ({ v: 1, stars: {}, plays: {}, lastDay: null, days: 0, muted: false, answered: 0, correct: 0, boss: null, updated: 0 })
+  // progress saved before XP and the pet were taken out still carries them
   const tidy = s => {
+    delete s.xp
     delete s.pet
     return s
   }
@@ -797,8 +780,6 @@ window.MathJax = {
     } catch {}
   }
 
-  const XP_PER_LEVEL = 250
-  const level = xp => 1 + Math.floor(xp / XP_PER_LEVEL)
   const readiness = () => BOSS_ORDER.reduce((s, k) => s + Math.min(3, state.stars[k] || 0), 0) / (3 * BOSS_ORDER.length)
   const grade = r => (r >= 0.9 ? 'A' : r >= 0.8 ? 'B' : r >= 0.7 ? 'C' : r >= 0.6 ? 'D' : r > 0 ? 'F' : '–')
   const today = () => new Date().toLocaleDateString('en-CA')
@@ -841,7 +822,6 @@ window.MathJax = {
       tone(110, 0.09, 0.28, 'square', 0.06)
     },
     clear() { [0, 4, 7, 12, 16].forEach((n, i) => tone(semis(523.25, n), i * 0.09, 0.3)) },
-    levelUp() { [0, 7, 12, 19, 24].forEach((n, i) => tone(semis(392, n), i * 0.07, 0.35, 'square', 0.06)) },
   }
 
   // ---------- confetti ----------
@@ -889,16 +869,6 @@ window.MathJax = {
     }
     if (bits.length) requestAnimationFrame(tick)
     else ctx.clearRect(0, 0, fx.width, fx.height)
-  }
-  function pop(text, el) {
-    const r = el.getBoundingClientRect()
-    const s = document.createElement('span')
-    s.className = 'pop'
-    s.textContent = text
-    s.style.left = Math.min(innerWidth - 90, r.right - 70) + 'px'
-    s.style.top = r.top - 6 + 'px'
-    document.body.append(s)
-    setTimeout(() => s.remove(), 950)
   }
   function toast(text) {
     const s = document.createElement('div')
@@ -1101,9 +1071,6 @@ window.MathJax = {
 
   // ---------- heads-up ----------
   function hud() {
-    document.getElementById('xp').textContent = state.xp.toLocaleString()
-    document.getElementById('lvl').textContent = level(state.xp)
-    document.getElementById('lvlbar').style.width = ((state.xp % XP_PER_LEVEL) / XP_PER_LEVEL) * 100 + '%'
     document.getElementById('days').textContent = state.days
     const snd = document.getElementById('sound')
     snd.setAttribute('aria-pressed', String(!state.muted))
@@ -1256,10 +1223,10 @@ window.MathJax = {
     const go = h('button', 'btn', `Start · ${roundSize(short)} questions`)
     go.type = 'button'
     go.addEventListener('click', () => startRound(short))
-    // the real test is written: same questions, no choices, double XP
+    // the real test is written: same questions, no choices
     const paper = h('button', 'btn ghost')
     paper.type = 'button'
-    paper.append(document.createTextNode('Paper mode'), h('span', 'mode', 'no choices · ×2 XP'))
+    paper.append(document.createTextNode('Paper mode'), h('span', 'mode', 'no choices'))
     paper.addEventListener('click', () => startRound(short, true))
     const back = h('button', 'btn ghost', 'Map')
     back.type = 'button'
@@ -1285,7 +1252,7 @@ window.MathJax = {
         order.push(...next)
       }
       for (const level of order.slice(0, roundSize(short))) queue.push({ p: problemFor(level), level, seen: 0, missed: false })
-      round = { short, paper, queue, at: 0, combo: 0, best: 0, misses: 0, gained: 0, marks: [] }
+      round = { short, paper, queue, at: 0, combo: 0, best: 0, misses: 0, marks: [] }
       showQuestion()
       return
     }
@@ -1319,7 +1286,7 @@ window.MathJax = {
       }
       queue.push({ p: pick(t), seen: 0, missed: false })
     }
-    round = { short, paper, queue, at: 0, combo: 0, best: 0, misses: 0, gained: 0, marks: [] }
+    round = { short, paper, queue, at: 0, combo: 0, best: 0, misses: 0, marks: [] }
     showQuestion()
   }
 
@@ -1330,8 +1297,6 @@ window.MathJax = {
     return pickOne(levelKinds(level)).tp.generate()
   }
 
-  const comboTier = c => (c >= 10 ? 3 : c >= 6 ? 2 : c >= 3 ? 1 : 0)
-  const MULT = [1, 1.5, 2, 3]
 
   // Six options where the question allows it: the answer plus five wrong ones.
   // Template distractors (the common mistakes) go first, then nearby values, the
@@ -1420,11 +1385,7 @@ window.MathJax = {
       const mark = round.marks[i]
       prog.append(h('i', mark === 'ok' ? 'ok' : mark === 'bad' ? 'bad' : i === round.at ? 'now' : ''))
     })
-    const combo = h('div', 'combo')
-    combo.append(h('strong', '', `${round.combo}×`))
-    ;['1σ', '2σ', '3σ'].forEach((s, i) => combo.append(h('span', comboTier(round.combo) > i ? 'on' : '', s)))
-    combo.title = 'Answer streak: 3 in a row is 1σ (×1.5 XP), 6 is 2σ (×2), 10 is 3σ (×3)'
-    top.append(prog, combo)
+    top.append(prog)
     sheet.append(top)
     sheet.append(h('div', 'eyebrow', round.short + (q.level ? ' · ' + q.level : '') + (round.paper ? ' · paper mode' : '') + (q.seen > 1 ? ' · second chance' : '')))
     if (p.ask) sheet.append(h('p', 'ask', p.ask))
@@ -1454,22 +1415,14 @@ window.MathJax = {
     window.scrollTo({ top: 0 })
   }
 
-  // XP, streak, sounds and the progress mark for a right answer
-  function award(base, anchor) {
+  // the streak, a sound and the progress mark for a right answer
+  function award() {
     state.answered++
     state.correct++
     round.combo++
     round.best = Math.max(round.best, round.combo)
-    const before = level(state.xp)
-    const tier = comboTier(round.combo)
-    const gain = Math.round(base * MULT[tier])
-    state.xp += gain
-    round.gained += gain
     round.marks[round.at] = 'ok'
-    pop('+' + gain, anchor)
     sfx.right(round.combo)
-    if (round.combo === 3 || round.combo === 6 || round.combo === 10) toast(`${tier}σ streak · ×${MULT[tier]}`)
-    if (level(state.xp) > before) setTimeout(() => { toast(`Level ${level(state.xp)}!`); sfx.levelUp(); burst(80) }, 300)
     hud()
   }
   // a miss: the streak resets, and the question comes back at the end of the round (up to twice)
@@ -1504,7 +1457,7 @@ window.MathJax = {
     const q = round.queue[round.at]
     if (opts[i].correct) {
       wrap.classList.add('right')
-      award(10, check)
+      award()
       const p = q.p
       if (p.mgf) {
         showBuild(p, sheet)
@@ -1677,7 +1630,7 @@ window.MathJax = {
     const q = round.queue[round.at]
     if (pick === p.leaf) {
       wrap.classList.add('right')
-      award(10, check)
+      award()
       showPlug(p, sheet)
       return
     }
@@ -1785,7 +1738,7 @@ window.MathJax = {
       if (box.input) box.input.disabled = true
       if (right) {
         sheet.append(h('div', 'verdict ok', revealed ? 'Counted. Nice.' : 'Correct!'))
-        award(20, sheet.querySelector('.verdict.ok'))
+        award()
         setTimeout(advance, revealed ? 600 : 1100)
         return
       }
@@ -1834,9 +1787,6 @@ window.MathJax = {
     screen = 'results'
     const r = round
     const stars = r.misses === 0 ? 3 : r.misses <= 2 ? 2 : 1
-    const before = level(state.xp)
-    const bonus = 25 * stars
-    state.xp += bonus
     const prev = state.stars[r.short] || 0
     state.stars[r.short] = Math.max(prev, stars)
     state.plays[r.short] = (state.plays[r.short] || 0) + 1
@@ -1861,7 +1811,7 @@ window.MathJax = {
       c.append(h('b', '', value), document.createTextNode(label))
       return c
     }
-    tally.append(cell('XP this round', '+' + (r.gained + bonus)), cell('best streak', String(r.best)), cell('first-try misses', String(r.misses)))
+    tally.append(cell('best streak', String(r.best)), cell('first-try misses', String(r.misses)))
     sheet.append(tally)
     const msg = stars === 3 ? 'Clean sheet. Every answer right the first time.' : stars === 2 ? 'Solid. One clean run gets the third star.' : 'Cleared. Run it again: the questions change every time.'
     sheet.append(h('p', 'note', msg + (stars > prev && prev ? ' New best!' : '')))
@@ -1884,7 +1834,6 @@ window.MathJax = {
     setTimeout(() => {
       sfx.clear()
       burst(stars === 3 ? 160 : 90)
-      if (level(state.xp) > before) setTimeout(() => { toast(`Level ${level(state.xp)}!`); sfx.levelUp() }, 700)
     }, 150)
     round = null
   }
@@ -2091,9 +2040,6 @@ window.MathJax = {
     const n = boss.items.length
     const ok = boss.items.filter(x => x.result === 'ok').length
     const r = ok / n
-    const before = level(state.xp)
-    const gain = 15 * ok + (r >= 0.9 ? 150 : r >= 0.7 ? 75 : 0)
-    state.xp += gain
     state.boss = { best: Math.max(state.boss?.best ?? 0, ok), runs: (state.boss?.runs ?? 0) + 1, last: ok }
     markDay()
     save()
@@ -2108,7 +2054,7 @@ window.MathJax = {
       c.append(h('b', '', value), document.createTextNode(label))
       return c
     }
-    tally.append(cell('XP', '+' + gain), cell('time', mmss(boss.end - boss.start)), cell('best ever', `${state.boss.best}/${n}`))
+    tally.append(cell('time', mmss(boss.end - boss.start)), cell('best ever', `${state.boss.best}/${n}`))
     sheet.append(tally)
     const missed = boss.items.filter(x => x.result !== 'ok')
     sheet.append(
@@ -2125,7 +2071,7 @@ window.MathJax = {
       sheet.append(h('h3', '', 'Redo these levels'), redo)
     }
     const acts = h('div', 'row-actions')
-    const again = h('button', 'btn', 'Fight again')
+    const again = h('button', 'btn', 'Take it again')
     again.type = 'button'
     again.addEventListener('click', startBoss)
     const map = h('button', 'btn ghost', 'Map')
@@ -2140,7 +2086,6 @@ window.MathJax = {
         sfx.clear()
         burst(r >= 0.9 ? 200 : 110)
       } else sfx.right(0)
-      if (level(state.xp) > before) setTimeout(() => { toast(`Level ${level(state.xp)}!`); sfx.levelUp() }, 700)
     }, 150)
     boss = null
   }
