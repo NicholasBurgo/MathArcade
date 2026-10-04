@@ -25,6 +25,8 @@ a right answer plays an animation that works the problem out.
   can walk the chart to the right one. Under the chart, a shape guide shows how to tell
   a distribution from its pdf or MGF: each shape with an example in matching colours and
   how to read off every number. Questions that give a formula read it first.
+- **World 0 · Parameters and possible values** — read off p, r, n, N or k from a story,
+  and the values X can take.
 - **World 0 · Build the MGF** — where every MGF comes from: the recipe m(t) = E[e^(tX)]
   (multiply the pdf by e^(tx), add it up with Σ or ∫, simplify), then the moves (combine
   exponents, pull out constants, the series rule, the key integral). Each build plays line

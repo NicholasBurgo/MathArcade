@@ -620,14 +620,14 @@ window.MathJax = {
     {
       num: 0,
       name: 'The tree',
-      blurb: 'Which distribution is it, and where its MGF comes from. Every chapter, 3.4 to 4.4.',
-      levels: [TREE_LEVEL, MGF_LEVEL],
+      blurb: 'Which distribution is it, what are its numbers, and where its MGF comes from. Every chapter, 3.4 to 4.4.',
+      levels: [TREE_LEVEL, 'Parameters and possible values', MGF_LEVEL],
     },
     {
       num: 1,
       name: 'Free points',
       blurb: 'Read a table, name the story. No algebra.',
-      levels: ['Which distribution?', 'Parameters and possible values', 'Normal table', 'Normal word problems', 'Binomial table', 'Chi-squared table'],
+      levels: ['Which distribution?', 'Normal table', 'Normal word problems', 'Binomial table', 'Chi-squared table'],
     },
     {
       num: 2,
@@ -658,7 +658,8 @@ window.MathJax = {
   WORLDS.push({ num: 5, name: 'Everything', blurb: 'Every world mixed: one question from every level, World 0 included.', levels: ['Everything'] })
   REVIEW.Everything = WORLDS.filter(w => w.num <= 4).flatMap(w => w.levels.filter(s => !REVIEW[s]))
   const isReview = short => short in REVIEW
-  const WORLD1_LEVELS = new Set(WORLDS.find(w => w.num === 1).levels)
+  // the story-and-table levels, where each given number has one role (for the work's links)
+  const WORLD1_LEVELS = new Set([...WORLDS.find(w => w.num === 1).levels, 'Parameters and possible values'])
   const ORDER = WORLDS.flatMap(w => w.levels)
   const BOSS_ORDER = ORDER.filter(s => !isReview(s))
 
