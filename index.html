@@ -398,6 +398,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .oops .critter { animation: oops 0.5s ease-in-out; }
 .evolving .critter { animation: evolve 1.2s ease-out; }
 @media (max-width: 520px) { .pet { grid-template-columns: 1fr; justify-items: center; text-align: center; } .meters { width: 100%; } .pet-name { justify-content: center; } }
+.pen-check { position: fixed; z-index: 27; left: 12px; top: 80px; margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--ink); color: var(--paper); font-family: var(--mono); font-size: 0.8rem; line-height: 1.35; pointer-events: none; white-space: pre; }
 .ink-tools { position: fixed; z-index: 26; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; }
 .ink-clear[aria-pressed="true"] { background: var(--rule); color: var(--sheet); }
 .ink-clear {
@@ -1034,17 +1035,25 @@ window.MathJax = {
   const sideButton = e => (e.buttons & 34) !== 0 || e.button === 2 || e.button === 5
   // where the pen is on the page: the screen spot plus how far the page is scrolled
   const onPage = e => ({ x: e.clientX + window.scrollX, y: e.clientY + window.scrollY })
+  // With the side button held, some Samsung browsers stop calling the S Pen a pen and
+  // report a right-button mouse instead. Take that as an erase stroke too, and once
+  // a stroke starts, follow that pointer to the end whatever it is called.
+  let inkPointer = null
+  const penLike = e => e.pointerType === 'pen' || (e.pointerType === 'mouse' && sideButton(e))
   window.addEventListener('pointerdown', e => {
-    if (e.pointerType !== 'pen' || onControl(e)) return
+    penCheck(e)
+    if (!penLike(e) || onControl(e)) return
     const { w, h } = pageSize()
     if (Math.abs(parseFloat(ink.style.width) - w) > 1 || parseFloat(ink.style.height) < h) sizeInk(true)
     inking = true
+    inkPointer = e.pointerId
     inkErase = sideButton(e)
     inkLast = onPage(e)
     e.preventDefault()
   }, { passive: false })
   window.addEventListener('pointermove', e => {
-    if (!inking || e.pointerType !== 'pen') return
+    penCheck(e)
+    if (!inking || e.pointerId !== inkPointer) return
     e.preventDefault()
     const erase = inkEraseMode || inkErase || sideButton(e)
     inkCtx.globalCompositeOperation = erase ? 'destination-out' : 'source-over'
@@ -1058,10 +1067,12 @@ window.MathJax = {
     inkLast = at
     if (!erase) inkClear.hidden = false
   }, { passive: false })
-  const inkUp = () => {
+  const inkUp = e => {
+    penCheck(e)
     inking = false
     inkErase = false
     inkLast = null
+    inkPointer = null
   }
   window.addEventListener('pointerup', inkUp)
   window.addEventListener('pointercancel', inkUp)
@@ -1070,8 +1081,20 @@ window.MathJax = {
   window.addEventListener('touchmove', e => {
     if (inking || [...e.touches].some(t => t.touchType === 'stylus')) e.preventDefault()
   }, { passive: false })
-  // side-button drags open the context menu; keep that quiet away from controls
+  // side-button drags open the context menu or start selecting text; keep both quiet away from controls
   window.addEventListener('contextmenu', e => { if ((inking || e.pointerType === 'pen') && !onControl(e)) e.preventDefault() })
+  window.addEventListener('selectstart', e => { if (inking) e.preventDefault() })
+
+  // Pen check: open the page with #pen and a small box shows what the tablet
+  // reports for each pen event, side button included. Off otherwise.
+  const penBox = location.hash === '#pen' ? document.body.appendChild(Object.assign(document.createElement('pre'), { className: 'pen-check', textContent: 'Pen check: touch the screen with the S Pen' })) : null
+  function penCheck(e) {
+    if (!penBox) return
+    penBox.textContent =
+      `event    ${e.type}\ntype     ${e.pointerType || '(none)'}\nbutton   ${e.button}\nbuttons  ${e.buttons}\npressure ${e.pressure?.toFixed?.(2) ?? '-'}\n` +
+      `erasing  ${inking && (inkEraseMode || inkErase || sideButton(e)) ? 'YES' : 'no'}`
+  }
+  window.addEventListener('contextmenu', e => penBox && (penBox.textContent += `\ncontextmenu (${e.pointerType || 'no type'})`), true)
   window.addEventListener('resize', () => sizeInk(true))
   document.getElementById('ink-clear').addEventListener('click', clearInk)
 
