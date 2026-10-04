@@ -627,7 +627,7 @@ window.MathJax = {
       num: 1,
       name: 'Free points',
       blurb: 'Read a table, name the story. No algebra.',
-      levels: ['Which distribution?', 'Normal table', 'Normal word problems', 'Binomial table', 'Chi-squared table'],
+      levels: ['Normal table', 'Normal word problems', 'Binomial table', 'Chi-squared table'],
     },
     {
       num: 2,
@@ -639,13 +639,13 @@ window.MathJax = {
       num: 3,
       name: 'The scripts',
       blurb: 'Derivations that come out the same every time.',
-      levels: ['Geometric pdf', 'Geometric cdf', 'Geometric MGF', 'Derive the negative binomial pdf', 'Derive the discrete pdfs', 'Verify a pdf, or find the constant'],
+      levels: ['Geometric pdf', 'Geometric cdf', 'Derive the negative binomial pdf', 'Derive the discrete pdfs', 'Verify a pdf, or find the constant'],
     },
     {
       num: 4,
       name: 'Calculus',
       blurb: 'Integrals and derivatives, one move at a time.',
-      levels: ['pdf ↔ cdf', 'Mean and variance from a pdf', 'Find an MGF from a pdf', 'Integration by parts, gamma integrals'],
+      levels: ['pdf ↔ cdf', 'Mean and variance from a pdf', 'Integration by parts, gamma integrals'],
     },
   ].map(w => ({ ...w, levels: w.levels.filter(s => isWorld0(s) || lineByShort[s]) }))
   // a review at the end of Worlds 1–4 mixes that world's levels; World 5 mixes them all
@@ -665,14 +665,6 @@ window.MathJax = {
 
   // ---------- power-up cards: the whole idea in plain words ----------
   const CARDS = {
-    'Which distribution?': [
-      'No math needed here: every story gives itself away with a clue phrase.',
-      '"until the FIRST …" → geometric. "Callers until the first sale."',
-      '"until the 2nd, 3rd, 5th …" → negative binomial. "Wells drilled until the 3rd strike."',
-      '"out of the next 12", "flips a coin 20 times" (a fixed number of tries) → binomial.',
-      '"without replacement", "a 5-card hand", "from a group of 56" → hypergeometric.',
-      '"an average of 4 per hour", "per page", "in a 30-minute window" → Poisson.',
-    ],
     'Parameters and possible values': [
       'Binomial: n = number of tries, p = chance of success. X can be 0, 1, …, n.',
       'Negative binomial: r = successes you need, p = chance of success. X can be r, r + 1, r + 2, … (no top).',
@@ -736,11 +728,6 @@ window.MathJax = {
       'That is a finite geometric series (on the sheet): p(1 − qˣ)/(1 − q).',
       '1 − q is p, so the p cancels: F(x) = 1 − qˣ.',
     ],
-    'Geometric MGF': [
-      'm(t) = E(e^(tX)) = Σ e^(tx)·q^(x−1)·p.',
-      'Pull out p/q. What is left is Σ (qe^t)ˣ, a geometric series.',
-      'It sums to pe^t/(1 − qe^t), and only works when qe^t < 1.',
-    ],
     'Derive the negative binomial pdf': [
       'X = the number of tries needed for r successes, so the last try is a success.',
       'f(x) = P(r − 1 successes in the first x − 1 tries) × p.',
@@ -765,11 +752,6 @@ window.MathJax = {
       'E(X) = Σ x·f(x), or ∫ x·f(x) dx for a continuous X.',
       'E(X²) = Σ x²·f(x), or ∫ x²·f(x) dx.',
       'Variance = E(X²) − [E(X)]². Gamma shortcut: mean αβ, variance αβ².',
-    ],
-    'Find an MGF from a pdf': [
-      'm(t) = E(e^(tX)) = Σ e^(tx)·f(x), or ∫ e^(tx)·f(x) dx.',
-      'From a table: one term per value, f(0) + f(1)e^t + f(2)e^(2t) + …',
-      'From e^(−x): ∫ from 0 to ∞ of e^(tx)e^(−x) dx = 1/(1 − t), for t < 1.',
     ],
     'Integration by parts, gamma integrals': [
       '∫ u dv = uv − ∫ v du. For x·e^(ax): u = x, dv = e^(ax) dx.',
