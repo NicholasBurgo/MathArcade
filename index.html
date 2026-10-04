@@ -402,6 +402,12 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .mgf-move { justify-self: start; font-family: var(--mono); font-size: 0.72rem; padding: 2px 9px; border: 1.5px solid currentColor; border-radius: 999px; font-weight: 600; }
 .mgf-row .math-d { text-align: left; padding: 2px 0; font-size: 1.15rem; }
 .mgf-row mjx-container[display="true"] { text-align: left !important; }
+.mgf.build { margin-top: 12px; }
+.mgf-row.got { box-shadow: inset 3px 0 0 var(--green); }
+.mgf-row.fixed { box-shadow: inset 3px 0 0 var(--red); }
+.mgf-not { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 0 0 4px; color: var(--red); font-size: 0.9rem; }
+.build-sum { margin: 10px 0 0; font-weight: 700; }
+.build-sum.ok { color: var(--green); } .build-sum.bad { color: var(--red); }
 .mgf-why { grid-column: 2; margin: 0 0 4px; font-size: 0.92rem; color: var(--muted); }
 .mv-a { color: var(--pv0); } .mv-b { color: var(--pv1); } .mv-c { color: var(--pv2); } .mv-d { color: var(--pv3); } .mv-e { color: var(--pv4); } .mv-s { color: var(--muted); }
 .mg-hl { color: var(--gold); fill: var(--gold); }
@@ -635,7 +641,7 @@ window.MathJax = {
   const levelKinds = short => (isWorld0(short) || short in REVIEW_NAMES ? [] : topicsOf(short).flatMap(t => t.templates.map(tp => ({ t, tp }))))
   // a round shows every kind at least once, and never fewer than ROUND questions;
   // naming the distribution is quick, so its rounds run twice as long
-  const roundSize = short => (short === 'Everything' ? REVIEW.Everything.length : short in REVIEW_NAMES ? 12 : isTree(short) ? ROUND * 2 : isMgf(short) || isParam(short) ? 10 : Math.max(ROUND, levelKinds(short).length))
+  const roundSize = short => (short === 'Everything' ? REVIEW.Everything.length : short in REVIEW_NAMES ? 12 : isTree(short) ? ROUND * 2 : isMgf(short) ? 8 : isParam(short) ? 10 : Math.max(ROUND, levelKinds(short).length))
 
   // ---------- the path: the review list, easiest points first ----------
   const WORLDS = [
@@ -1289,7 +1295,7 @@ window.MathJax = {
     } else if (isMgf(short)) {
       sheet.classList.add('wide')
       if (!mathReady) mathBoot.then(() => { if (screen === 'card' && mathReady) openCard(short) })
-      sheet.append(h('p', 'paper-note', 'Every MGF comes from one recipe: multiply the pdf by eᵗˣ, add it up, then simplify with a few moves. Pick one and watch it built, line by line. Then, below: given an MGF, read off which distribution it is.'), mgfCard())
+      sheet.append(h('p', 'paper-note', 'Every MGF comes from one recipe: multiply the pdf by eᵗˣ, add it up, then simplify with a few moves. Each question hands you a pdf, and you build its MGF one line at a time. Watch one built first, below; and given an MGF, read off which distribution it is.'), mgfCard())
     } else {
       if (isReview(short)) {
         ul.append(h('li', '', short === 'Everything'
@@ -1374,7 +1380,7 @@ window.MathJax = {
   // one question from a level: a distribution story, or one of the level's kinds
   function problemFor(level) {
     if (isTree(level)) return treeProblem(undefined, true)
-    if (isMgf(level)) return Math.random() < 0.2 ? mgfName() : mgfProblem()
+    if (isMgf(level)) return Math.random() < 0.25 ? mgfName() : mgfBuildProblem()
     if (isParam(level)) return paramProblem()
     return pickOne(levelKinds(level)).tp.generate()
   }
@@ -1477,6 +1483,12 @@ window.MathJax = {
     sheet.append(qMath)
     if (round.paper) {
       paperQuestion(p, sheet)
+      return
+    }
+    if (p.buildIt) {
+      buildQuestion(p, sheet)
+      view.append(sheet)
+      window.scrollTo({ top: 0 })
       return
     }
     if (p.leaf && p.vars) {
@@ -1630,7 +1642,7 @@ window.MathJax = {
   const PICK_ORDER = ['binomial', 'geometric', 'negbin', 'hyper', 'poisson', 'uniform', 'exponential', 'gamma', 'chi', 'normal']
   // A dropdown answer: the options in a list (formulas drawn), the choice shown in the
   // box, then Check. Each item is { key, group?, row: () => nodes, shown: () => nodes }.
-  function pickBox({ placeholder, label, items, onCheck, cls = '' }) {
+  function pickBox({ placeholder, label, items, onCheck, cls = '', title = 'Your answer' }) {
     const wrap = h('div', 'pick' + (cls ? ' ' + cls : ''))
     const box = h('div', 'pick-box')
     const toggle = h('button', 'pick-toggle')
@@ -1695,7 +1707,7 @@ window.MathJax = {
     check.addEventListener('click', () => {
       if (chosen !== null) onCheck(chosen, { sel: toggle, check, wrap })
     })
-    wrap.append(h('div', 'pick-label', 'Your answer'), box, check)
+    wrap.append(h('div', 'pick-label', title), box, check)
     // 1–8 or a–h on a keyboard picks that option
     wrap.pickNth = i => {
       if (!toggle.disabled) rows[i]?.click()
@@ -1751,9 +1763,14 @@ window.MathJax = {
   }
 
   // ---------- written answers: paper mode and the boss ----------
-  const typeable = p => !p.options
+  const typeable = p => !p.options && !p.buildIt
   // the right answer and how to get it
   function solution(p) {
+    if (p.buildIt) {
+      const box = h('div', 'reveal-box')
+      box.append(h('h3', '', 'Answer'), mgfPlayer(p.mgf.build))
+      return box
+    }
     if (p.leaf) {
       const box = h('div', 'reveal-box')
       box.append(h('h3', '', 'Answer'), leafCard(p.leaf), h('h3', '', 'How the tree gets there'), h('p', '', p.hint.text), walkButton(p.leaf))
@@ -1954,7 +1971,7 @@ window.MathJax = {
     const pick = T2.createFreshPicker()
     const items = BOSS_ORDER.map(short => {
       if (isTree(short)) return { short, p: treeProblem(undefined, true), raw: '', paper: false, result: null }
-      if (isMgf(short)) return { short, p: mgfProblem('final'), raw: '', paper: false, result: null }
+      if (isMgf(short)) return { short, p: mgfBuildProblem(), raw: '', paper: false, result: null }
       if (isParam(short)) return { short, p: paramProblem(), raw: '', paper: false, result: null }
       const topics = topicsOf(short)
       // a question that can be answered without its options, when the level has one
@@ -3906,7 +3923,7 @@ window.MathJax = {
     }
   }
 
-  // ---------- World 0, level 2: where an MGF comes from ----------
+  // ---------- World 0, level 3: where an MGF comes from ----------
   // Every MGF is one recipe, m_X(t) = E[e^(tX)]: e^(tx) times the pdf, added up
   // (Σ for a count, ∫ for a measurement), then simplified with a few moves. The
   // lines follow the class notes: the geometric's p/q script, f(x) = e^(−x), the
@@ -3934,8 +3951,6 @@ window.MathJax = {
     exist: { name: 'Where it exists', mv: 'mv-e' },
     check: { name: 'Check', mv: 'mv-e', rule: R`m_X(0) = 1` },
   }
-  // the moves a "which move?" question offers
-  const MOVE_CHOICES = ['pull', 'combine', 'series', 'key', 'etx', 'tidy']
   const RECIPE = R`m_X(t) = E\big[e^{tX}\big] = \begin{cases} \displaystyle\sum_x e^{tx}\,f(x) & X \text{ discrete} \\[10pt] \displaystyle\int e^{tx}\,f(x)\,dx & X \text{ continuous} \end{cases}`
 
   const TABLES = [
@@ -4207,7 +4222,6 @@ window.MathJax = {
     () => BUILDS.expL(Math.random() < 0.5 ? null : { l: pickOne([2, 3, 5]) }),
     () => BUILDS.uni(Math.random() < 0.5 ? null : pickOne(UNIS)),
   ]
-  const MGF_KINDS = ['start', 'next', 'next', 'next', 'move', 'final', 'final', 'exist', 'name', 'name']
   // "X has this MGF: which distribution?", answered from World 0's list, with the MGF read on a right answer
   const mgfName = () => treeProblem(pickOne(MGF_LEAVES), true, { mgf: true })
   const firstLead = b => b.lead0 ?? R`m_X(t) &= E[e^{tX}] = `
@@ -4218,70 +4232,113 @@ window.MathJax = {
     ...(b.check ? [{ move: 'check', show: b.check.tex, why: b.check.why }] : []),
   ]
 
-  // One question about a build: set it up, the next line, which move, the MGF, where it exists.
-  function mgfProblem(kind = pickOne(MGF_KINDS.filter(k => k !== 'name')), b = pickOne(MGF_BUILDS)()) {
-    const L = b.lines
-    const lead = i => (i === 0 ? firstLead(b) : '&= ')
-    const derive = (k, more = '') => R`\begin{aligned} ${L.slice(0, k).map((l, i) => lead(i) + plainTex(l.tex)).join(R` \\ `)}${more} \end{aligned}`
-    const withPdf = body => R`\begin{gathered} ${b.pdf} \\[8pt] ${body} \end{gathered}`
-    const movable = L.map((_, i) => i).filter(i => i > 0 && L[i].moveOK !== false && MOVE_CHOICES.includes(L[i].move))
-    const nexts = L.map((_, i) => i).filter(i => i > 0 && L[i].slips?.length)
-    const fi = b.final ?? L.length - 1
-    if (kind === 'exist' && !b.exist?.slips) kind = 'final'
-    if (kind === 'move' && !movable.length) kind = 'next'
-    let ask, latex, right, wrong, at, hint, named = false
-    if (kind === 'start') {
-      ask = 'Start from the recipe: which line sets up the MGF?'
-      latex = withPdf(firstLead(b).replace('&', '') + R`\;?`)
-      ;[right, wrong, at] = [L[0].tex, L[0].slips, 0]
-      hint = { latex: MOVES.setup.rule, text: L[0].why }
-    } else if (kind === 'next') {
-      const i = pickOne(nexts)
-      ask = 'What is the next line?'
-      latex = withPdf(derive(i, R` \\ &= \;?`))
-      ;[right, wrong, at] = [L[i].tex, L[i].slips, i]
-      hint = { latex: MOVES[L[i].move].rule, text: L[i].why }
-    } else if (kind === 'move') {
-      const i = pickOne(movable)
-      ask = 'Which move gets from the first line to the second?'
-      latex = withPdf(R`\begin{aligned} m_X(t) &= ${plainTex(L[i - 1].tex)} \\ &= ${plainTex(L[i].tex)} \end{aligned}`)
-      ;[at, named] = [i, true]
-      hint = { latex: MOVES[L[i].move].rule, text: L[i].why }
-    } else if (kind === 'final') {
-      ask = 'Find the MGF.'
-      latex = withPdf(R`m_X(t) = \;?`)
-      ;[right, wrong, at] = [L[fi].tex, L[fi].slips, fi]
-      hint = { text: L.slice(0, fi + 1).map(l => l.why).join(' → ') }
-    } else {
-      ask = 'Exactly which t does this MGF exist for? Pick the whole set.'
-      latex = withPdf(derive(b.exist.upto))
-      ;[right, wrong, at] = [b.exist.tex, b.exist.slips, L.length]
-      hint = { text: b.exist.why }
-    }
-    let options, answer
-    if (named) {
-      options = MOVE_CHOICES.map(k => MOVES[k].name)
-      answer = 'abcdefgh'[MOVE_CHOICES.indexOf(L[at].move)]
-    } else {
-      const r = plainTex(right)
-      const opts = shuffleArr([r, ...shuffleArr([...new Set(wrong)].filter(w => w !== r)).slice(0, 5)])
-      options = opts.map(o => ({ latex: R`\displaystyle ${o}` }))
-      answer = 'abcdefgh'[opts.indexOf(r)]
-    }
-    return { ask, latex, options, answer, hint, placeholder: 'a, b, c, …', mgf: { build: b, at, kind } }
-  }
+  // A question: a pdf, and its MGF to build. Each line is asked in turn among the usual
+  // slips; the right line goes in either way, with its move and why, so the build is
+  // always whole. Every step right first time counts as right.
+  const mgfBuildProblem = (b = pickOne(MGF_BUILDS)()) => ({
+    ask: 'Build the MGF of this pdf, one line at a time.',
+    latex: b.pdf,
+    buildIt: true,
+    mgf: { build: b, at: null },
+  })
+  // six builds (no two alike in a row) and two MGFs to name, mixed
   function mgfRound(n) {
-    const kinds = []
-    while (kinds.length < n) kinds.push(...shuffleArr(MGF_KINDS))
+    const out = []
     let last = -1
-    return kinds.slice(0, n).map(kind => {
-      if (kind === 'name') return mgfName()
+    for (let k = 0; k < n - 2; k++) {
       let i
       do i = Math.floor(Math.random() * MGF_BUILDS.length)
       while (i === last)
       last = i
-      return mgfProblem(kind, MGF_BUILDS[i]())
-    })
+      out.push(mgfBuildProblem(MGF_BUILDS[i]()))
+    }
+    return shuffleArr([...out, mgfName(), mgfName()])
+  }
+  function buildQuestion(p, sheet) {
+    const b = p.mgf.build
+    const data = rowsOf(b)
+    const L = b.lines
+    const steps = [
+      ...L.map((l, i) => ({ row: data[i], right: plainTex(l.tex), slips: l.slips ?? [] })),
+      ...(b.exist?.slips ? [{ row: data[L.length], right: b.exist.tex, slips: b.exist.slips, exist: true }] : []),
+    ]
+    const tail = data.slice(steps.length)
+    const wrap = h('div', 'mgf build')
+    const st = h('div', 'mgf-steps')
+    const pills = ['① Multiply by eᵗˣ', '② Add it up: Σ or ∫', '③ Simplify'].map(t => h('span', '', t))
+    st.append(...pills)
+    const rows = h('div')
+    wrap.append(st, rows)
+    sheet.append(wrap)
+    let firstTry = 0
+    const rowEl = r => {
+      const row = h('div', 'mgf-row')
+      const m = MOVES[r.move]
+      row.append(h('span', 'mgf-move ' + m.mv, m.name), tex(hlTex(r.show)), h('p', 'mgf-why', r.why))
+      return row
+    }
+    const light = k => pills.forEach((x, j) => x.classList.toggle('on', k === 0 ? j < 2 : !steps[k]?.exist && j === 2))
+    function ask(k) {
+      const s = steps[k]
+      light(k)
+      const title = s.exist ? 'Last: where does it exist?' : k === 0 ? 'Step 1 · set it up: e^(tx) times the pdf, added up' : `Step ${k + 1} · the next line`
+      const opts = shuffleArr([s.right, ...shuffleArr([...new Set(s.slips)].filter(w => w !== s.right)).slice(0, 5)])
+      const shown = o => [tex(`\\displaystyle ${s.exist ? '' : k === 0 ? '' : '= '}${o}`, false)]
+      const box = pickBox({
+        placeholder: 'Choose the line…',
+        label: 'Lines',
+        cls: 'answers',
+        title,
+        items: opts.map((o, i) => ({ key: i, row: () => shown(o), shown: () => shown(o) })),
+        onCheck: (i, ui) => {
+          ui.sel.disabled = true
+          ui.check.disabled = true
+          const good = opts[i] === s.right
+          if (good) firstTry++
+          good ? sfx.right(firstTry) : sfx.wrong()
+          const row = rowEl(s.row)
+          row.classList.add(good ? 'got' : 'fixed')
+          if (!good) {
+            const not = h('p', 'mgf-not')
+            not.append('You picked ', tex(opts[i], false), '; the line above is the right one.')
+            row.append(not)
+          }
+          box.remove()
+          rows.append(row)
+          row.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 350 })
+          if (k + 1 < steps.length) ask(k + 1)
+          else done()
+        },
+      })
+      sheet.append(box)
+      box.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+    }
+    function done() {
+      light(-1)
+      for (const r of tail) rows.append(rowEl(r))
+      const q = round.queue[round.at]
+      round.locked = true
+      const all = firstTry === steps.length
+      const sum = h('p', 'build-sum ' + (all ? 'ok' : 'bad'), all ? `All ${steps.length} steps right: that is the whole MGF.` : `${firstTry} of ${steps.length} steps right first time. The build above is the whole MGF; this one comes back later.`)
+      sheet.append(sum)
+      if (all) {
+        award()
+        const acts = h('div', 'row-actions')
+        const next = h('button', 'btn', 'Next')
+        next.type = 'button'
+        next.addEventListener('click', advance)
+        acts.append(next)
+        sheet.append(acts)
+        next.focus({ preventScroll: true })
+      } else {
+        miss(q)
+        const { acts, cont } = gotIt(q)
+        sheet.append(acts)
+        cont.focus({ preventScroll: true })
+      }
+      sum.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+    }
+    ask(0)
   }
 
   // A build, line by line: the move each line makes, the line, and why.
@@ -5545,7 +5602,7 @@ window.MathJax = {
     clearInk()
   }).observe(document.getElementById('view'), { childList: true })
   // #dev in the address: the panels, for testing them on their own
-  if (location.hash === '#dev') window.__arcade = { workPanel, plugPanel, mgfPlayer, mgfProblem, BUILDS, paramProblem, paramCard, treeProblem, buildChoices6, tex, h, distGraph, graphOf, inferGraph, drawGraph, problemFor, REVIEW }
+  if (location.hash === '#dev') window.__arcade = { workPanel, plugPanel, mgfPlayer, mgfBuildProblem, BUILDS, paramProblem, paramCard, treeProblem, buildChoices6, tex, h, distGraph, graphOf, inferGraph, drawGraph, problemFor, REVIEW }
   hud()
   renderMap()
   connect()

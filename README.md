@@ -35,8 +35,9 @@ a right answer plays an animation that works the problem out.
   exponents, pull out constants, the series rule, the key integral). Each build plays line
   by line with the move it makes and why: a pdf table, a pdf formula on a few values, the
   geometric, e^(−x), the exponential with β or λ, the uniform, then the mean and variance
-  from an MGF, and where the gamma, chi-squared and normal shapes come from. The questions
-  ask for the set-up, the next line, the move, the MGF and where it exists, and name the
+  from an MGF, and where the gamma, chi-squared and normal shapes come from. Each question
+  hands you a pdf and you build its MGF a line at a time, then say where it exists; the
+  right line goes in after each pick, with its move and why. Two in a round name the
   distribution a given MGF belongs to (read off on a right answer). The card's MGF shape
   guide shows each MGF's shape with an example, and links each to its build.
 - **Worlds 1–4** — tables, plug-in problems, the derivation scripts and the calculus,
