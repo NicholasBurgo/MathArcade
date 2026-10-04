@@ -366,6 +366,16 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 .overlay h3 { font-family: var(--display); text-transform: uppercase; font-size: 1.4rem; margin: 18px 0 0; }
 
 #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 40; }
+/* S Pen ink: laid over the whole page, never in the way of a tap */
+#ink { position: absolute; top: 0; left: 0; z-index: 25; pointer-events: none; }
+.ink-clear {
+  position: fixed; z-index: 26;
+  right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  padding: 8px 14px; border-radius: 999px; cursor: pointer;
+  border: 1.5px solid var(--rule); background: var(--sheet); color: var(--rule);
+  font-family: var(--mono); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  box-shadow: var(--shadow);
+}
 .loading { color: var(--muted); font-family: var(--mono); font-size: 0.85rem; padding: 18px 0; }
 
 @media (max-width: 520px) {
@@ -398,6 +408,8 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule);
 </div>
 <div class="overlay" id="overlay" hidden></div>
 <canvas id="fx" aria-hidden="true"></canvas>
+<canvas id="ink" aria-hidden="true"></canvas>
+<button class="ink-clear" id="ink-clear" type="button" hidden>Clear ink</button>
 
 <script>
 window.MathJax = {
@@ -716,6 +728,91 @@ window.MathJax = {
     document.body.append(s)
     setTimeout(() => s.remove(), 1650)
   }
+
+  // ---------- S Pen ink: only a stylus writes; fingers and the mouse scroll and tap ----------
+  // The ink sits on the page (it scrolls with the question) and clears itself
+  // when the screen changes. The pen's side button (or eraser end) erases.
+  const ink = document.getElementById('ink')
+  const inkCtx = ink.getContext('2d')
+  const inkClear = document.getElementById('ink-clear')
+  let inking = false
+  let inkLast = null
+  let inkErase = false
+  const pageSize = () => ({ w: document.documentElement.clientWidth, h: Math.max(document.documentElement.scrollHeight, innerHeight) })
+  // keep = copy the strokes across (rotation, the page growing below them)
+  function sizeInk(keep) {
+    // measure the page without the ink layer, so it never props the page open
+    const was = ink.style.height
+    ink.style.height = '0px'
+    const { w, h } = pageSize()
+    ink.style.height = was
+    const dpr = window.devicePixelRatio || 1
+    let snap = null
+    if (keep && ink.width && ink.height) {
+      snap = document.createElement('canvas')
+      snap.width = ink.width
+      snap.height = ink.height
+      snap.getContext('2d').drawImage(ink, 0, 0)
+    }
+    ink.width = Math.round(w * dpr)
+    ink.height = Math.round(h * dpr)
+    ink.style.width = w + 'px'
+    ink.style.height = h + 'px'
+    inkCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    inkCtx.lineCap = 'round'
+    inkCtx.lineJoin = 'round'
+    if (snap) inkCtx.drawImage(snap, 0, 0, snap.width / dpr, snap.height / dpr)
+  }
+  function clearInk() {
+    inking = false
+    inkLast = null
+    sizeInk(false)
+    inkClear.hidden = true
+  }
+  const onControl = e => e.target instanceof Element && e.target.closest('button, input, a, select, textarea, label')
+  const sideButton = e => (e.buttons & 34) !== 0 || e.button === 2 || e.button === 5
+  // where the pen is on the page: the screen spot plus how far the page is scrolled
+  const onPage = e => ({ x: e.clientX + window.scrollX, y: e.clientY + window.scrollY })
+  window.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'pen' || onControl(e)) return
+    const { w, h } = pageSize()
+    if (Math.abs(parseFloat(ink.style.width) - w) > 1 || parseFloat(ink.style.height) < h) sizeInk(true)
+    inking = true
+    inkErase = sideButton(e)
+    inkLast = onPage(e)
+    e.preventDefault()
+  }, { passive: false })
+  window.addEventListener('pointermove', e => {
+    if (!inking || e.pointerType !== 'pen') return
+    e.preventDefault()
+    const erase = inkErase || sideButton(e)
+    inkCtx.globalCompositeOperation = erase ? 'destination-out' : 'source-over'
+    inkCtx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#17241c'
+    inkCtx.lineWidth = erase ? 26 : e.pressure > 0 ? 0.6 + e.pressure * 3 : 2
+    inkCtx.beginPath()
+    inkCtx.moveTo(inkLast.x, inkLast.y)
+    const at = onPage(e)
+    inkCtx.lineTo(at.x, at.y)
+    inkCtx.stroke()
+    inkLast = at
+    if (!erase) inkClear.hidden = false
+  }, { passive: false })
+  const inkUp = () => {
+    inking = false
+    inkErase = false
+    inkLast = null
+  }
+  window.addEventListener('pointerup', inkUp)
+  window.addEventListener('pointercancel', inkUp)
+  // the pen must ink, not scroll: cancel its touch gestures; fingers still pan
+  window.addEventListener('touchstart', e => { if (inking) e.preventDefault() }, { passive: false })
+  window.addEventListener('touchmove', e => {
+    if (inking || [...e.touches].some(t => t.touchType === 'stylus')) e.preventDefault()
+  }, { passive: false })
+  // side-button drags open the context menu; keep that quiet away from controls
+  window.addEventListener('contextmenu', e => { if ((inking || e.pointerType === 'pen') && !onControl(e)) e.preventDefault() })
+  window.addEventListener('resize', () => sizeInk(true))
+  inkClear.addEventListener('click', clearInk)
 
   // ---------- math ----------
   let mathReady = false
@@ -1840,6 +1937,8 @@ window.MathJax = {
     if (idx >= 0 && btns[idx] && !btns[idx].disabled) btns[idx].click()
   })
 
+  // a new screen (question, card, results) starts with a clean page
+  new MutationObserver(clearInk).observe(document.getElementById('view'), { childList: true })
   hud()
   renderMap()
   connect()
