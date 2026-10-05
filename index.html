@@ -711,7 +711,9 @@ window.MathJax = {
   const isReview = short => short in REVIEW
   const DROP = {
     'Continuous probabilities': ['exponential:at-most', 'exponential:units', 'exponential:more-than', 'exponential:between', 'continuous-pdf:find-c-prob'],
-    'pdf ↔ cdf': ['geometric-derive:cdf-series', 'geometric-derive:cdf-result', 'geometric-derive:cdf-numbers'],
+    'pdf ↔ cdf': ['geometric-derive:cdf-build', 'geometric-derive:cdf-numbers', 'continuous-cdf:pdf-value'],
+    'Integration by parts, gamma integrals': ['integration:steps'],
+    'Mean and variance from an MGF': ['mgf:which'],
     'Geometric cdf': ['geometric:cdf'],
     'Geometric pdf': ['geometric-derive:show-pdf'],
   }
@@ -1914,7 +1916,7 @@ window.MathJax = {
   }
 
   // ---------- written answers: paper mode and the boss ----------
-  const typeable = p => !p.options && !p.buildIt
+  const typeable = p => (!p.options || p.accept) && !p.buildIt
   // the right answer and how to get it
   function solution(p) {
     if (p.buildIt) {
@@ -1973,7 +1975,7 @@ window.MathJax = {
     wrap.append(label, input)
     if (p.expr) {
       const letters = p.expr.vars.join(', ')
-      const hintText = `a formula in ${letters}: use ^ for powers, e^(...), C(n,k)`
+      const hintText = letters ? `a formula in ${letters}: use ^ for powers, e^(...), C(n,k)` : 'a number: fractions like 1/9 work, and ^, e^(...), C(n,k)'
       const preview = h('div', 'preview')
       let timer
       input.addEventListener('input', () => {
@@ -1981,7 +1983,7 @@ window.MathJax = {
         timer = setTimeout(() => {
           const raw = input.value.trim()
           const l = raw ? T2.toLatex(raw, p.expr.vars) : null
-          preview.replaceChildren(l ? tex(l, false) : document.createTextNode(raw ? `that doesn't read as a formula in ${letters} yet` : hintText))
+          preview.replaceChildren(l ? tex(l, false) : document.createTextNode(raw ? `that doesn't read as ${letters ? 'a formula in ' + letters : 'a number'} yet` : hintText))
         }, 200)
       })
       preview.textContent = hintText
@@ -5174,10 +5176,12 @@ window.MathJax = {
     return (left + tok + right).trim()
   }
 
+  // the worked answer, unless it is only the letter of a lettered option
+  const workOf = p => (p.options && /^\s*(?:\\text\{)?\(?[a-h]\)?\}?\s*$/.test(p.answerLatex ?? '') ? null : p.answerLatex ?? null)
   // the table cells a worked answer reads, found by checking the class's own table
   // against the numbers in the work (so a cell is only shown if it really is the one)
   function findLookups(p, level) {
-    const work = p.options ? null : p.answerLatex
+    const work = workOf(p)
     if (!work) return []
     tables ??= unit.printedTables()
     const toks = src => numberTokens(src ?? '', true, true)
@@ -5192,7 +5196,8 @@ window.MathJax = {
       const back = [...work.matchAll(/closest entry to \}\s*(-?[\d.]+)\s*\\text\{ is \}\s*(-?[\d.]+)/g)].map(m => ({ target: m[1], entry: m[2] }))
       for (const m of work.matchAll(/(-?[\d.]+)\s*\\text\{ is the entry at \}/g)) back.push({ target: m[1], entry: (+m[1]).toFixed(4) })
       // "left area A: z = …": the entry closest to A
-      const areas = [...work.matchAll(/left area \}\s*(\d*\.?\d+)/g)].map(m => m[1])
+      // ("P(X < x) = 0.025, a left area": the share itself is the left area)
+      const areas = [...work.matchAll(/left area \}\s*(\d*\.?\d+)|(\d*\.?\d+),?\s*\\text\{ a left area\}/g)].map(m => m[1] ?? m[2])
       // a z: two decimals, or anything written as "z = …"; never a row or column label
       const isZ = (src, t) => !/\\text\{(?:row|column) \}\s*$/.test(src.slice(0, t.start)) &&
         (/^-?\d\.\d\d$/.test(t.tok.replace('−', '-')) || /z(?:_\{?[\w.]*\}?)? = $/.test(src.slice(0, t.start)))
@@ -5297,8 +5302,8 @@ window.MathJax = {
   }
 
   function workPanel(p, { sheet = null, auto = false, next = null, level = null } = {}) {
-    // lettered options have no numbers to work, just the reason
-    const work = p.options ? null : p.answerLatex ?? null
+    // a lettered option's letter is no work, just the reason
+    const work = workOf(p)
     const el = h('div', 'plug')
     el.append(h('h3', '', work ? 'Show the work' : 'Why'))
     const rule = h('div', 'plug-line work-rule')

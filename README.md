@@ -76,5 +76,6 @@ a right answer plays an animation that works the problem out.
 
 - `index.html` — the whole game.
 - `engine.js` — a bundle of the MathReps Test 2 question generators (from the
-  Math-380-test repo at commit 1fcb54b): `window.Test2`.
+  Math-380-test repo at commit 1fcb54b, reworded to ask like the test):
+  `window.Test2`.
 - `serve.py` — the local server.
