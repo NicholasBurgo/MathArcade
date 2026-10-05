@@ -608,6 +608,8 @@ mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); bor
 }
 .mx { text-transform: none; white-space: nowrap; }
 .mx sup, .mx sub { font-size: 0.72em; line-height: 0; }
+.howto { margin: 6px 0 10px; }
+.howto-body { margin-top: 8px; padding: 10px 12px; border: 1.5px dashed var(--rule); border-radius: 10px; }
 </style>
 </head>
 <body>
@@ -647,6 +649,15 @@ window.MathJax = {
 ;(() => {
   const T2 = window.Test2
   const unit = T2.unit
+  // every engine question can make another of its kind, for "How do I do this?"
+  for (const t of unit.topics) for (const tp of t.templates) {
+    const make = tp.generate
+    tp.generate = function (...a) {
+      const p = make.apply(this, a)
+      if (p && typeof p === 'object') p.another = () => tp.generate()
+      return p
+    }
+  }
   const lineByShort = Object.fromEntries(unit.guide.map(g => [g.short, g]))
   const ROUND = 6
   // a level of its own (not a study-guide line): name the distribution, every chapter,
@@ -1633,6 +1644,20 @@ window.MathJax = {
     qMath.classList.add('q-math')
     sheet.append(qMath)
     if (round.learn) sheet.append(learnBar(p, sheet))
+    else if (!round.paper && p.another) {
+      // a kind that is the same every time: its example is this answer, so peeking is a miss
+      const peeked = () => {
+        if (!q.missed) {
+          q.missed = true
+          round.misses++
+        }
+        if (q.seen < 3 && q.requeuedAt !== q.seen) {
+          q.requeuedAt = q.seen
+          round.queue.push(q)
+        }
+      }
+      sheet.append(howTo(p, q.level ?? round.short, peeked))
+    }
     if (round.paper) {
       paperQuestion(p, sheet)
       return
@@ -1661,6 +1686,49 @@ window.MathJax = {
     sheet.append(box)
     view.append(sheet)
     window.scrollTo({ top: 0 })
+  }
+
+  // "How do I do this?": the same kind of question with new numbers, worked and
+  // played, so the method is shown without giving this one's answer away
+  function howTo(p, level, peeked) {
+    const wrap = h('div', 'howto')
+    const btn = h('button', 'btn ghost', 'How do I do this?')
+    btn.type = 'button'
+    const body = h('div', 'howto-body')
+    body.hidden = true
+    wrap.append(btn, body)
+    btn.addEventListener('click', () => {
+      if (!body.hidden) {
+        body.hidden = true
+        body.replaceChildren()
+        btn.textContent = 'How do I do this?'
+        return
+      }
+      let ex = p.another()
+      for (let i = 0; i < 8 && ex.latex === p.latex && ex.text === p.text; i++) ex = p.another()
+      const same = ex.latex === p.latex && ex.text === p.text
+      if (same) peeked()
+      body.replaceChildren(h('div', 'eyebrow', same ? 'This one is the same every time · watch it, then do it yourself · counts as a miss, it comes back later' : 'Same kind, new numbers · doesn’t count'))
+      if (ex.ask) body.append(h('p', 'ask', ex.ask))
+      if (ex.text) body.append(h('p', 'story', ex.text))
+      if (ex.latex) body.append(tex(ex.latex))
+      const b = ex.build ?? ex.mgf?.build
+      if (ex.buildIt && b) body.append(mgfPlayer(b, { auto: true }))
+      else {
+        const box = h('div', 'reveal-box')
+        box.append(h('h3', '', 'Answer'))
+        if (ex.options) {
+          const o = ex.options['abcdefgh'.indexOf(ex.answer)]
+          box.append(typeof o === 'string' ? h('p', '', o) : tex(o.latex))
+        } else box.append(tex(T2.answerDisplay(ex)))
+        box.append(h('h3', '', 'How it works'), workPanel(ex, { auto: true, level }))
+        body.append(box)
+      }
+      body.hidden = false
+      btn.textContent = 'Hide the example'
+      body.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+    })
+    return wrap
   }
 
   // the last 12 first tries on each level, for readiness
@@ -1705,7 +1773,11 @@ window.MathJax = {
       round.misses++
     }
     round.marks[round.at] = 'bad'
-    if (q.seen < 3) round.queue.push(q)
+    // once per showing (a peek may have sent it back already)
+    if (q.seen < 3 && q.requeuedAt !== q.seen) {
+      q.requeuedAt = q.seen
+      round.queue.push(q)
+    }
     sfx.wrong()
     hud()
   }
@@ -4541,7 +4613,8 @@ window.MathJax = {
   // A question: a pdf, and its MGF to build. Each line is asked in turn among the usual
   // slips; the right line goes in either way, with its move and why, so the build is
   // always whole. Every step right first time counts as right.
-  const mgfBuildProblem = (b = pickOne(MGF_BUILDS)()) => ({
+  const mgfBuildProblem = (make = pickOne(MGF_BUILDS), b = make()) => ({
+    another: () => mgfBuildProblem(make),
     ask: `Find ${b.exist ? 'the MGF \\(m_X(t) = E\\big[e^{tX}\\big]\\) of this pdf, and say for which \\(t\\) it exists' : '\\(m_X(t) = E\\big[e^{tX}\\big]\\) for this pdf'}${b.use ? ', then use it for E[X] and Var X' : ''}.`,
     latex: b.pdf,
     buildIt: true,
@@ -4556,7 +4629,7 @@ window.MathJax = {
       do i = Math.floor(Math.random() * MGF_BUILDS.length)
       while (i === last)
       last = i
-      out.push(mgfBuildProblem(MGF_BUILDS[i]()))
+      out.push(mgfBuildProblem(MGF_BUILDS[i]))
     }
     return shuffleArr([...out, mgfName(), mgfName()])
   }
