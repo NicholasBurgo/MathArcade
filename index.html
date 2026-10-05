@@ -3133,7 +3133,8 @@ window.MathJax = {
       binomial: !waits || /\bbinomial\b/i.test(text),
       geometric: /\bfirst\b|\bgeometric\b/i.test(text),
       negbin: (/\d+(?:st|nd|rd|th)\b/.test(text) && waits) || /negative binomial/i.test(text),
-      hyper: /without replacement|at random|committee|sample|hand|different|draw|nets|hypergeometric/i.test(text),
+      // a count of trials until something is never a draw from a group
+      hyper: /without replacement|at random|committee|sample|hand|different|draw|nets|hypergeometric/i.test(text) && !/\buntil\b/i.test(text),
       poisson: /average|poisson|\bper\b/i.test(text),
     }
     const tryFam = (key, params, pmf, lo, hi) => {
@@ -3234,13 +3235,21 @@ window.MathJax = {
     } else if (!(r?.v === 'Z' || /Z|z_/.test(p.latex ?? ''))) return null
     const cdf = x => Phi((x - mu) / sig)
     const V = std ? 'Z' : 'X'
-    const ans = p.answer
+    // a percentile answer ("98.12th") is a number
+    const ans = typeof p.answer === 'string' && /^\d*\.?\d+(st|nd|rd|th)$/.test(p.answer) ? parseFloat(p.answer) : p.answer
     let shades = null, marks = [], note = null
     const latex = (p.latex ?? '').replace(/\s+/g, ' ')
     if (r && (r.v === V || (std && r.v === 'Z')) && typeof ans === 'number') {
       if (!close(areaCont(r, cdf), ans, 0.006)) return null
       shades = r.parts.map(q => [q.lo, q.hi])
       note = `shaded: ${regionText(r)} ${shown4(ans)}`
+    } else if (!std && /^x_1 = \\,\?, \\quad x_2 = \\,\?$/.test(latex) && typeof ans === 'string') {
+      // the middle A%: the answer is both cut-offs
+      const A = +(/middle (\d+(?:\.\d+)?)%/.exec(p.ask ?? '')?.[1] ?? NaN) / 100
+      const [lo, hi2] = ans.split(' and ').map(Number)
+      if (!(A > 0) || !(lo < hi2) || !close(cdf(hi2) - cdf(lo), A, 0.01)) return null
+      shades = [[lo, hi2]]
+      note = `shaded: the middle ${+(A * 100).toFixed(4)}%, from ${fmt(lo)} to ${fmt(hi2)}`
     } else if (typeof ans === 'number') {
       let k
       const sub = s => s.replace(/-z_0/g, String(-ans)).replace(/z_0/g, String(ans))
@@ -3275,6 +3284,12 @@ window.MathJax = {
         if (!close(cdf(hi2) - cdf(lo), +k[1], 0.01)) return null
         shades = [[lo, hi2]]
         note = `shaded: the middle ${+(+k[1] * 100).toFixed(4)}%, from ${fmt(lo)} to ${fmt(hi2)}`
+      } else if (!std && /^x = \\,\?$/.test(latex) && (k = /^P\(X ([<>]) x\) = (\d*\.?\d+)/.exec(p.answerLatex ?? ''))) {
+        // the tallest (or cleanest) share: its side and size are in the worked answer
+        const share = +k[2], top = k[1] === '>'
+        if (!close(top ? 1 - cdf(ans) : cdf(ans), share, 0.01)) return null
+        shades = [top ? [ans, Infinity] : [-Infinity, ans]]
+        note = `shaded: the ${top ? 'top' : 'bottom'} ${+(share * 100).toFixed(4)}%, cut at x = ${fmt(ans)}`
       } else if (!std && (k = /(top|bottom) (\d+(?:\.\d+)?)%/.exec(text))) {
         const share = +k[2] / 100
         const area = k[1] === 'top' ? 1 - cdf(ans) : cdf(ans)
@@ -3346,11 +3361,18 @@ window.MathJax = {
       return { kind: 'curve', title: expTitle(p, lam), lo: 0, hi: -Math.log(0.01) / lam, pdf: x => lam * Math.exp(-lam * x), marks: [1 / lam], ticks: [0, 1 / lam], note: `the mean β = 1/λ = ${fmt(1 / lam)} is marked; σ is also β` }
     }
     if (!saysUniform(p)) return null
-    const found = []
-    for (const A of vals) for (const B of vals) if (B > A) {
-      const v = { mean: (A + B) / 2, var: (B - A) ** 2 / 12, sd: (B - A) / Math.sqrt(12), m2: (B ** 3 - A ** 3) / (3 * (B - A)) }[stat]
-      if (exactly(v, ans)) found.push([A, B])
+    const fits = list => {
+      const out = []
+      for (const A of list) for (const B of list) if (B > A) {
+        const v = { mean: (A + B) / 2, var: (B - A) ** 2 / 12, sd: (B - A) / Math.sqrt(12), m2: (B ** 3 - A ** 3) / (3 * (B - A)) }[stat]
+        if (exactly(v, ans)) out.push([A, B])
+      }
+      return out
     }
+    // the story's own numbers first: the worked answer's can fit too (4 to 8 has the σ of 5 to 9)
+    const story = [...new Set(numberTokens(p.text ?? '', false, true).map(t => Math.abs(t.val)))]
+    let found = fits(story)
+    if (!found.length) found = fits(vals)
     if (found.length !== 1) return null
     const [A, B] = found[0], w = B - A
     return { kind: 'curve', title: `uniform · A = ${A}, B = ${B}`, lo: A - 0.2 * w, hi: B + 0.2 * w, pdf: x => (x >= A && x <= B ? 1 / w : 0), flat: [A, B], marks: [(A + B) / 2], ticks: [A, (A + B) / 2, B], note: `the mean (A + B)/2 = ${fmt((A + B) / 2)} is marked` }
@@ -3360,9 +3382,18 @@ window.MathJax = {
   const ownsPdf = p => /\\begin\{cases\}|\\begin\{array\}|\\int|[fF]\(x\) =/.test(p.latex ?? '') || !p.text
   const saysUniform = p => /equally likely|uniform/i.test(p.text ?? '')
   const saysRate = p => /per (second|minute|hour|day|week|month|year)|\bevery\b|average rate/i.test(p.text ?? '')
+  // a question that only says P = ? (or P(scrapped) = ?) names its region in the worked answer
+  function answerRegion(p) {
+    if (!/^P(\(\\text\{[^}]*\}\))? = \\,\?$/.test((p.latex ?? '').trim())) return null
+    for (const line of (p.answerLatex ?? '').split(/\\\\/)) {
+      const r = regionOf(line.replace(/P\(\\text\{[^}]*\}\)/g, ''))
+      if (r) return r
+    }
+    return null
+  }
   function inferGraph(p, level) {
     if (p.options || p.leaf) return null
-    const r = regionOf(p.latex)
+    const r = regionOf(p.latex) ?? answerRegion(p)
     try {
       if (level === 'Binomial table') return binomialTableGraph(p, r)
       if (level === 'Chi-squared table') return chiGraph(p, r)
