@@ -1440,7 +1440,7 @@ window.MathJax = {
         const next = h('button', 'btn', 'Next')
         next.type = 'button'
         next.addEventListener('click', advance)
-        const panel = mgfPlayer(p.mgf.build, { auto: true, next })
+        const panel = mgfPlayer(p.build ?? p.mgf.build, { auto: true, next })
         sheet.append(panel)
         panel.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
         return
@@ -1868,7 +1868,7 @@ window.MathJax = {
   function solution(p) {
     if (p.buildIt) {
       const box = h('div', 'reveal-box')
-      box.append(h('h3', '', 'Answer'), mgfPlayer(p.mgf.build))
+      box.append(h('h3', '', 'Answer'), mgfPlayer(p.build ?? p.mgf.build))
       return box
     }
     if (p.leaf) {
@@ -4326,6 +4326,8 @@ window.MathJax = {
   // "X has this MGF: which distribution?", answered from World 0's list, with the MGF read on a right answer
   const mgfName = () => treeProblem(pickOne(MGF_LEAVES), true, { mgf: true })
   const firstLead = b => b.lead0 ?? R`m_X(t) &= E[e^{tX}] = `
+  // a row's chip: its own label (a derivation's "Independence"), else its move's
+  const chipOf = r => ({ name: r.label ?? MOVES[r.move]?.name ?? 'Step', mv: MOVES[r.move]?.mv ?? 'mv-b' })
   // a build as rows: each line (the first after its "m_X(t) = E[e^(tX)] ="), then where it exists
   const rowsOf = b => [
     ...b.lines.map((l, i) => ({ ...l, show: l.own ? l.tex : (i === 0 ? firstLead(b) : '= ').replace('&', '') + l.tex })),
@@ -4355,36 +4357,53 @@ window.MathJax = {
     }
     return shuffleArr([...out, mgfName(), mgfName()])
   }
+  // A build asked a line at a time: an MGF from its pdf, or (from the engine) a pdf
+  // derived the way the test writes it. Lines with slips are asked in order, up to the
+  // build's final line; the others are shown as they come. The right line goes in after
+  // every pick, so the build always ends whole.
   function buildQuestion(p, sheet) {
-    const b = p.mgf.build
+    const b = p.build ?? p.mgf.build
+    const isMgfBuild = b.strip !== false
     const data = rowsOf(b)
     const L = b.lines
-    const steps = [
-      ...L.map((l, i) => ({ row: data[i], right: plainTex(l.tex), slips: l.slips ?? [] })),
-      ...(b.exist?.slips ? [{ row: data[L.length], right: b.exist.tex, slips: b.exist.slips, exist: true }] : []),
+    const fi = b.final ?? L.length - 1
+    const items = [
+      ...L.map((l, i) => ({ row: data[i], right: plainTex(l.tex), slips: l.slips ?? [], own: Boolean(l.own), ask: i <= fi && (l.slips?.length ?? 0) > 0, first: i === 0 })),
+      ...(b.exist ? [{ row: data[L.length], right: b.exist.tex, slips: b.exist.slips ?? [], ask: Boolean(b.exist.slips?.length), exist: true }] : []),
     ]
-    const tail = data.slice(steps.length)
+    const tail = data.slice(items.length)
+    const asked = items.filter(x => x.ask).length
     const wrap = h('div', 'mgf build')
-    const st = h('div', 'mgf-steps')
-    const pills = ['① Multiply by eᵗˣ', '② Add it up: Σ or ∫', '③ Simplify'].map(t => h('span', '', t))
-    st.append(...pills)
+    const pills = isMgfBuild ? ['① Multiply by eᵗˣ', '② Add it up: Σ or ∫', '③ Simplify'].map(t => h('span', '', t)) : []
+    if (pills.length) {
+      const st = h('div', 'mgf-steps')
+      st.append(...pills)
+      wrap.append(st)
+    }
     const rows = h('div')
-    wrap.append(st, rows)
+    wrap.append(rows)
     sheet.append(wrap)
     let firstTry = 0
+    let n = 0
     const rowEl = r => {
       const row = h('div', 'mgf-row')
-      const m = MOVES[r.move]
+      const m = chipOf(r)
       row.append(h('span', 'mgf-move ' + m.mv, m.name), tex(hlTex(r.show)), h('p', 'mgf-why', r.why))
       return row
     }
-    const light = k => pills.forEach((x, j) => x.classList.toggle('on', k === 0 ? j < 2 : !steps[k]?.exist && j === 2))
-    function ask(k) {
-      const s = steps[k]
-      light(k)
-      const title = s.exist ? 'Last: where does it exist?' : k === 0 ? 'Step 1 · set it up: e^(tx) times the pdf, added up' : `Step ${k + 1} · the next line`
+    const light = s => pills.forEach((x, j) => x.classList.toggle('on', Boolean(s) && (s.first ? j < 2 : !s.exist && j === 2)))
+    function step(k) {
+      if (k >= items.length) return done()
+      const s = items[k]
+      if (!s.ask) {
+        rows.append(rowEl(s.row))
+        return step(k + 1)
+      }
+      n++
+      light(s)
+      const title = s.exist ? 'Last: where does it exist?' : n === 1 ? (isMgfBuild ? 'Step 1 · set it up: e^(tx) times the pdf, added up' : 'Step 1 · the first line') : `Step ${n} · the next line`
       const opts = shuffleArr([s.right, ...shuffleArr([...new Set(s.slips)].filter(w => w !== s.right)).slice(0, 5)])
-      const shown = o => [tex(`\\displaystyle ${s.exist ? '' : k === 0 ? '' : '= '}${o}`, false)]
+      const shown = o => [tex(`\\displaystyle ${s.exist || s.own || s.first ? '' : '= '}${o}`, false)]
       const box = pickBox({
         placeholder: 'Choose the line…',
         label: 'Lines',
@@ -4407,20 +4426,20 @@ window.MathJax = {
           box.remove()
           rows.append(row)
           row.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 350 })
-          if (k + 1 < steps.length) ask(k + 1)
-          else done()
+          step(k + 1)
         },
       })
       sheet.append(box)
       box.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
     }
     function done() {
-      light(-1)
+      light(null)
       for (const r of tail) rows.append(rowEl(r))
       const q = round.queue[round.at]
       round.locked = true
-      const all = firstTry === steps.length
-      const sum = h('p', 'build-sum ' + (all ? 'ok' : 'bad'), all ? `All ${steps.length} steps right: that is the whole MGF.` : `${firstTry} of ${steps.length} steps right first time. The build above is the whole MGF${round.learn ? '.' : '; this one comes back later.'}`)
+      const all = firstTry === asked
+      const whole = isMgfBuild ? 'MGF' : 'derivation'
+      const sum = h('p', 'build-sum ' + (all ? 'ok' : 'bad'), all ? `All ${asked} steps right: that is the whole ${whole}.` : `${firstTry} of ${asked} steps right first time. The ${whole} above is complete${round.learn ? '.' : '; this one comes back later.'}`)
       sheet.append(sum)
       if (all) {
         award()
@@ -4439,7 +4458,7 @@ window.MathJax = {
       }
       sum.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
     }
-    ask(0)
+    step(0)
   }
 
   // A build, line by line: the move each line makes, the line, and why.
@@ -4458,7 +4477,7 @@ window.MathJax = {
     const data = rowsOf(b)
     const rows = data.map((r, i) => {
       const row = h('div', 'mgf-row' + (i === at ? ' asked' : ''))
-      const m = MOVES[r.move]
+      const m = chipOf(r)
       row.append(h('span', 'mgf-move ' + m.mv, m.name), tex(hlTex(r.show)), h('p', 'mgf-why', r.why))
       return row
     })
