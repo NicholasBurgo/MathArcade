@@ -294,7 +294,7 @@ function paramGuide() {
       line.append(tex(LETTER[k], false), ` = ${MEANS[leaf][k]}`)
       what.append(line)
     }
-    const vals = { binomial: '0, 1, 2, \\ldots, n', geometric: '1, 2, 3, \\ldots', negbin: 'r, r + 1, r + 2, \\ldots', hyper: '\\max(0,\\, n - (N - r)), \\ldots, \\min(n,\\, r)', poisson: '0, 1, 2, \\ldots' }[leaf]
+    const vals = { binomial: '0, 1, 2, \\ldots, n', geometric: '1, 2, 3, \\ldots', negbin: 'r, r + 1, r + 2, \\ldots', hyper: '\\begin{gathered}\\max(0,\\, n - (N - r)), \\ldots, \\\\ \\min(n,\\, r)\\end{gathered}', poisson: '0, 1, 2, \\ldots' }[leaf]
     const x = h('div', 'pguide-x')
     x.append(h('span', '', 'X can be'), tex(vals, false))
     row.append(name, what, x)

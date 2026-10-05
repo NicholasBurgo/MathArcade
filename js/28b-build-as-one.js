@@ -108,7 +108,8 @@ function buildAsOne(p) {
   for (const t of oneTweaks(right)) add(t)
   // the other builds' lines only where they read like this one (letters with letters)
   const lettersOnly = !/\d\.\d|\d{2}/.test(right)
-  if (lettersOnly) for (const t of shuffleArr(onePool()[fam])) if (wrong.length < 9) add(t)
+  const numbered = t => /\d\.\d|\d{2}/.test(t)
+  if (lettersOnly) for (const t of shuffleArr(onePool()[fam])) if (wrong.length < 9 && !numbered(t)) add(t)
   const opts = [right, ...wrong.slice(0, 9)]
   const ask = fam === 'mgf'
     ? 'Find the MGF \\(m_X(t) = E\\big[e^{tX}\\big]\\) of this pdf. The work after shows every line, where it exists' + (b.use ? ', and E[X] and Var X from it.' : '.')
