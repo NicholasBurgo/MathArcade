@@ -1433,7 +1433,7 @@ window.MathJax = {
     done.addEventListener('click', () => openCard(round.short))
     bar.append(h('span', 'learn-note', 'Learn mode: try it, or tap Show me. Nothing here counts.'), show, done)
     show.addEventListener('click', () => {
-      if (round.locked) return
+      if (p.buildIt && round.locked) return
       show.disabled = true
       if (p.buildIt) {
         round.locked = true
@@ -1446,11 +1446,15 @@ window.MathJax = {
         panel.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
         return
       }
-      const w = sheet.querySelector('.pick')
-      if (!w?.pickNth || !(w.correctIndex >= 0)) return
-      w.querySelector('.pick-label').textContent = 'The answer'
-      w.pickNth(w.correctIndex)
-      w.querySelector('.btn')?.click()
+      const answerNext = () => {
+        const w = [...sheet.querySelectorAll('.pick')].find(x => x.pickNth && !x.querySelector('.pick-toggle').disabled)
+        if (!w || !(w.correctIndex >= 0)) return
+        w.querySelector('.pick-label').textContent = 'The answer'
+        w.pickNth(w.correctIndex)
+        w.querySelector('.btn')?.click()
+        setTimeout(answerNext, 60)
+      }
+      answerNext()
     })
     return bar
   }
@@ -1833,6 +1837,43 @@ window.MathJax = {
     box.correctIndex = PICK_ORDER.indexOf(p.leaf)
     sheet.append(box)
   }
+  function askParams(p, sheet, q) {
+    const pp = p.mgfParams
+    const opts = shuffleArr([pp.right, ...[...new Set(pp.slips)].filter(w => w !== pp.right)])
+    const box = pickBox({
+      placeholder: 'Choose its parameters…',
+      label: 'Parameters',
+      cls: 'answers',
+      title: 'Right. Now its parameters',
+      items: opts.map((o, i) => ({ key: i, row: () => [tex(o, false)], shown: () => [tex(o, false)] })),
+      onCheck: (i, ui) => {
+        ui.sel.disabled = true
+        ui.check.disabled = true
+        if (opts[i] === pp.right) {
+          ui.wrap.classList.add('right')
+          award()
+          showPlug(p, sheet)
+          return
+        }
+        ui.wrap.classList.add('wrong')
+        miss(q)
+        const why = h('div', 'why')
+        why.append(h('h3', '', 'How it works'))
+        const said = h('p', 'pick-said')
+        said.append('You picked ', tex(opts[i], false), '. The parameters are ', tex(pp.right, false), '.')
+        why.append(said)
+        if (p.read) why.append(readBlock(p, Object.fromEntries(p.read.notes.map(([k], j) => [k, 'pv' + j]))).el)
+        const { acts, cont } = gotIt(q)
+        why.append(acts)
+        sheet.append(why)
+        cont.focus({ preventScroll: true })
+        why.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+      },
+    })
+    box.correctIndex = opts.indexOf(pp.right)
+    sheet.append(box)
+    box.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+  }
   function answerPick(pick, p, sheet, { sel, check, wrap }) {
     if (round.locked || !LEAVES[pick]) return
     round.locked = true
@@ -1841,8 +1882,10 @@ window.MathJax = {
     const q = round.queue[round.at]
     if (pick === p.leaf || p.alsoRight?.includes(pick)) {
       wrap.classList.add('right')
-      award()
       if (pick !== p.leaf && ALSO_NOTE[p.leaf]) sheet.append(h('p', 'also-right', ALSO_NOTE[p.leaf]))
+      // from an MGF the name is half the answer: then its parameters
+      if (p.mgfParams) return askParams(p, sheet, q)
+      award()
       showPlug(p, sheet)
       return
     }
@@ -1877,6 +1920,11 @@ window.MathJax = {
       const box = h('div', 'reveal-box')
       box.append(h('h3', '', 'Answer'), leafCard(p.leaf))
       if (p.alsoRight?.length && ALSO_NOTE[p.leaf]) box.append(h('p', 'also-right', ALSO_NOTE[p.leaf].replace(/^Right: /, 'Also right: ')))
+      if (p.mgfParams) {
+        const pr = h('p', 'pick-said')
+        pr.append('Its parameters: ', tex(p.mgfParams.right, false))
+        box.append(pr)
+      }
       box.append(h('h3', '', 'How the tree gets there'), h('p', '', p.hint.text), walkButton(p.leaf))
       if (p.vars) box.append(plugPanel(p))
       return box
@@ -3576,6 +3624,7 @@ window.MathJax = {
         trap: 'X counts the tries up to the first success, and the number of tries is not fixed: geometric, not binomial.',
         vars: { p: worked(V(pct / 100, `${pct}%`), { order: [], tex: S => `${S('p')} = ${pct}\\% = \\frac{${pct}}{100}`, steps: () => [`= ${fmt(pct / 100)}`] }), q: q1(pct / 100), x: sayX(ri(2, 5)) } } },
       () => { const [pp, qq] = pickOne([['0.2', '0.8'], ['0.25', '0.75'], ['0.3', '0.7'], ['0.4', '0.6']]); return { text: 'X has the moment generating function shown.', clue: 'moment generating function',
+        params: { right: `p = ${pp}`, slips: [`p = ${qq}`, `p = ${fmt(+pp / +qq)}`, `p = ${fmt(+pp * +qq)}`] },
         latex: `m_X(t) = \\frac{${pp}e^t}{1 - ${qq}e^t}`,
         trap: `pe^t/(1 − qe^t) is the geometric MGF: p = ${pp} on top, q = ${qq} below, and p + q = 1.`,
         read: { kind: 'MGF', tex: c => `m_X(t) = \\frac{${c('p', pp)}e^t}{1 - ${c('q', qq)}e^t}`, notes: [['p', `the number on top, times eᵗ, is p = ${pp}`], ['q', `the number subtracted below is q = ${qq} (and p + q = 1)`]], shape: 'pe^t/(1 − qe^t) is the geometric MGF' },
@@ -3642,6 +3691,7 @@ window.MathJax = {
         trap: 'The time between arrivals is the wait for one event: exponential. (Waiting for several would be gamma.)',
         vars: { lam: V(l, `${l} per minute`), t: V(t, null, `say we want P(X > ${t} minute)`) } } },
       () => { const b = pickOne([3, 4, 5, 10]); return { text: 'X has the moment generating function shown.', clue: 'moment generating function', avoid: ['gamma'],
+        params: { right: `\\beta = ${b},\\ \\lambda = \\tfrac{1}{${b}}`, slips: [`\\lambda = ${b},\\ \\beta = \\tfrac{1}{${b}}`, `\\alpha = ${b},\\ \\beta = 1`, `\\beta = ${b},\\ \\lambda = ${b}`] },
         latex: `m_X(t) = \\frac{1}{1 - ${b}t}`,
         trap: `1/(1 − βt) is (1 − βt)^(−1): a gamma with α = 1, which is the exponential, with β = ${b} and λ = 1/${b}.`,
         read: { kind: 'MGF', tex: c => `m_X(t) = \\frac{1}{1 - ${c('lam', b)}t}`, notes: [['lam', `the power is −1 (α = 1) and the number times t is β = ${b}, so λ = 1/${b}`]], shape: '1/(1 − βt) is the exponential MGF (a gamma with α = 1)' },
@@ -3657,6 +3707,7 @@ window.MathJax = {
         read: { kind: 'pdf', tex: c => `f(x) = \\frac{1}{${den}}\\,x^{${c('al', a - 1)}}e^{-x/${c('be', b)}}`, notes: [['al', `${a === 2 ? 'x alone is x¹, so ' : ''}the power of x is α − 1 = ${a - 1}, so α = ${a}`], ['be', `x is divided by β = ${b} in the exponent (check: Γ(${a})·${b}${a === 2 ? '²' : '³'} = ${den}, the number below)`]], shape: 'x^(α−1) e^(−x/β) is the gamma shape; β isn’t 2, so not chi-squared' },
         vars: { al: V(a, null, `x^${a - 1} is x^(α−1)`), be: V(b, null, `e^(−x/${b}) is e^(−x/β)`) } } },
       () => { const a = ri(2, 5), b = pickOne([3, 4, 5]); return { text: 'X has the moment generating function shown.', clue: 'moment generating function',
+        params: { right: `\\alpha = ${a},\\ \\beta = ${b}`, slips: [`\\alpha = ${b},\\ \\beta = ${a}`, `\\alpha = -${a},\\ \\beta = ${b}`, `\\alpha = ${a},\\ \\beta = \\tfrac{1}{${b}}`, `\\alpha = ${a},\\ \\beta = -${b}`] },
         latex: `m_X(t) = (1 - ${b}t)^{-${a}}`,
         trap: `(1 − βt)^(−α) is the gamma MGF: β = ${b}, α = ${a}. β isn’t 2, so not chi-squared.`,
         read: { kind: 'MGF', tex: c => `m_X(t) = (1 - ${c('be', b)}t)^{-${c('al', a)}}`, notes: [['be', `the number times t is β = ${b}`], ['al', `the power, without its minus, is α = ${a}`]], shape: '(1 − βt)^(−α) is the gamma MGF; β isn’t 2 and α isn’t 1, so plain gamma' },
@@ -3667,6 +3718,7 @@ window.MathJax = {
         trap: `A gamma with β = 2 is chi-squared, with γ = 2α = ${2 * a} degrees of freedom.`,
         vars: { ga: worked(V(2 * a, `α = ${a}`, 'γ = 2α'), { answer: true, order: [], tex: S => `${S('ga')} = 2\\alpha = 2(${a})`, steps: () => [`= ${2 * a}`] }) } } },
       () => { const a = ri(2, 8); return { text: 'X has the moment generating function shown.', clue: 'moment generating function', avoid: ['gamma'],
+        params: { right: `\\gamma = ${2 * a}\\ \\ (\\text{a gamma with } \\alpha = ${a},\\ \\beta = 2)`, slips: [`\\gamma = ${a}`, `\\gamma = ${fmt(a / 2)}`, `\\gamma = ${a + 2}`] },
         latex: `m_X(t) = (1 - 2t)^{-${a}}`,
         trap: `(1 − 2t)^(−γ/2) is the chi-squared MGF: γ/2 = ${a}, so γ = ${2 * a}.`,
         read: { kind: 'MGF', tex: c => `m_X(t) = (1 - 2t)^{-${c('ga', a)}}`, notes: [['ga', `the number times t is 2, so it is chi-squared; the power is γ/2 = ${a}, so γ = ${2 * a}`]], shape: '(1 − 2t)^(−γ/2) is the chi-squared MGF (a gamma with β = 2)' },
@@ -3674,6 +3726,7 @@ window.MathJax = {
     ],
     normal: [
       () => { const mu = ri(2, 8), sig = ri(2, 6), half = (sig * sig) / 2; return { text: 'X has the moment generating function shown.', clue: 'moment generating function',
+        params: { right: `\\mu = ${mu},\\ \\sigma^2 = ${sig * sig}\\ \\ (\\sigma = ${sig})`, slips: [`\\mu = ${mu},\\ \\sigma^2 = ${fmt(half)}`, `\\mu = ${mu},\\ \\sigma = ${sig * sig}`, `\\mu = ${fmt(half)},\\ \\sigma^2 = ${2 * mu}`] },
         latex: `m_X(t) = e^{${mu}t + ${fmt(half)}t^2}`,
         trap: `e^(μt + σ²t²/2) is the normal MGF: μ = ${mu}, and σ²/2 = ${fmt(half)}, so σ² = ${sig * sig} and σ = ${sig}.`,
         read: { kind: 'MGF', tex: c => `m_X(t) = e^{${c('mu', mu)}t + ${c('sig', fmt(half))}t^2}`, notes: [['mu', `the number times t is μ = ${mu}`], ['sig', `the number times t² is σ²/2 = ${fmt(half)}, so σ² = ${sig * sig} and σ = ${sig}`]], shape: 'e^(μt + σ²t²/2) is the normal MGF' },
@@ -4930,7 +4983,7 @@ window.MathJax = {
     for (const k of shuffleArr(Object.keys(LEAVES))) if (decoys.length < 5 && k !== leaf && !avoid.includes(k) && !decoys.includes(k)) decoys.push(k)
     const names = shuffleArr([leaf, ...decoys])
     return {
-      ask: 'Which distribution does X have?',
+      ask: mgf ? 'X has the MGF shown. Name the distribution of X and its parameters.' : 'Which distribution does X have?',
       text: sc.text,
       latex: sc.latex ? `${sc.latex} \\qquad X \\sim \\,?` : 'X \\sim \\,?',
       trap: sc.trap,
@@ -4943,6 +4996,7 @@ window.MathJax = {
       leaf,
       // the names that are just as right (a gamma with β = 2 is a chi-squared)
       alsoRight: sc.avoid ?? [],
+      mgfParams: sc.params,
       vars: sc.vars,
     }
   }
