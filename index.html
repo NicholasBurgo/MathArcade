@@ -564,6 +564,7 @@ mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); bor
 .tp-title { margin: 4px 0 0; font-family: var(--display); font-size: 1.1rem; text-transform: uppercase; }
 .tp-body .note { margin: 2px 0 8px; color: var(--muted); font-size: 0.85rem; }
 .also-right { margin: 8px 0; padding: 6px 10px; border-left: 3px solid var(--green); color: var(--ink); font-weight: 600; }
+.diag { margin: 6px 0; padding: 6px 10px; border-left: 3px solid var(--gold); font-weight: 600; }
 /* the calculator floats over everything but the confetti, and stays where it is dragged */
 .calc { position: fixed; z-index: 35; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: min(300px, calc(100vw - 32px)); padding: 10px; border: 2px solid var(--rule); border-radius: 14px; background: var(--sheet); box-shadow: var(--shadow); }
 .calc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -2px 0 8px; cursor: grab; touch-action: none; user-select: none; }
@@ -1702,12 +1703,17 @@ window.MathJax = {
     said.append('You picked ', ...optNodes(opts[i]), '. The answer is ', ...optNodes(opts[good]), '.')
     why.append(said)
     const p = q.p
-    if (p.hint?.latex) why.append(tex(p.hint.latex))
-    if (p.hint?.text) why.append(h('p', '', p.hint.text))
-    const shown = T2.answerDisplay(p)
-    if (!p.options && shown) {
-      why.append(h('p', '', 'Worked answer:'))
-      why.append(tex(shown))
+    // the commonest slip on a table: the other side (1 − the answer)
+    const picked = parseFloat(opts[i].text)
+    if (typeof p.answer === 'number' && p.answer > 0 && p.answer < 1 && Math.abs(picked + p.answer - 1) < 1e-4) {
+      why.append(h('p', 'diag', 'Your pick is 1 minus the answer: the area on the other side. A table gives the area to the LEFT (P(Z < z), or P(X ≤ x) for the binomial), so “more than” or “at least” is 1 − that.'))
+    }
+    // the same worked answer a right one plays: every step, the table, the graph
+    const level = q.level ?? round.short
+    if (!isWorld0(level) && !p.mgf && !p.params && (p.answerLatex || p.hint)) why.append(workPanel(p, { sheet, auto: true, level }))
+    else {
+      if (p.hint?.latex) why.append(tex(p.hint.latex))
+      if (p.hint?.text) why.append(h('p', '', p.hint.text))
     }
     if (p.clue) sheet.querySelector('.story')?.replaceWith(storyEl({ text: p.text, clue: p.clue }, true))
     if (p.trap) why.append(h('p', 'trap', 'The trap: ' + p.trap))
@@ -1935,7 +1941,9 @@ window.MathJax = {
       const o = p.options['abcdefgh'.indexOf(p.answer)]
       box.append(typeof o === 'string' ? h('p', '', o) : tex(o.latex))
     } else box.append(tex(T2.answerDisplay(p)))
-    if (p.hint?.latex || p.hint?.text) {
+    if (!p.mgf && !p.params && p.answerLatex) {
+      box.append(h('h3', '', 'How it works'), workPanel(p, { auto: false }))
+    } else if (p.hint?.latex || p.hint?.text) {
       box.append(h('h3', '', 'How it works'))
       if (p.hint.latex) box.append(tex(p.hint.latex))
       if (p.hint.text) box.append(h('p', '', p.hint.text))
