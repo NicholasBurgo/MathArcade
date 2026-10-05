@@ -22,6 +22,8 @@ const quizLevelTry = (fn, fallback) => {
 const QUIZ_LEVELS = {}
 const quizLevelName = p => `Quiz ${hwQuizName(p)} · ${p.title}`
 const isQuizLevel = short => Object.prototype.hasOwnProperty.call(QUIZ_LEVELS, short)
+// the quiz as written: its own numbers (or, for a question in letters, its own words)
+const quizOwnLabel = short => (QUIZ_LEVELS[short]?.p.hw?.letters ? 'The quiz’s own words' : 'The quiz’s own numbers')
 // the quiz level after this one (the last one goes back to the first)
 const quizLevelAfter = short => {
   const names = Object.keys(QUIZ_LEVELS)
@@ -216,7 +218,9 @@ function quizWalkFractions(text, rows, link) {
     if (link.givens.length >= 5) return
     const spots = spotsOf(f.a, f.b)
     if (!spots.length) continue
-    const words = quizWalkWords(text, f.start, f.end)
+    // ("probability 1/13", else the fraction alone)
+    const lead = /\bprobability $/i.exec(text.slice(0, f.start))
+    const words = { start: lead ? lead.index : f.start, end: f.end }
     const g = { key: `frac:${f.a}/${f.b}`, tok: `${f.a}/${f.b}`, val: f.a / f.b, sym: symOf(f.a, f.b), occ: { field: 'text', start: f.start, end: f.end }, occs: [], words: { field: 'text', ...words }, where: text.slice(words.start, words.end), first: spots[0], cls: 'pv' + link.givens.length }
     link.givens.push(g)
     for (const sp of spots) link.links.push({ ...sp, g })
@@ -381,6 +385,9 @@ function quizWalk(p) {
     hint: rules.length ? { latex: rules.slice(0, 2).join(' \\quad ') } : null,
     workSkip: quizWalkSkip,
     workWords: quizWalkWords,
+    // (a number from the question's math, f(x) = x/18, only where its role is plain: a limit,
+    // the bottom of a fraction, a named value; never a bare 18 the work reaches another way)
+    workSpot: (g, t) => g.occ.some(o => o.field !== 'math') || t.def || t.limit || t.call || t.bottom || !!t.sym,
     walk: { rows, says, looks, graphs, answerAt, first: p.start ? `**First move:** ${p.start}` : null, trap: p.trap ?? null, moreGivens: (rs, link) => quizWalkFractions(st.text, rs, link) },
   }
 }
@@ -657,17 +664,21 @@ function quizPickOptions(p) {
 // numbers: the other side (1 − the answer), a step on the way in the work, one of the part's
 // real mistakes (named by its trap when the trap says that number), or the same part's
 // answer with another story's numbers. Choices: the slip the option makes.
+// how a text may write a number: exactly (0.5199, .5199, 64.805), or rounded to 3 or 4
+// decimals (2 for one of 1 or more: 12.49); never so short it could be another number
 const quizSpellings = v => {
   const out = new Set()
   for (let d = 0; d <= 4; d++) {
-    const s = (Math.round(v * 10 ** d) / 10 ** d).toFixed(d)
+    const r = Math.round(v * 10 ** d) / 10 ** d
+    if (!(Math.abs(v - r) < 1e-9 || d >= 3 || (d === 2 && Math.abs(v) >= 1))) continue
+    const s = r.toFixed(d)
     out.add(s)
     out.add(String(+s))
     if (/^-?0\./.test(s)) out.add(s.replace(/^(-?)0\./, '$1.'))
   }
-  return [...out].filter(s => s.replace(/\D/g, '').replace(/^0+/, '').length >= 2 || Number.isInteger(+s))
+  return [...out]
 }
-const quizSays = (text, v) => quizSpellings(v).some(s => new RegExp(`(^|[^\\d.])${s.replace('.', '\\.').replace('-', '[-−]')}(?![\\d])`).test(text))
+const quizSays = (text, v) => quizSpellings(v).some(s => new RegExp(`(^|[^\\d.])${s.replace('.', '\\.').replace('-', '[-−]')}(?![\\d]|\\.\\d)`).test(text))
 function quizSlipNote(p, picked, opts) {
   const lab = picked.text ?? ''
   if (p.check.type !== 'number' || picked.num == null) {
@@ -803,17 +814,6 @@ function quizHowTo(p) {
 }
 
 // ---------- the level's card ----------
-// the quiz's own story, cut short: whole sentences up to about 220 characters (its math kept)
-function quizShortStory(text) {
-  const t = String(text ?? '').trim()
-  if (t.length <= 260 || /\\\[/.test(t)) return t
-  let cut = 0
-  for (const m of t.matchAll(/[.?!](?=\s)/g)) {
-    if (m.index > 220) break
-    cut = m.index + 1
-  }
-  return cut ? `${t.slice(0, cut)} …` : t
-}
 function quizLevelCard(short) {
   const { p } = QUIZ_LEVELS[short]
   screen = 'card'
@@ -825,7 +825,8 @@ function quizLevelCard(short) {
   sheet.append(h('div', 'eyebrow', `${p.section}${sec ? ' · ' + sec.title : ''} · Quiz question`))
   sheet.append(h('h2', '', short))
   const built = hwBuilt(p)
-  sheet.append(hwPara('hw-story', quizShortStory(built.text)))
+  // the quiz's own story (each is a few lines) and the parts it asks
+  sheet.append(hwPara('hw-story', built.text))
   const ul = h('ul', 'points qz-parts')
   for (const pt of built.parts) {
     const li = h('li')
@@ -855,7 +856,8 @@ function quizLevelCard(short) {
   // the quiz's own numbers, every part once: the other half of being ready
   const ownRow = h('div', 'row-actions qz-own')
   const ownBtn = hwBtn('', 'btn ghost', () => startRound(short, false, false, true))
-  ownBtn.append(document.createTextNode(`The quiz’s own numbers · ${quizLevelKinds(short, true).length} questions`), h('span', 'mode', 'the quiz as written'))
+  const nOwn = quizLevelKinds(short, true).length
+  ownBtn.append(document.createTextNode(`${quizOwnLabel(short)} · ${nOwn} ${nOwn === 1 ? 'question' : 'questions'}`), h('span', 'mode', 'the quiz as written'))
   ownRow.append(ownBtn)
   sheet.append(ownRow)
   // the older page: every part at once, on the quiz's own numbers

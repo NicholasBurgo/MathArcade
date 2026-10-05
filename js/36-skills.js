@@ -32,9 +32,13 @@ function skillRow(id, { open = false } = {}) {
   if (parts.length) {
     const chips = h('div', 'ready-levels')
     chips.append(h('span', 'skill-tag', 'Quiz'))
+    // (each opens its quiz question's level)
     for (const { p, pt } of parts) {
       const st = partStatus(hwRec(p.id, pt.label))
-      const b = hwBtn(`${hwName(p)}${pt.label ? ` (${pt.label})` : ''}`, 'tool skill-part ' + st, () => hwOpen(p.id, { focus: pt.label }))
+      const b = hwBtn(`${hwName(p)}${pt.label ? ` (${pt.label})` : ''}`, 'tool skill-part ' + st, () => {
+        closeOverlay()
+        openCard(quizLevelName(p))
+      })
       b.title = STATUS_TEXT[st]
       chips.append(b)
     }

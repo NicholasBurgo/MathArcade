@@ -46,10 +46,25 @@ nothing counts) and **Paper mode** (no list, type the answer, as on the real tes
 
 ### Quiz questions (the card at the bottom)
 
-The 16 possible quiz questions by section, cut to the parts the quiz lists: each part with
-a hint, an answer check and the steps one at a time; **New numbers** for the same question
-with a new story; and a timed **practice quiz** (one question per section, a short one, or
-one section).
+The 16 possible quiz questions by section, cut to the parts the quiz lists. Each one is a
+level of its own (outside the arcade's sections, reviews and challenge), with a card like
+the arcade's: the quiz's story and the parts it asks, videos, **Start**, **Quick round**,
+**Learn mode** and **Paper mode**.
+
+- A round asks the parts in the quiz's order (one question per number of a part with
+  several), each with a new story and new numbers. The uniform cdf is also asked in the
+  quiz's own letters.
+- Every part is a long dropdown: twelve numbers, or up to ten choices (the part's real
+  slips and its options with other numbers). A part to write out is asked on its key line.
+- After every answer, right or wrong, the part's steps play like the arcade's work: the
+  first move, the story's numbers flying into each row, the reason under each step, the
+  table and the graph, the answer boxed. A wrong pick says which slip it was, when known.
+- **The quiz's own numbers** runs every part once as the quiz writes it (no stars); **Old
+  view** is the earlier page with every part at once.
+
+A part counts toward readiness half for the quiz's own numbers and half for new numbers.
+The quiz screen also has **New numbers** per section and a timed **practice quiz** (one
+question per section, a short one, or one section).
 
 ### Tools
 
@@ -73,9 +88,9 @@ one section).
 
 - `index.html` — the page: its markup, then the styles and scripts below, in order.
 - `js/` — the game, one file per area (`02-sections-and-levels.js`, `14-question.js`,
-  `24-plug-panel.js`, …). They load in order as plain scripts and share one global scope:
-  a name defined at the top level of one file is visible in the others, so the order in
-  `index.html` matters.
+  `24-plug-panel.js`, …; the quiz questions' levels are `37b-quiz-levels.js`). They load
+  in order as plain scripts and share one global scope: a name defined at the top level
+  of one file is visible in the others, so the order in `index.html` matters.
 - `css/` — the styles, one file per area.
 - `homework/` — the quiz questions: `core.js` (skills, tables, helpers), the problem files
   (`g1-…js` to `g7-…js`, each problem worked step by step with a twin that has new numbers),

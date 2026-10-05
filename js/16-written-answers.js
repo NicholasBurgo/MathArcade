@@ -163,7 +163,7 @@ function finish() {
 
   view.replaceChildren()
   const sheet = h('section', 'sheet')
-  sheet.append(h('div', 'eyebrow', r.own ? 'Done · the quiz’s own numbers' : r.paper ? 'Level cleared · paper mode' : 'Level cleared'))
+  sheet.append(h('div', 'eyebrow', r.own ? `Done · ${quizOwnLabel(r.short).replace(/^The/, 'the')}` : r.paper ? 'Level cleared · paper mode' : 'Level cleared'))
   sheet.append(h('h2', '', r.short))
   const st = h('div', 'result-stars')
   for (let i = 0; i < 3; i++) {
@@ -181,7 +181,7 @@ function finish() {
   tally.append(cell('best streak', String(r.best)), cell('first-try misses', String(r.misses)))
   sheet.append(tally)
   const msg = r.own
-    ? (r.misses === 0 ? 'Every part right the first time, on the quiz’s own numbers. Now make sure it holds with new numbers.' : 'Watch the work on the ones you missed, then try them with new numbers.')
+    ? (r.misses === 0 ? 'Every part right the first time, as the quiz writes it. Now make sure it holds with new numbers.' : 'Watch the work on the ones you missed, then try them with new numbers.')
     : r.quick ? (stars === 2 ? 'Clean quick round. A full round with no misses gets the third star.' : 'Quick round done. Watch the animations on the ones you missed, then go again.') : stars === 3 ? 'Clean sheet. Every answer right the first time.' : stars === 2 ? 'Good run. One with no misses gets the third star.' : 'Cleared. Run it again: the questions change every time.'
   sheet.append(h('p', 'note', msg + (!r.own && stars > prev && prev ? ' New best!' : '')))
   const acts = h('div', 'row-actions')
