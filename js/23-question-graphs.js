@@ -3,6 +3,9 @@
 // ---------- graphs for Worlds 1–4: read the distribution off the question ----------
 // A graph is drawn only when one distribution, with numbers taken from the question,
 // reproduces the question's own answer. If nothing (or more than one) does, no graph.
+// A question that writes out its own pdf (a formula, a table, a pdf or cdf in cases) is
+// drawn from that pdf, once it adds or integrates to 1, with the asked part shaded only
+// when its area is the answer; a gamma or exponential the work names is drawn too.
 const erf = x => {
   const sgn = Math.sign(x), a = Math.abs(x), t = 1 / (1 + 0.3275911 * a)
   return sgn * (1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-a * a))
@@ -364,6 +367,184 @@ function statsGraph(p) {
   return { kind: 'curve', title: `uniform · A = ${A}, B = ${B}`, lo: A - 0.2 * w, hi: B + 0.2 * w, pdf: x => (x >= A && x <= B ? 1 / w : 0), flat: [A, B], marks: [(A + B) / 2], ticks: [A, (A + B) / 2, B], note: `the mean (A + B)/2 = ${fmt((A + B) / 2)} is marked` }
 }
 
+// ---------- a pdf the question writes out ----------
+// A discrete pdf (a formula on a list of x values, or a table), or a continuous pdf or cdf
+// in cases. A constant (c) comes from the answer when it is asked for, else from the work
+// ("c = 3/4 = 0.75"). Only when the pdf adds (or integrates) to 1.
+function questionPdf(p) {
+  const latex = (p.latex ?? '').replace(/\s+/g, ' ')
+  const work = workOf(p) ?? ''
+  // the constant: asked for, or solved for in the work
+  let cVal = null
+  if (/(?:^|[^a-zA-Z\\])c = \\,\?/.test(latex) && typeof p.answer === 'number') cVal = p.answer
+  else if (work) {
+    for (const row of workRows(work)) {
+      if (/(?:^|\\;|\s)c\s*$/.test(row[0] ?? '') && row.length > 1) {
+        const v = workTexValue(row[row.length - 1].replace(/^\s*(?:=|\\approx)\s*/, ''))
+        if (v != null) cVal = v
+      }
+    }
+  }
+  const fnOf = src => {
+    const vars = /(?:^|[^a-zA-Z\\])c(?![a-zA-Z])/.test(src.replace(/\\[a-zA-Z]+/g, ' ')) ? ['x', 'c'] : ['x']
+    if (vars.includes('c') && cVal == null) return null
+    const f = workTexFn(src, vars)
+    return f ? x => f({ x, c: cVal }) : null
+  }
+  const num1 = s => workTexValue(s.trim())
+  let m
+  // a table: x & … \\ \hline f(x) & …
+  if ((m = /\\begin\{array\}\{[^}]*\} ?x &(.*?)\\\\ ?\\hline ?f\(x\) &(.*?)\\end\{array\}/.exec(latex))) {
+    const xs = m[1].split('&').map(num1), fs = m[2].split('&').map(num1), spelled = m[2].split('&').map(s => s.trim())
+    if (xs.length !== fs.length || xs.some(v => v == null) || fs.some(v => v == null)) return null
+    if (!close(fs.reduce((a, b) => a + b, 0), 1, 1e-6)) return null
+    const at = x => xs.indexOf(x)
+    return { kind: 'discrete', finite: true, xs, f: x => (at(x) >= 0 ? fs[at(x)] : 0), fTex: x => spelled[at(x)], common: null }
+  }
+  // a formula on a list: f(x) = …, \quad x = 1, 2, 3(, \ldots)
+  if ((m = /^(?:\\begin\{gathered\} )?f\(x\) = (.+?), \\quad x = ((?:-?\d+, )+(?:-?\d+|\\ldots))/.exec(latex))) {
+    const f = fnOf(m[1])
+    if (!f) return null
+    const list = m[2].split(', ')
+    const finite = list[list.length - 1] !== '\\ldots'
+    const start = +list[0]
+    const xs = finite ? list.map(Number) : Array.from({ length: 400 }, (_, i) => start + i)
+    const total = xs.reduce((a, x) => a + f(x), 0)
+    if (!close(total, 1, 1e-6) || xs.some(x => !(f(x) >= -1e-12))) return null
+    // a common bottom: f(x) = \frac{top}{D}
+    const fr = /^\\t?d?frac\{([^{}]+)\}\{(\d+)\}$/.exec(m[1].trim())
+    const top = fr ? workTexFn(fr[1], ['x']) : null
+    const fTex = x => (top ? `\\tfrac{${num(top({ x }))}}{${fr[2]}}` : num(f(x), 4))
+    return { kind: 'discrete', finite, xs, f, fTex, common: top ? +fr[2] : null, top: top ? x => top({ x }) : null }
+  }
+  // cases: the middle piece of a pdf or a cdf, and where it lives
+  const cases = /^(?:\\begin\{gathered\} )?([fF])\(x\) = \\begin\{cases\} (.+?) \\end\{cases\}/.exec(latex)
+  if (!cases) return null
+  const pieces = cases[2].split(' \\\\ ').map(s => s.split(' & ').map(x => x.trim()))
+  const where = cond => {
+    let k
+    if ((k = /^(-?\d*\.?\d+) \\le x \\le (-?\d*\.?\d+)$|^(-?\d*\.?\d+) < x < (-?\d*\.?\d+)$|^(-?\d*\.?\d+) \\le x < (-?\d*\.?\d+)$/.exec(cond))) return [+(k[1] ?? k[3] ?? k[5]), +(k[2] ?? k[4] ?? k[6])]
+    if ((k = /^x (?:>|\\ge) (-?\d*\.?\d+)$/.exec(cond))) return [+k[1], Infinity]
+    return null
+  }
+  if (cases[1] === 'f') {
+    if (pieces.length !== 2 || pieces[1][0] !== '0') return null
+    const sup = where(pieces[0][1])
+    const f = fnOf(pieces[0][0])
+    if (!sup || !f) return null
+    const pdf = x => (x >= sup[0] && x <= sup[1] ? f(x) : 0)
+    const hi = Number.isFinite(sup[1]) ? sup[1] : null
+    return pdfCheck({ kind: 'cont', lo: sup[0], hi, pdf })
+  }
+  // a cdf: 0 before, the middle piece, 1 after (or no "after")
+  const mid = pieces.find(pc => pc[0] !== '0' && pc[0] !== '1')
+  const sup = mid && where(mid[1])
+  const F = mid && fnOf(mid[0])
+  if (!sup || !F) return null
+  const cdf = x => (x < sup[0] ? 0 : x > sup[1] ? 1 : F(x))
+  const h = 1e-5
+  const pdf = x => (x < sup[0] || x > sup[1] ? 0 : (F(Math.min(sup[1], x + h)) - F(Math.max(sup[0], x - h))) / (Math.min(sup[1], x + h) - Math.max(sup[0], x - h)))
+  return pdfCheck({ kind: 'cdf', lo: sup[0], hi: Number.isFinite(sup[1]) ? sup[1] : null, pdf, cdf })
+}
+// a continuous pdf must be ≥ 0 and have area 1 (Simpson's rule; an open top is cut where
+// almost all the area is)
+function pdfCheck(d) {
+  const top = d.hi ?? (() => {
+    let x = Math.max(1, d.lo + 1)
+    while (pdfArea(d.pdf, d.lo, x) < 0.9995 && x < 1e4) x *= 1.5
+    return x
+  })()
+  const area = pdfArea(d.pdf, d.lo, top)
+  if (!close(area, 1, 2e-3)) return null
+  for (let k = 0; k <= 50; k++) if (d.pdf(d.lo + ((top - d.lo) * k) / 50) < -1e-9) return null
+  return { ...d, top, area: (a, b) => pdfArea(d.pdf, Math.max(a, d.lo), Math.min(b, top)) }
+}
+function pdfArea(f, a, b, n = 400) {
+  if (!(b > a)) return 0
+  const hh = (b - a) / n
+  let s = f(a) + f(b)
+  for (let k = 1; k < n; k++) s += f(a + k * hh) * (k % 2 ? 4 : 2)
+  return (s * hh) / 3
+}
+// the graph of a pdf the question writes out, with the part it asks about
+function formulaGraph(p) {
+  const pdf = questionPdf(p)
+  if (!pdf) return null
+  const latex = (p.latex ?? '').replace(/\s+/g, ' ')
+  const ans = typeof p.answer === 'number' ? p.answer : null
+  // the P(…) asked about (a question may state another one first: P(X < 2) = 0.25)
+  const asked = /P\(((?:[^()]|\([^()]*\))*)\) = \\,\?/.exec(latex)
+  let r = asked ? regionOf(`P(${asked[1]})`) : null
+  const Fat = /F\((-?\d*\.?\d+)\) = \\,\?/.exec(latex)
+  if (!r && Fat) r = { v: 'X', parts: [{ lo: -Infinity, hi: +Fat[1], loIn: false, hiIn: true }] }
+  const asksMean = /(?:E\[X\]|E\(X\)) = \\,\?/.test(latex)
+  const asksC = /(?:^|[^a-zA-Z\\])c = \\,\?/.test(latex)
+  if (r && r.v !== 'X') return null
+  if (pdf.kind === 'discrete') {
+    let xs = pdf.xs
+    if (!pdf.finite) {
+      let cum = 0, k = 0
+      while (cum < 0.995 && k < xs.length) cum += pdf.f(xs[k++])
+      xs = xs.slice(0, Math.max(k, 4))
+      for (const q of r?.parts ?? []) for (const e of [q.lo, q.hi]) if (Number.isFinite(e)) while (xs[xs.length - 1] < e + 1) xs.push(xs[xs.length - 1] + 1)
+    }
+    const hits = r ? xs.filter(x => inRegion(r, x)) : []
+    if (r) {
+      if (ans == null || !close(areaDisc(r, pdf.f, pdf.xs[0], pdf.finite ? pdf.xs[pdf.xs.length - 1] : Infinity), ans, 0.006)) return null
+    }
+    // (the mean only when the bars' own balance point is the answer)
+    const mean = pdf.xs.reduce((a, x) => a + x * pdf.f(x), 0)
+    const meanOk = asksMean && ans != null && close(mean, ans, 1e-3 * Math.max(1, Math.abs(ans)))
+    const note = r ? `lit: ${regionText(r)} ${shown4(ans)}` : meanOk ? `the mean μ = ${fmt(ans)} is the balance point of the bars` : asksC && ans != null ? `with c = ${fmt(ans)}, the bars add to 1` : 'the bars add to 1'
+    return { kind: 'bars', title: 'f(x) from the question', xs, ys: xs.map(pdf.f), hits: new Set(hits), note }
+  }
+  // continuous: the support with a margin, the asked area shaded
+  const w = pdf.top - pdf.lo
+  const lo = pdf.lo - 0.15 * w, hi = pdf.top + (pdf.hi == null ? 0 : 0.15 * w)
+  let shades = [], marks = [], note
+  if (r) {
+    if (ans == null) return null
+    const area = r.parts.reduce((s, q) => s + pdf.area(q.lo, q.hi), 0)
+    if (!close(area, ans, 0.006)) return null
+    shades = r.parts.map(q => [Math.max(q.lo, lo), Math.min(q.hi, hi)])
+    note = `shaded: ${regionText(r)} ${shown4(ans)}`
+  } else if (asksMean && ans != null && ans > lo && ans < hi && close(pdfArea(x => x * pdf.pdf(x), pdf.lo, pdf.top), ans, 2e-3 * Math.max(1, Math.abs(ans)))) {
+    marks = [ans]
+    note = `the mean μ = ${fmt(ans)} is the balance point of the curve`
+  } else {
+    shades = [[pdf.lo, pdf.top]]
+    note = asksC && ans != null ? `with c = ${fmt(ans)}, the whole area is 1` : 'the whole area under f is 1'
+  }
+  const ticks = [...new Set([pdf.lo, ...(pdf.hi != null ? [pdf.hi] : []), ...shades.flat().filter(Number.isFinite), ...marks].map(x => +(+x).toFixed(6)))]
+  return { kind: 'curve', title: pdf.kind === 'cdf' ? 'the pdf f(x) = F′(x), from the question’s F' : 'the pdf f(x) from the question', lo, hi, pdf: pdf.pdf, shades, marks, ticks, note }
+}
+// a gamma the work names (α = 3, β = 2): the curve, with its mean marked
+function gammaWorkGraph(p) {
+  const m = /\\alpha = (\d+),\\;\s*\\beta = (\\tfrac\{1\}\{(\d+)\}|\d+(?:\.\d+)?)/.exec(workOf(p) ?? '')
+  if (!m) return null
+  const a = +m[1], b = m[3] ? 1 / +m[3] : +m[2]
+  const mean = a * b, sd = Math.sqrt(a) * b
+  const say = m[3] ? `1/${m[3]}` : fmt(b)
+  return { kind: 'curve', title: `gamma · α = ${a}, β = ${say}`, lo: 0, hi: mean + 4 * sd, pdf: x => gammaPdf(x, a, b), marks: [mean], ticks: [0, +mean.toFixed(6)], note: `the mean αβ = ${fmt(mean)} is marked` }
+}
+// an exponential pdf the work names (λ = 1/20, or λ = 0.25)
+function expWorkGraph(p) {
+  if (!saysRate(p)) return null
+  const m = /\\lambda = (\\tfrac\{1\}\{(\d+)\}|\d*\.?\d+)/.exec(workOf(p) ?? '')
+  if (!m) return null
+  const lam = m[2] ? 1 / +m[2] : +m[1]
+  if (!(lam > 0)) return null
+  return { kind: 'curve', title: expTitle(p, lam), lo: 0, hi: -Math.log(0.01) / lam, pdf: x => (x < 0 ? 0 : lam * Math.exp(-lam * x)), marks: [1 / lam], ticks: [0, +(1 / lam).toFixed(6)], note: `f(x) = λe^(−λx) starts at height λ = ${fmt(lam)}; the mean β = 1/λ = ${fmt(1 / lam)} is marked` }
+}
+// a lettered question about a uniform's height: the rectangle of area 1
+function uniformHeightGraph(p) {
+  const m = /\\int_\{(-?\d*\.?\d+)\}\^\{(-?\d*\.?\d+)\} c\\,dx/.exec(p.answerLatex ?? '')
+  if (!m || !saysUniform(p)) return null
+  const A = +m[1], B = +m[2], w = B - A
+  if (!(w > 0)) return null
+  return { kind: 'curve', title: `uniform · A = ${A}, B = ${B}`, lo: A - 0.2 * w, hi: B + 0.2 * w, pdf: x => (x >= A && x <= B ? 1 / w : 0), flat: [A, B], shades: [[A, B]], ticks: [A, B], note: `height c = 1/(B − A) = 1/${fmt(w)}: width ${fmt(w)} × height 1/${fmt(w)} = area 1` }
+}
+
 // a question that writes out its own pdf, cdf or table is not one of the named distributions
 const ownsPdf = p => /\\begin\{cases\}|\\begin\{array\}|\\int|[fF]\(x\) =/.test(p.latex ?? '') || !p.text
 const saysUniform = p => /equally likely|uniform/i.test(p.text ?? '')
@@ -378,20 +559,21 @@ function answerRegion(p) {
   return null
 }
 function inferGraph(p, level) {
-  if (p.options || p.leaf) return null
-  const r = regionOf(p.latex) ?? answerRegion(p)
+  if (p.leaf) return null
   try {
+    if (p.options) return uniformHeightGraph(p) ?? formulaGraph(p)
+    const r = regionOf(p.latex) ?? answerRegion(p)
     if (level === 'Binomial table') return binomialTableGraph(p, r)
     if (level === 'Chi-squared table') return chiGraph(p, r)
     if (level === 'Normal table' || level === 'Normal word problems') return normalGraph(p, r)
     if (/\\chi/.test(p.latex ?? '')) return chiGraph(p, r)
-    if (ownsPdf(p)) return null
+    if (ownsPdf(p)) return formulaGraph(p) ?? gammaWorkGraph(p) ?? expWorkGraph(p)
     if (r && typeof p.answer === 'number') {
       if (r.v === 'Z' || /μ = /.test(p.text ?? '')) return normalGraph(p, r)
       if (saysUniform(p) || r.v === 'W') return continuousGraph(p, r)
       return discreteGraph(p, r)
     }
-    return statsGraph(p)
+    return statsGraph(p) ?? expWorkGraph(p)
   } catch {
     return null
   }

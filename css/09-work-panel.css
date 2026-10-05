@@ -1,0 +1,24 @@
+/* css/09-work-panel.css · the work panel (js/31-work-panel.js): rows, side work, lookups */
+/* a number read off a printed table, in the work and in flight: amber, like the table's hit cell */
+:root { --pvt: #a16207; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --pvt: #fbbf24; } }
+:root[data-theme="dark"] { --pvt: #fbbf24; }
+.pvt, .pvt0, .pvt1 { color: var(--pvt); fill: var(--pvt); }
+/* one row of the work: what it reads first, the row, its side work, its reason */
+.work-row { margin: 2px 0 4px; }
+.work-side:empty { display: none; }
+.work-side { margin: 0 0 4px; }
+.work-piece { margin: 2px 0 4px 14px; }
+.work-piece .piece-label { margin-top: 4px; }
+.work-piece .plug-line.work { font-size: 0.9em; }
+.work-side .tlook { margin: 6px 0 6px 14px; }
+.work-tail:empty { display: none; }
+/* the boxed answer glows like World 0's */
+.work-panel .plug-line.bump { animation: bump 0.35s ease-out; }
+@media (max-width: 520px) {
+  .work-piece, .work-side .tlook { margin-left: 4px; }
+  .plug-chip { font-size: 0.88rem; padding: 2px 8px; gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .work-panel .plug-line.enter, .work-panel .plug-line.bump { animation: none; }
+}
