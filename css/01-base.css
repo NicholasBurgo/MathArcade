@@ -1,0 +1,76 @@
+:root {
+  --paper: #edf4ea;
+  --sheet: #f8fbf6;
+  --ink: #17241c;
+  --muted: #5a6a5f;
+  --rule: #2e7d4f;
+  --rule-soft: #cfe3d3;
+  --graphite: #343b36;
+  --on-graphite: #f8fbf6;
+  --gold: #c98407;
+  --gold-soft: #fbe7bc;
+  --red: #c8392f;
+  --red-soft: #f7dad6;
+  --green: #1d8a4b;
+  --green-soft: #d3eedb;
+  --shadow: 0 1px 0 rgba(23, 36, 28, 0.06), 0 8px 24px -12px rgba(23, 36, 28, 0.25);
+  --display: 'Big Shoulders Display', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+  --body: 'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #0f1612;
+    --sheet: #17211b;
+    --ink: #e4eee6;
+    --muted: #93a598;
+    --rule: #63c28a;
+    --rule-soft: #26392c;
+    --graphite: #dce5de;
+    --on-graphite: #17211b;
+    --gold: #f0b43a;
+    --gold-soft: #3b2f12;
+    --red: #ff7d71;
+    --red-soft: #3d1f1b;
+    --green: #5fd394;
+    --green-soft: #173523;
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #0f1612;
+  --sheet: #17211b;
+  --ink: #e4eee6;
+  --muted: #93a598;
+  --rule: #63c28a;
+  --rule-soft: #26392c;
+  --graphite: #dce5de;
+  --on-graphite: #17211b;
+  --gold: #f0b43a;
+  --gold-soft: #3b2f12;
+  --red: #ff7d71;
+  --red-soft: #3d1f1b;
+  --green: #5fd394;
+  --green-soft: #173523;
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.5;
+  /* faint scantron rule lines */
+  background-image: repeating-linear-gradient(to bottom, transparent 0 31px, var(--rule-soft) 31px 32px);
+}
+button { font: inherit; color: inherit; }
+/* nothing here is meant to be selected: the S Pen side button drags would highlight text */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea { -webkit-user-select: text; user-select: text; }
+button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--rule); outline-offset: 2px; }
+
+.app { max-width: 720px; margin: 0 auto; padding-inline: 16px; padding-block: 12px 64px; }

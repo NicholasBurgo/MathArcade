@@ -1,0 +1,43 @@
+/* ---------- heads-up bar ---------- */
+.hud {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 10px 0;
+  background: var(--paper);
+  border-bottom: 2px solid var(--rule);
+}
+.wordmark {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--rule);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  margin-right: auto;
+}
+.stat { display: flex; align-items: baseline; gap: 6px; font-family: var(--mono); font-size: 0.85rem; color: var(--muted); }
+.stat b { font-family: var(--display); font-size: 1.35rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+.tools { display: flex; gap: 6px; }
+.tool {
+  border: 1.5px solid var(--rule);
+  background: var(--sheet);
+  color: var(--rule);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.tool[aria-pressed="true"] { background: var(--rule); color: var(--sheet); }

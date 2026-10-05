@@ -1,0 +1,38 @@
+/* ---------- written answers: paper mode and the boss ---------- */
+.written { display: grid; gap: 6px; margin-top: 14px; }
+.written label { font-family: var(--mono); font-size: 0.74rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--rule); }
+.answer-input {
+  width: 100%; padding: 11px 13px; font: inherit; font-size: 1.1rem;
+  color: var(--ink); background: var(--paper);
+  border: 1.5px solid var(--rule-soft); border-radius: 10px;
+}
+.answer-input:focus { outline: 3px solid var(--rule); outline-offset: 1px; border-color: var(--rule); }
+.preview { min-height: 1.6em; color: var(--muted); font-size: 0.95rem; overflow-x: auto; }
+.paper-note { margin: 0; color: var(--muted); font-size: 0.95rem; }
+.verdict { margin-top: 12px; padding: 9px 13px; border-radius: 10px; font-weight: 700; }
+.verdict.ok { background: var(--green-soft); color: var(--green); }
+.verdict.bad { background: var(--red-soft); color: var(--red); }
+.reveal-box { margin-top: 12px; padding: 12px 14px; border-left: 4px solid var(--rule); background: var(--paper); border-radius: 0 10px 10px 0; }
+.reveal-box h3 { margin: 6px 0 2px; font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rule); }
+.reveal-box h3:first-child { margin-top: 0; }
+.reveal-box p { margin: 4px 0; }
+.mode { display: block; font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; opacity: 0.85; }
+.boss-nav { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
+.boss-nav button {
+  width: 30px; height: 36px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 2px solid var(--rule-soft); background: var(--sheet); color: var(--muted);
+  font-family: var(--mono); font-size: 0.7rem; font-weight: 600;
+}
+.boss-nav button.done { background: var(--graphite); border-color: var(--graphite); color: var(--on-graphite); }
+.boss-nav button.here { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft); }
+.clock { font-family: var(--display); font-size: 1.6rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink); }
+.toggle[aria-pressed="true"] { background: var(--graphite); border-color: var(--graphite); color: var(--on-graphite); }
+.review-item { padding: 16px 0; border-top: 1.5px dashed var(--rule-soft); }
+.review-item h4 { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rule); }
+.review-item h4 .mark { margin-left: auto; padding: 2px 9px; border-radius: 999px; font-size: 0.72rem; }
+.mark.ok { background: var(--green-soft); color: var(--green); }
+.mark.bad { background: var(--red-soft); color: var(--red); }
+.mark.todo { background: var(--gold-soft); color: var(--gold); }
+.wrote { font-family: var(--mono); font-size: 0.9rem; margin: 6px 0; }
+.score-line { position: sticky; top: 64px; z-index: 2; margin: 0 0 8px; padding: 8px 12px; border-radius: 10px; background: var(--gold-soft); color: var(--ink); font-weight: 700; }
+.redo { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
