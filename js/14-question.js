@@ -6,6 +6,8 @@ function showQuestion() {
   const q = round.queue[round.at]
   q.seen++
   if (q.p.buildIt && !round.paper) q.p = buildAsOne(q.p)
+  // (a quiz question that comes back, missed or skipped, comes back with new numbers)
+  if (q.seen > 1 && q.p.quizLevel && q.p.twin) q.p = q.p.another()
   const p = q.p
   view.replaceChildren()
   const sheet = h('section', 'sheet')

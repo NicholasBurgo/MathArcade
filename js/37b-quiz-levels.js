@@ -67,7 +67,9 @@ for (const p of hwOrder()) {
 function quizLevelSlice(short, kind) {
   const { p, label, item, mode } = kind
   const quizOwn = hwBuilt(p)
-  let built = mode === 'twin' && p.twin ? quizLevelTry(() => p.make(p.twin()), null) : null
+  // (new numbers: a twin that fails to build is tried again)
+  let built = null
+  for (let i = 0; i < 3 && !built && mode === 'twin' && p.twin; i++) built = quizLevelTry(() => p.make(p.twin()), null)
   let pt = built?.parts.find(x => x.label === label)
   if (!pt || (item != null && !pt.check.items?.[item])) {
     built = quizOwn
