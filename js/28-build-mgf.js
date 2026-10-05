@@ -297,12 +297,29 @@ const BUILDS = {
       name: 'Gamma',
       pdf: R`f(x) = \frac{x^{\alpha-1}e^{-x/\beta}}{\Gamma(\alpha)\beta^{\alpha}}, \quad x > 0`,
       lines: [
-        { move: 'setup', tex: R`\int_0^{\infty} \HL{e^{tx}}\,\frac{x^{\alpha-1}e^{-x/\beta}}{\Gamma(\alpha)\beta^{\alpha}}\,dx`, why: 'e^(tx) times the pdf, integrated over x > 0' },
-        { move: 'combine', tex: R`\HL{\frac{1}{\Gamma(\alpha)\beta^{\alpha}}}\int_0^{\infty} x^{\alpha-1}e^{\HL{-x(1-\beta t)/\beta}}\,dx`, why: 'Pull out the constant; then tx − x/β = −x(1 − βt)/β' },
-        { move: 'gamma', tex: R`\frac{1}{\Gamma(\alpha)\beta^{\alpha}}\cdot\HL{\Gamma(\alpha)\Big(\frac{\beta}{1-\beta t}\Big)^{\alpha}}`, why: 'Gamma integral, with β/(1 − βt) in the place of β' },
-        { move: 'tidy', tex: R`\Big(\frac{1}{1-\beta t}\Big)^{\alpha} = \HL{(1-\beta t)^{-\alpha}}`, why: 'Γ(α) cancels, and so does β^α' },
+        { move: 'setup', tex: R`\int_0^{\infty} \HL{e^{tx}}\,\frac{x^{\alpha-1}e^{-x/\beta}}{\Gamma(\alpha)\beta^{\alpha}}\,dx`, why: 'e^(tx) times the pdf, integrated over x > 0',
+          slips: [R`\int_0^{\infty} e^{t}\,\frac{x^{\alpha-1}e^{-x/\beta}}{\Gamma(\alpha)\beta^{\alpha}}\,dx`, R`\int_0^{\infty} x\,\frac{x^{\alpha-1}e^{-x/\beta}}{\Gamma(\alpha)\beta^{\alpha}}\,dx`, R`\sum_{x=0}^{\infty} e^{tx}\,\frac{x^{\alpha-1}e^{-x/\beta}}{\Gamma(\alpha)\beta^{\alpha}}`, R`\int_0^{\infty} e^{tx}\,x^{\alpha-1}e^{-x/\beta}\,dx`] },
+        { move: 'combine', tex: R`\HL{\frac{1}{\Gamma(\alpha)\beta^{\alpha}}}\int_0^{\infty} x^{\alpha-1}e^{\HL{-x(1-\beta t)/\beta}}\,dx`, why: 'Pull out the constant; then tx − x/β = −x(1 − βt)/β',
+          slips: [R`\frac{1}{\Gamma(\alpha)\beta^{\alpha}}\int_0^{\infty} x^{\alpha-1}e^{-x(1+\beta t)/\beta}\,dx`, R`\frac{1}{\Gamma(\alpha)\beta^{\alpha}}\int_0^{\infty} x^{\alpha-1}e^{-x(1-t)/\beta}\,dx`, R`\frac{1}{\Gamma(\alpha)\beta^{\alpha}}\int_0^{\infty} x^{\alpha}e^{-x(1-\beta t)/\beta}\,dx`, R`\frac{1}{\Gamma(\alpha)\beta^{\alpha}}\int_0^{\infty} x^{\alpha-1}e^{-tx^2/\beta}\,dx`] },
+        { move: 'gamma', tex: R`\frac{1}{\Gamma(\alpha)\beta^{\alpha}}\cdot\HL{\Gamma(\alpha)\Big(\frac{\beta}{1-\beta t}\Big)^{\alpha}}`, why: 'Gamma integral, with β/(1 − βt) in the place of β',
+          slips: [R`\frac{1}{\Gamma(\alpha)\beta^{\alpha}}\cdot\Gamma(\alpha)\beta^{\alpha}`, R`\frac{1}{\Gamma(\alpha)\beta^{\alpha}}\cdot\Gamma(\alpha)\Big(\frac{1-\beta t}{\beta}\Big)^{\alpha}`, R`\frac{1}{\Gamma(\alpha)\beta^{\alpha}}\cdot\Gamma(\alpha+1)\Big(\frac{\beta}{1-\beta t}\Big)^{\alpha}`, R`\frac{1}{\Gamma(\alpha)\beta^{\alpha}}\cdot\Gamma(\alpha)\Big(\frac{\beta}{1+\beta t}\Big)^{\alpha}`] },
+        { move: 'tidy', tex: R`\Big(\frac{1}{1-\beta t}\Big)^{\alpha} = \HL{(1-\beta t)^{-\alpha}}`, why: 'Γ(α) cancels, and so does β^α',
+          slips: [R`\Big(\frac{1}{1-\beta t}\Big)^{\alpha} = (1-\beta t)^{\alpha}`, R`\Big(\frac{1}{1+\beta t}\Big)^{\alpha} = (1+\beta t)^{-\alpha}`, R`\Big(\frac{\beta}{1-\beta t}\Big)^{\alpha} = \beta^{\alpha}(1-\beta t)^{-\alpha}`, R`\Big(\frac{1}{1-t/\beta}\Big)^{\alpha} = (1-t/\beta)^{-\alpha}`] },
       ],
-      exist: { upto: 2, tex: R`t < \frac{1}{\beta}`, why: 'β/(1 − βt) must be positive: 1 − βt > 0' },
+      exist: { upto: 2, tex: R`t < \frac{1}{\beta}`, why: 'β/(1 − βt) must be positive: 1 − βt > 0', slips: [R`t > \frac{1}{\beta}`, R`t < \beta`, R`t \ne \frac{1}{\beta}`, R`t < 0`] },
+      // then the notes' next example: the mean and variance from this MGF
+      use: [
+        { own: true, move: 'diff', tex: R`m_X'(t) = \alpha\beta(1-\beta t)^{-\alpha-1}`, why: 'The power −α comes down, times −β from inside',
+          slips: [R`m_X'(t) = -\alpha\beta(1-\beta t)^{-\alpha-1}`, R`m_X'(t) = \alpha(1-\beta t)^{-\alpha-1}`, R`m_X'(t) = \alpha\beta(1-\beta t)^{-\alpha+1}`] },
+        { own: true, move: 'zero', tex: R`E[X] = m_X'(0) = \alpha\beta`, why: 'Put in t = 0: the base is 1',
+          slips: [R`E[X] = m_X'(0) = \alpha`, R`E[X] = m_X'(0) = \beta`, R`E[X] = m_X'(0) = \alpha\beta^2`] },
+        { own: true, move: 'diff', tex: R`m_X''(t) = \alpha(\alpha+1)\beta^2(1-\beta t)^{-\alpha-2}`, why: 'Again: −(α + 1) comes down, times −β from inside',
+          slips: [R`m_X''(t) = \alpha(\alpha+1)\beta(1-\beta t)^{-\alpha-2}`, R`m_X''(t) = \alpha^2\beta^2(1-\beta t)^{-\alpha-2}`, R`m_X''(t) = \alpha(\alpha-1)\beta^2(1-\beta t)^{-\alpha-2}`] },
+        { own: true, move: 'zero', tex: R`E[X^2] = m_X''(0) = \alpha(\alpha+1)\beta^2`, why: 'Put in t = 0',
+          slips: [R`E[X^2] = m_X''(0) = \alpha^2\beta^2`, R`E[X^2] = m_X''(0) = \alpha(\alpha+1)\beta`, R`E[X^2] = m_X''(0) = \alpha\beta^2`] },
+        { own: true, move: 'var', tex: R`\operatorname{Var}X = \alpha(\alpha+1)\beta^2 - (\alpha\beta)^2 = \alpha\beta^2`, why: 'Var = E[X²] − (E[X])²: the α²β² cancels',
+          slips: [R`\operatorname{Var}X = m_X''(0) = \alpha(\alpha+1)\beta^2`, R`\operatorname{Var}X = \alpha^2\beta^2`, R`\operatorname{Var}X = \alpha\beta`] },
+      ],
     }
   },
   chi() {
@@ -335,13 +352,13 @@ const BUILDS = {
 // is not the course's geometric, and no quiz or homework problem has one)
 const MGF_BUILDS = [
   () => BUILDS.table(pickOne(TABLES)),
-  () => BUILDS.formula(pickOne(FINITES)),
   () => BUILDS.geo(),
   () => BUILDS.geoN(pickOne(PQS)),
   () => BUILDS.e1(),
   () => BUILDS.expB(Math.random() < 0.5 ? null : { b: pickOne([2, 3, 4, 5, 10]) }),
   () => BUILDS.expL(Math.random() < 0.5 ? null : { l: pickOne([2, 3, 5]) }),
   () => BUILDS.uni(Math.random() < 0.5 ? null : pickOne(UNIS)),
+  () => BUILDS.gamma(),
 ]
 // "X has this MGF: which distribution?", answered from World 0's list, with the MGF read on a right answer
 const mgfName = () => treeProblem(pickOne(MGF_LEAVES), true, { mgf: true })
@@ -371,18 +388,19 @@ const mgfBuildProblem = (make = pickOne(MGF_BUILDS), b = make()) => ({
   buildIt: true,
   mgf: { build: b, at: null },
 })
-// six builds (no two alike in a row) and two MGFs to name, mixed
+// a round shaped like the test (study guide and notes): the geometric MGF; e^(−x) or an
+// exponential, then its mean and variance; one more continuous or a pdf table; the gamma,
+// then its mean and variance; and one MGF to name. Longer rounds add random builds.
+const MGF_SLOTS = [
+  () => (Math.random() < 0.5 ? BUILDS.geo() : BUILDS.geoN(pickOne(PQS))),
+  () => (Math.random() < 0.5 ? BUILDS.e1() : BUILDS.expL({ l: pickOne([2, 3, 5]) })),
+  () => pickOne([() => BUILDS.expB(Math.random() < 0.5 ? null : { b: pickOne([2, 3, 4, 5, 10]) }), () => BUILDS.uni(Math.random() < 0.5 ? null : pickOne(UNIS)), () => BUILDS.table(pickOne(TABLES))])(),
+  () => BUILDS.gamma(),
+]
 function mgfRound(n) {
-  const out = []
-  let last = -1
-  for (let k = 0; k < n - 2; k++) {
-    let i
-    do i = Math.floor(Math.random() * MGF_BUILDS.length)
-    while (i === last)
-    last = i
-    out.push(mgfBuildProblem(MGF_BUILDS[i]))
-  }
-  return shuffleArr([...out, mgfName(), mgfName()])
+  const builds = MGF_SLOTS.slice(0, Math.max(0, n - 1)).map(make => mgfBuildProblem(make))
+  while (builds.length < n - 1) builds.push(mgfBuildProblem())
+  return shuffleArr([...builds, mgfName()])
 }
 // A build asked a line at a time: an MGF from its pdf, or (from the engine) a pdf
 // derived the way the test writes it. Lines with slips are asked in order, up to the

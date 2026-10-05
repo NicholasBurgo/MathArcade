@@ -140,16 +140,17 @@ const SECTION_TITLES = Object.fromEntries((window.HW?.SECTIONS ?? []).map(s => [
 // a level with nothing to ask (no engine kind, no problem to cut parts from) is left out
 const playable = short => LEVELS[short].kinds.some(k => KIND[k]) || LEVELS[short].parts.some(([id]) => (window.HW?.problems ?? []).some(p => p.id === id))
 const WORLDS = [
-  { name: 'Fundamentals', blurb: 'Every chapter: which distribution it is, its numbers, and where its MGF comes from.', levels: [TREE_LEVEL, PARAM_LEVEL, MGF_LEVEL] },
+  { name: 'Fundamentals', blurb: 'Every chapter: which distribution it is, and its numbers.', levels: [TREE_LEVEL, PARAM_LEVEL] },
   ...Object.entries(SECTION_LEVELS).map(([sec, levels]) => ({ sec, name: SECTION_TITLES[sec] ?? `Section ${sec}`, levels: Object.keys(levels).filter(playable) })),
 ].filter(w => w.levels.length)
 // the mixes: each chapter's levels, then every level, the fundamentals included
 const REVIEW = {
   'Chapter 3 review': WORLDS.filter(w => w.sec?.startsWith('3.')).flatMap(w => w.levels),
   'Chapter 4 review': WORLDS.filter(w => w.sec?.startsWith('4.')).flatMap(w => w.levels),
-  Everything: WORLDS.flatMap(w => w.levels),
+  Everything: [...WORLDS.flatMap(w => w.levels), MGF_LEVEL],
 }
-WORLDS.push({ name: 'Mixed', blurb: 'Each chapter, then everything at once: one question from every level.', levels: Object.keys(REVIEW) })
+// Build the MGF reviews every MGF on the test, so it waits until the sections are done
+WORLDS.push({ name: 'Mixed', blurb: 'Each chapter, every MGF on the test, then everything at once.', levels: ['Chapter 3 review', 'Chapter 4 review', MGF_LEVEL, 'Everything'] })
 const isReview = short => short in REVIEW
 // where a level sits: the fundamentals, its section, or the mixes
 const worldOf = short => WORLDS.find(w => w.levels.includes(short))
