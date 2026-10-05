@@ -4097,6 +4097,47 @@ window.MathJax = {
     return out || '0'
   }
 
+  // the mean and variance from the MGF of a table: m′(0) = Σ x f(x), m″(0) = Σ x² f(x)
+  function momentsOfTable(xs, f) {
+    const ex = xs.reduce((a, x, i) => a + x * f[i], 0), ex2 = xs.reduce((a, x, i) => a + x * x * f[i], 0)
+    const v = ex2 - ex * ex
+    // t = 1 put in where t = 0 belongs
+    const at1 = xs.reduce((a, x, i) => a + x * f[i] * Math.exp(x), 0), at1b = xs.reduce((a, x, i) => a + x * x * f[i] * Math.exp(x), 0)
+    const n = fmtN
+    // a slip that lands on the right value anyway is no slip
+    const differ = (right, list) => list.filter(([, val]) => Math.abs(val - right) > 1e-9).map(([t]) => t)
+    return [
+      { own: true, move: 'diff', tex: R`m_X'(t) = ${sumE(xs.map((x, i) => [x * f[i], x]))}`, why: 'Differentiate each term: e^(xt) gives x·e^(xt)',
+        slips: [R`m_X'(t) = ${sumE(xs.map((x, i) => [f[i], x]))}`, R`m_X'(t) = ${sumE(xs.map((x, i) => [x * f[i], x - 1]))}`, R`m_X'(t) = ${sumE(xs.map((x, i) => [x * x * f[i], x]))}`] },
+      { own: true, move: 'zero', tex: R`E[X] = m_X'(0) = ${n(ex)}`, why: 'At t = 0 every e is 1: this adds up x·f(x)',
+        slips: differ(ex, [[R`E[X] = m_X'(0) = 1`, 1], [R`E[X] = m_X'(0) = ${n(ex2)}`, ex2], [R`E[X] = m_X'(0) = ${n(ex * ex)}`, ex * ex], [R`E[X] = m_X'(0) = 0`, 0], [R`E[X] = m_X'(1) = ${n(at1)}`, at1]]) },
+      { own: true, move: 'zero', tex: R`E[X^2] = m_X''(0) = ${n(ex2)}`, why: 'Differentiate again and put in t = 0: this adds up x²·f(x)',
+        slips: differ(ex2, [[R`E[X^2] = m_X''(0) = ${n(ex)}`, ex], [R`E[X^2] = m_X''(0) = ${n(ex * ex)}`, ex * ex], [R`E[X^2] = m_X''(0) = ${n(2 * ex)}`, 2 * ex], [R`E[X^2] = m_X''(0) = 1`, 1], [R`E[X^2] = m_X''(1) = ${n(at1b)}`, at1b]]) },
+      { own: true, move: 'var', tex: R`\operatorname{Var}X = ${n(ex2)} - (${n(ex)})^2 = ${n(v)}`, why: 'Var = E[X²] − (E[X])². m″(0) alone is E[X²], not the variance',
+        slips: differ(v, [[R`\operatorname{Var}X = m_X''(0) = ${n(ex2)}`, ex2], [R`\operatorname{Var}X = ${n(ex2)} - ${n(ex)} = ${n(ex2 - ex)}`, ex2 - ex], [R`\operatorname{Var}X = (${n(ex)})^2 - ${n(ex2)} = ${n(ex * ex - ex2)}`, ex * ex - ex2], [R`\operatorname{Var}X = ${n(ex2)} + (${n(ex)})^2 = ${n(ex2 + ex * ex)}`, ex2 + ex * ex], [R`\operatorname{Var}X = (${n(ex2)})^2 = ${n(ex2 * ex2)}`, ex2 * ex2], [R`\operatorname{Var}X = \sqrt{${n(ex2)}} = ${n(Math.sqrt(ex2))}`, Math.sqrt(ex2)]]) },
+    ]
+  }
+  // the same for λ/(λ − t) (λ = 1 is the notes' 1/(1 − t)): E[X] = 1/λ, E[X²] = 2/λ², Var X = 1/λ²
+  function momentsOfRate(l) {
+    const L = String(l), L2 = l * l, L3 = l * l * l
+    const one = l === 1
+    const m1 = one ? R`\frac{1}{(1-t)^2}` : R`\frac{${L}}{(${L} - t)^2}`
+    const m2 = one ? R`\frac{2}{(1-t)^3}` : R`\frac{${2 * l}}{(${L} - t)^3}`
+    const inv = d => (d === 1 ? '1' : R`\frac{1}{${d}}`)
+    return [
+      { own: true, move: 'diff', tex: R`m_X'(t) = ${m1}`, why: `Write m(t) = ${one ? '' : L}(${L} − t)^(−1): the power comes down, times −1 from inside`,
+        slips: one ? [R`m_X'(t) = \frac{1}{1-t}`, R`m_X'(t) = -\frac{1}{(1-t)^2}`, R`m_X'(t) = \frac{2}{(1-t)^3}`] : [R`m_X'(t) = \frac{1}{(${L} - t)^2}`, R`m_X'(t) = -\frac{${L}}{(${L} - t)^2}`, R`m_X'(t) = \frac{${L}}{${L} - t}`] },
+      { own: true, move: 'zero', tex: R`E[X] = m_X'(0) = ${inv(l)}`, why: 'Put in t = 0',
+        slips: one ? [R`E[X] = m_X'(0) = 0`, R`E[X] = m_X'(0) = 2`, R`E[X] = m_X'(0) = -1`] : [R`E[X] = m_X'(0) = ${L}`, R`E[X] = m_X'(0) = \frac{1}{${L2}}`, R`E[X] = m_X'(0) = 1`] },
+      { own: true, move: 'diff', tex: R`m_X''(t) = ${m2}`, why: 'Again: the −2 comes down, times −1 from inside',
+        slips: one ? [R`m_X''(t) = \frac{1}{(1-t)^3}`, R`m_X''(t) = \frac{2}{(1-t)^2}`, R`m_X''(t) = -\frac{2}{(1-t)^3}`] : [R`m_X''(t) = \frac{${L}}{(${L} - t)^3}`, R`m_X''(t) = \frac{2}{(${L} - t)^3}`, R`m_X''(t) = \frac{${2 * l}}{(${L} - t)^2}`] },
+      { own: true, move: 'zero', tex: R`E[X^2] = m_X''(0) = ${one ? '2' : R`\frac{2}{${L2}}`}`, why: 'Put in t = 0',
+        slips: one ? [R`E[X^2] = m_X''(0) = 1`, R`E[X^2] = m_X''(0) = 4`, R`E[X^2] = m_X''(0) = 0`] : [R`E[X^2] = m_X''(0) = \frac{1}{${L2}}`, R`E[X^2] = m_X''(0) = \frac{2}{${L}}`, R`E[X^2] = m_X''(0) = \frac{4}{${L2}}`] },
+      { own: true, move: 'var', tex: one ? R`\operatorname{Var}X = 2 - 1^2 = 1` : R`\operatorname{Var}X = \frac{2}{${L2}} - \Big(\frac{1}{${L}}\Big)^2 = \frac{1}{${L2}}`, why: 'Var = E[X²] − (E[X])². m″(0) alone is E[X²], not the variance',
+        slips: one ? [R`\operatorname{Var}X = m_X''(0) = 2`, R`\operatorname{Var}X = 1^2 - 2 = -1`, R`\operatorname{Var}X = 2 + 1^2 = 3`] : [R`\operatorname{Var}X = m_X''(0) = \frac{2}{${L2}}`, R`\operatorname{Var}X = \frac{1}{${L}}`, R`\operatorname{Var}X = \frac{3}{${L2}}`] },
+    ]
+  }
+
   // Each build: its pdf, the lines after "m_X(t) =" (with the move each one makes,
   // why, and the slips a question offers instead), and where the MGF exists.
   const BUILDS = {
@@ -4115,6 +4156,7 @@ window.MathJax = {
             slips: [sumE(xs.map(x => [1, x])), sumE(xs.map((x, i) => [x * f[i], x])), sumE(xs.map((x, i) => [f[i], x + 1])), ex ? eKt(ex) : null].filter(Boolean) },
         ],
         check: { tex: R`m_X(0) = ${fs.join(' + ')} = 1`, why: 'At t = 0 every term’s e is 1, so they add to 1' },
+        use: momentsOfTable(xs, f),
       }
     },
     formula(n = FINITES[0]) {
@@ -4199,6 +4241,7 @@ window.MathJax = {
             slips: [R`\frac{1}{t-1}`, R`\frac{1}{1+t}`, R`1-t`, R`\frac{t}{1-t}`] },
         ],
         exist: { upto: 2, tex: R`t < 1`, why: 'The key integral needs c = 1 − t > 0', slips: [R`t > 1`, R`t \ne 1`, R`t < 0`, R`t > 0`] },
+        use: momentsOfRate(1),
       }
     },
     expB(n = null) {
@@ -4237,6 +4280,7 @@ window.MathJax = {
             slips: [R`\frac{1}{1 - ${L}t}`, R`\frac{${L}}{1 - t}`, R`\frac{1}{${L} - t}`, R`\frac{1}{1 + t/${L}}`] },
         ],
         exist: { upto: 2, tex: R`t < ${L}`, why: `The key integral needs c = ${Lt} − t > 0`, slips: [R`t > ${L}`, R`t < \frac{1}{${L}}`, R`t \ne ${L}`, R`t < 0`] },
+        use: n ? momentsOfRate(n.l) : undefined,
       }
     },
     uni(n = null) {
@@ -4257,7 +4301,7 @@ window.MathJax = {
           { move: 'tidy', tex: R`\frac{${eb} - ${ea}}{${Wt}}`, why: 'One fraction',
             slips: [R`\frac{${eb} - ${ea}}{${W}}`, R`\frac{${ea} - ${eb}}{${Wt}}`, R`\frac{${eb} - ${ea}}{t^2}`, R`\frac{${eb} - ${ea}}{${W} + t}`] },
         ],
-        exist: { upto: 2, tex: R`\text{every } t`, why: 'A finite interval: nothing blows up. (The final formula has t below, but at t = 0 the MGF is just 1.)', slips: [R`t \ne 0`, R`t > 0`, R`t < \frac{1}{${W}}`, R`t < ${B}`] },
+        exist: { upto: 2, tex: R`\text{every } t`, why: 'A finite interval: nothing blows up. (The final formula has t below, but at t = 0 the MGF is just 1.)', slips: [R`t > 0`, R`t < \frac{1}{${W}}`, R`t < ${B}`, R`t < 0`] },
       }
     },
     moments() {
@@ -4333,16 +4377,18 @@ window.MathJax = {
   const chipOf = r => ({ name: r.label ?? MOVES[r.move]?.name ?? 'Step', mv: MOVES[r.move]?.mv ?? 'mv-b' })
   // a build as rows: each line (the first after its "m_X(t) = E[e^(tX)] ="), then where it exists
   const rowsOf = b => [
-    ...b.lines.map((l, i) => ({ ...l, show: l.own ? l.tex : (i === 0 ? firstLead(b) : '= ').replace('&', '') + l.tex })),
-    ...(b.exist ? [{ move: 'exist', show: R`m_X(t) \text{ exists for } ${b.exist.tex}`, why: b.exist.why }] : []),
-    ...(b.check ? [{ move: 'check', show: b.check.tex, why: b.check.why }] : []),
+    ...b.lines.map((l, i) => ({ ...l, kind: 'line', i, right: plainTex(l.tex), show: l.own ? l.tex : (i === 0 ? firstLead(b) : '= ').replace('&', '') + l.tex })),
+    ...(b.exist ? [{ move: 'exist', kind: 'exist', right: b.exist.tex, slips: b.exist.slips, show: R`m_X(t) \text{ exists for } ${b.exist.tex}`, why: b.exist.why }] : []),
+    ...(b.check ? [{ move: 'check', kind: 'check', show: b.check.tex, why: b.check.why }] : []),
+    // then use it: the mean and variance from the MGF just built
+    ...(b.use ?? []).map(l => ({ ...l, kind: 'use', right: plainTex(l.tex), show: l.tex })),
   ]
 
   // A question: a pdf, and its MGF to build. Each line is asked in turn among the usual
   // slips; the right line goes in either way, with its move and why, so the build is
   // always whole. Every step right first time counts as right.
   const mgfBuildProblem = (b = pickOne(MGF_BUILDS)()) => ({
-    ask: 'Build the MGF of this pdf, one line at a time.',
+    ask: `Find ${b.exist ? 'the MGF m_X(t) = E(e^(tX)) of this pdf, and say for which t it exists' : 'm_X(t) = E(e^(tX)) for this pdf'}${b.use ? ', then use it for E[X] and Var X' : ''}.`,
     latex: b.pdf,
     buildIt: true,
     mgf: { build: b, at: null },
@@ -4370,11 +4416,8 @@ window.MathJax = {
     const data = rowsOf(b)
     const L = b.lines
     const fi = b.final ?? L.length - 1
-    const items = [
-      ...L.map((l, i) => ({ row: data[i], right: plainTex(l.tex), slips: l.slips ?? [], own: Boolean(l.own), ask: i <= fi && (l.slips?.length ?? 0) > 0, first: i === 0 })),
-      ...(b.exist ? [{ row: data[L.length], right: b.exist.tex, slips: b.exist.slips ?? [], ask: Boolean(b.exist.slips?.length), exist: true }] : []),
-    ]
-    const tail = data.slice(items.length)
+    // asked: a row with slips (a line only up to the build's final one); the rest are shown
+    const items = data.map(r => ({ row: r, right: r.right, slips: r.slips ?? [], own: r.kind !== 'line' || Boolean(r.own), ask: Boolean(r.slips?.length) && (r.kind !== 'line' || r.i <= fi), first: r.kind === 'line' && r.i === 0, exist: r.kind === 'exist', use: r.kind === 'use' }))
     const asked = items.filter(x => x.ask).length
     const wrap = h('div', 'mgf build')
     const pills = isMgfBuild ? ['① Multiply by eᵗˣ', '② Add it up: Σ or ∫', '③ Simplify'].map(t => h('span', '', t)) : []
@@ -4394,7 +4437,7 @@ window.MathJax = {
       row.append(h('span', 'mgf-move ' + m.mv, m.name), tex(hlTex(r.show)), h('p', 'mgf-why', r.why))
       return row
     }
-    const light = s => pills.forEach((x, j) => x.classList.toggle('on', Boolean(s) && (s.first ? j < 2 : !s.exist && j === 2)))
+    const light = s => pills.forEach((x, j) => x.classList.toggle('on', Boolean(s) && !s.use && (s.first ? j < 2 : !s.exist && j === 2)))
     function step(k) {
       if (k >= items.length) return done()
       const s = items[k]
@@ -4404,7 +4447,7 @@ window.MathJax = {
       }
       n++
       light(s)
-      const title = s.exist ? 'Last: where does it exist?' : n === 1 ? (isMgfBuild ? 'Step 1 · set it up: e^(tx) times the pdf, added up' : 'Step 1 · the first line') : `Step ${n} · the next line`
+      const title = s.exist ? 'Where does it exist?' : s.use ? `Step ${n} · now use it` : n === 1 ? (isMgfBuild ? 'Step 1 · set it up: e^(tx) times the pdf, added up' : 'Step 1 · the first line') : `Step ${n} · the next line`
       const opts = shuffleArr([s.right, ...shuffleArr([...new Set(s.slips)].filter(w => w !== s.right)).slice(0, 5)])
       const shown = o => [tex(`\\displaystyle ${s.exist || s.own || s.first ? '' : '= '}${o}`, false)]
       const box = pickBox({
@@ -4437,7 +4480,6 @@ window.MathJax = {
     }
     function done() {
       light(null)
-      for (const r of tail) rows.append(rowEl(r))
       const q = round.queue[round.at]
       round.locked = true
       const all = firstTry === asked
