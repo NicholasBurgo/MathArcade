@@ -30,7 +30,8 @@ function solution(p) {
     box.append(typeof o === 'string' ? h('p', '', o) : tex(o.latex))
   } else box.append(tex(T2.answerDisplay(p)))
   if (!p.mgf && !p.params && p.answerLatex) {
-    box.append(h('h3', '', 'How it works'), workPanel(p, { auto: false }))
+    // a section level's story: World 0's plug-it-in panel, filled in (Replay plays it)
+    box.append(h('h3', '', 'How it works'), p.plug ? plugPanel(p) : workPanel(p, { auto: false }))
   } else if (p.hint?.latex || p.hint?.text) {
     box.append(h('h3', '', 'How it works'))
     if (p.hint.latex) box.append(tex(p.hint.latex))

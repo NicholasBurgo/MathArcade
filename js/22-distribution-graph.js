@@ -73,6 +73,41 @@ function graphOf(leaf, v, txt = {}) {
   }
   return null
 }
+// a counting distribution: its pdf, its first and last values (Infinity: no top) and
+// a title with its numbers; the section levels add up its terms and draw it
+function countOf(leaf, v, txt = {}) {
+  const say = k => txt[k] ?? fmt(v[k])
+  switch (leaf) {
+    case 'binomial': return { lo: 0, hi: v.n, pmf: x => choose(v.n, x) * v.p ** x * v.q ** (v.n - x), title: `binomial · n = ${v.n}, p = ${say('p')}` }
+    case 'geometric': return { lo: 1, hi: Infinity, pmf: x => v.q ** (x - 1) * v.p, title: `geometric · p = ${say('p')}` }
+    case 'negbin': return { lo: v.r, hi: Infinity, pmf: x => choose(x - 1, v.r - 1) * v.p ** v.r * v.q ** (x - v.r), title: `negative binomial · r = ${v.r}, p = ${say('p')}` }
+    case 'hyper': return { lo: Math.max(0, v.n - (v.N - v.r)), hi: Math.min(v.n, v.r), pmf: x => (choose(v.r, x) * choose(v.N - v.r, v.n - x)) / choose(v.N, v.n), title: `hypergeometric · N = ${v.N}, r = ${v.r}, n = ${v.n}` }
+    case 'poisson': return { lo: 0, hi: Infinity, pmf: x => (Math.exp(-v.k) * v.k ** x) / fact(x), title: `Poisson · k = ${say('k')}` }
+  }
+  return null
+}
+// a section question's bars: the values it asks about lit (hits), up to at least `upTo`,
+// or its mean marked (with ± one σ when it asks for a spread)
+function plugBars(leaf, v, { hits = null, upTo = 0, mean = null, sd = null, note = '', txt = {} } = {}) {
+  const c = countOf(leaf, v, txt)
+  if (!c) return null
+  let hi = c.hi
+  if (hi === Infinity) {
+    // enough bars to hold 99% of the probability, the asked values, and the mean ± 2σ
+    let x = c.lo, cum = 0
+    while (cum < 0.99 && x - c.lo < 140) cum += c.pmf(x++)
+    hi = Math.max(x, upTo, mean != null ? Math.ceil(mean + 2 * (sd ?? 0)) : 0)
+  }
+  const xs = Array.from({ length: hi - c.lo + 1 }, (_, i) => c.lo + i)
+  const ys = xs.map(c.pmf)
+  const one = hits && hits.size === 1 ? [...hits][0] : null
+  return { kind: 'bars', title: c.title, xs, ys, hits: one == null ? hits : null, at: one, atLabel: one == null ? null : `f(${one}) ≈ ${+c.pmf(one).toPrecision(3)}`, mean, sd, note }
+}
+// a section question's uniform: flat from A to B, the asked stretch shaded
+function plugFlat(v, { shade = null, ticks = [], note = '' } = {}) {
+  const w = v.B - v.A
+  return { kind: 'curve', title: `uniform · A = ${v.A}, B = ${v.B}`, lo: v.A - 0.2 * w, hi: v.B + 0.2 * w, pdf: x => (x >= v.A && x <= v.B ? 1 / w : 0), ticks: [...new Set([v.A, ...ticks, v.B])], flat: [v.A, v.B], shade, note }
+}
 const SVGNS = 'http://www.w3.org/2000/svg'
 const svgEl = (tag, attrs = {}, text) => {
   const e = document.createElementNS(SVGNS, tag)
@@ -93,7 +128,8 @@ function drawGraph(g) {
   svg.append(svgEl('line', { x1: L, y1: Tp + ph, x2: L + pw, y2: Tp + ph, class: 'axis' }))
   svg.append(svgEl('line', { x1: L, y1: Tp, x2: L, y2: Tp + ph, class: 'axis' }))
   if (g.kind === 'bars') {
-    const top = Math.max(...g.ys) * 1.12
+    // (room above the bars for the mean's label)
+    const top = Math.max(...g.ys) * (g.mean != null ? 1.35 : 1.12)
     const slot = pw / g.xs.length
     const every = Math.ceil(g.xs.length / 12)
     const isHit = x => (g.hits ? g.hits.has(x) : x === g.at)
@@ -109,6 +145,18 @@ function drawGraph(g) {
         svg.append(svgEl('text', { x: lx, y: Math.max(Tp + 10, Tp + ph - hgt - 6), class: 'val', 'text-anchor': 'middle' }, g.atLabel))
       }
     })
+    // the mean: the balance point of the bars, a dashed line; ± one σ a bracket under the label
+    if (g.mean != null) {
+      const at = m => L + (Math.min(Math.max(m, g.xs[0] - 0.5), g.xs[g.xs.length - 1] + 0.5) - g.xs[0] + 0.5) * slot
+      const mx = at(g.mean)
+      svg.append(svgEl('line', { x1: mx, y1: Tp + 14, x2: mx, y2: Tp + ph, class: 'mark' }))
+      svg.append(svgEl('text', { x: Math.min(Math.max(mx, L + 46), L + pw - 46), y: Tp + 9, class: 'val', 'text-anchor': 'middle' }, `E[X] = ${+g.mean.toPrecision(4)}`))
+      if (g.sd) {
+        const y = Tp + 18
+        svg.append(svgEl('line', { x1: at(g.mean - g.sd), y1: y, x2: at(g.mean + g.sd), y2: y, class: 'mark' }))
+        for (const e of [g.mean - g.sd, g.mean + g.sd]) svg.append(svgEl('line', { x1: at(e), y1: y - 4, x2: at(e), y2: y + 4, class: 'mark' }))
+      }
+    }
     svg.append(svgEl('text', { x: L - 4, y: Tp + 4, class: 'tick', 'text-anchor': 'end' }, String(+top.toPrecision(2))))
     svg.append(svgEl('text', { x: L + pw / 2, y: H - 3, class: 'axis-name', 'text-anchor': 'middle' }, 'x'))
   } else {

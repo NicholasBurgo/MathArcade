@@ -122,7 +122,7 @@ const HARD = {
       trap: `A gamma with β = 2 is chi-squared, with γ = 2α = ${2 * a} degrees of freedom.`,
       vars: { ga: worked(V(2 * a, `α = ${a}`, 'γ = 2α'), { answer: true, order: [], tex: S => `${S('ga')} = 2\\alpha = 2(${a})`, steps: () => [`= ${2 * a}`] }) } } },
     () => { const a = ri(2, 8); return { text: 'X has the moment generating function shown.', clue: 'moment generating function', avoid: ['gamma'],
-      params: { right: `\\gamma = ${2 * a}\\ \\ (\\text{a gamma with } \\alpha = ${a},\\ \\beta = 2)`, slips: [`\\gamma = ${a}`, `\\gamma = ${fmt(a / 2)}`, `\\gamma = ${a + 2}`] },
+      params: { right: `\\gamma = ${2 * a}\\ \\ (\\text{a gamma with } \\alpha = ${a},\\ \\beta = 2)`, slips: [`\\gamma = ${a}`, `\\gamma = ${fmt(a / 2)}`, `\\gamma = 2`] },
       latex: `m_X(t) = (1 - 2t)^{-${a}}`,
       trap: `(1 − 2t)^(−γ/2) is the chi-squared MGF: γ/2 = ${a}, so γ = ${2 * a}.`,
       read: { kind: 'MGF', tex: c => `m_X(t) = (1 - 2t)^{-${c('ga', a)}}`, notes: [['ga', `the number times t is 2, so it is chi-squared; the power is γ/2 = ${a}, so γ = ${2 * a}`]], shape: '(1 − 2t)^(−γ/2) is the chi-squared MGF (a gamma with β = 2)' },

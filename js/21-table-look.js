@@ -30,7 +30,9 @@ const normEntry = z => {
   return cellOf('normal', row, col)
 }
 // a window of one printed table: the row lights up, then the column, and they meet
-// at the entry; reverse (an area to find) lights the entry first, then its edges
+// at the entry; reverse (an area to find) lights the entry first, then its edges.
+// play(alive, fx): fx.table, fx.row, fx.col and fx.hit (each given the element) run as
+// the table, its row, its column and its entry light up, so a chip can fly there.
 function tableLook({ name, row, col, target = null, halfway = null }) {
   tables ??= printedTables()
   const t = tables[name]
@@ -89,7 +91,8 @@ function tableLook({ name, row, col, target = null, halfway = null }) {
     cap = `In the n = ${t.n ?? (name === 'binomial19' ? 19 : 20)} table, row x = ${row} and column p = ${col} meet at ${entry}: F(${row}) = P(X ≤ ${row}) = ${entry}.`
   }
   const caption = h('p', 'tlook-cap', cap)
-  wrap.append(h('div', 'piece-label', 'Reading the table · ' + t.title), scroller, caption)
+  const label = h('div', 'piece-label', 'Reading the table · ' + t.title)
+  wrap.append(label, scroller, caption)
   const centre = () => {
     if (hit) scroller.scrollLeft = Math.max(0, hit.offsetLeft - scroller.clientWidth / 2 + hit.offsetWidth / 2)
   }
@@ -102,10 +105,11 @@ function tableLook({ name, row, col, target = null, halfway = null }) {
     caption.hidden = false
     requestAnimationFrame(centre)
   }
-  async function play(alive) {
+  async function play(alive, fx = {}) {
     caption.hidden = true
     requestAnimationFrame(centre)
     await wait(400)
+    if (fx.table && alive()) await fx.table(label)
     const sweep = async (cells, cls, gapMs) => {
       for (const c of cells) {
         if (!alive()) return
@@ -119,15 +123,20 @@ function tableLook({ name, row, col, target = null, halfway = null }) {
       rowCells.forEach(c => c.classList.remove('scan'))
       hit?.classList.add('hit')
       tone(semis(523.25, 12), 0, 0.12, 'sine', 0.08)
+      if (fx.hit && alive()) await fx.hit(hit)
       await wait(450)
       rowHead?.classList.add('on-row')
+      if (fx.row && alive()) await fx.row(rowHead)
       await wait(300)
       colHeads[ci].classList.add('on-col')
+      if (fx.col && alive()) await fx.col(colHeads[ci])
     } else {
       rowHead?.classList.add('on-row')
+      if (fx.row && alive()) await fx.row(rowHead)
       await sweep(rowCells, 'on-row', 45)
       await wait(250)
       colHeads[ci].classList.add('on-col')
+      if (fx.col && alive()) await fx.col(colHeads[ci])
       await sweep(colCells, 'on-col', 70)
       await wait(200)
       hit?.classList.add('hit')
@@ -138,7 +147,7 @@ function tableLook({ name, row, col, target = null, halfway = null }) {
     caption.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300 })
     await wait(700)
   }
-  return { el: wrap, play, final }
+  return { el: wrap, play, final, hit, rowHead, colHead: colHeads[ci], label }
 }
 // the class's chi-squared table: the value in row γ under a LEFT-area column
 const chiEntry = (g, col) => {

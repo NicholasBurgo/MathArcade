@@ -30,17 +30,27 @@ function storyMark(text, phrase, cls) {
   return p
 }
 // the panel: chips for the story's numbers, the formula lines, and a replay.
-// auto: play straight away (a right answer); otherwise it starts filled in
-function plugPanel(p, { sheet = null, auto = false, next = null } = {}) {
+// auto: play straight away (a right answer); otherwise it starts filled in.
+// A section level's question (p.plug) brings its own lines, title, plan and graph,
+// and a wrong pick (picked) is told which slip it was.
+function plugPanel(p, { sheet = null, auto = false, next = null, picked = null } = {}) {
   const vars = p.vars
+  const spec = p.plug ?? null
+  const leaf = spec?.leaf ?? p.leaf
   // a number the story only implies gets its own line of work, just before it is used
   const val = Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, v.val]))
   const T = Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, v.tex]))
   const TXT = Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, v.txt]))
   const lines = []
-  for (const line of PLUG[p.leaf]) {
+  // (a worked number that needs another worked number gets that one's line first)
+  const workFor = k => {
+    if (!vars[k]?.work || lines.some(l => l.key === k)) return
+    for (const d of vars[k].work.order) workFor(d)
+    lines.push({ ...vars[k].work, key: k })
+  }
+  for (const line of spec?.lines ?? PLUG[leaf]) {
     if (line.when && !line.when(val)) continue
-    for (const k of line.order) if (vars[k]?.work && !lines.some(l => l.key === k)) lines.push({ ...vars[k].work, key: k })
+    for (const k of line.order) workFor(k)
     lines.push(line)
     // the pieces on the side, then the rows that finish the formula with them
     if (line.pieces) lines.push(...line.pieces(val, T).filter(Boolean))
@@ -50,10 +60,13 @@ function plugPanel(p, { sheet = null, auto = false, next = null } = {}) {
   const keys = [...new Set(lines.flatMap(l => l.order))]
   const color = Object.fromEntries(keys.map((k, i) => [k, 'pv' + (i % 5)]))
   const el = h('div', 'plug')
-  const L = LEAVES[p.leaf]
-  el.append(h('h3', '', `${L.name} · plug it in`))
-  if (p.trap) el.append(h('p', 'plug-sub trap', 'The trap: ' + p.trap))
-  el.append(h('p', 'plug-sub', 'Every number in the story has a spot in the formula. Numbers the story only hints at get worked out first, and so does every piece inside it.'))
+  const L = LEAVES[leaf]
+  el.append(h('h3', '', spec?.title ?? `${L.name} · plug it in`))
+  const slip = picked != null && spec ? plugSlipNote(p, picked) : null
+  if (slip) el.append(h('p', 'plug-sub plug-slip', slip))
+  const trap = spec ? spec.trap : p.trap
+  if (trap) el.append(h('p', 'plug-sub trap', 'The trap: ' + trap))
+  el.append(h('p', 'plug-sub', spec?.plan ?? 'Every number in the story has a spot in the formula. Numbers the story only hints at get worked out first, and so does every piece inside it.'))
   const chips = h('div', 'plug-chips')
   const box = h('div')
   el.append(chips, box)
@@ -113,7 +126,29 @@ function plugPanel(p, { sheet = null, auto = false, next = null } = {}) {
     return c
   }
   const story = () => sheet?.querySelector('.story')
-  const lightStory = (phrase, cls) => story()?.replaceWith(storyMark(p.text, phrase, cls))
+  // a section question's numbers can sit in its ask line ("at least 5") as well as its story
+  const askLine = () => (spec && p.ask ? sheet?.querySelector('.ask') : null)
+  const markAsk = (phrase, cls) => {
+    const a = storyMark(p.ask, phrase, cls)
+    a.className = 'ask'
+    askLine()?.replaceWith(a)
+  }
+  const lightStory = (phrase, cls) => {
+    if (askLine() && phrase && !p.text?.includes(phrase) && p.ask.includes(phrase)) {
+      markAsk(phrase, cls)
+      story()?.replaceWith(storyMark(p.text, null, cls))
+      return
+    }
+    if (askLine()) markAsk(null, cls)
+    story()?.replaceWith(storyMark(p.text, phrase, cls))
+  }
+  // last, the distribution with these numbers and the part asked about
+  const graph = () => (spec?.graph ? drawGraph(spec.graph) : distGraph(leaf, val, TXT))
+  const endStory = () => {
+    if (!sheet) return
+    if (askLine()) markAsk(null, '')
+    if (p.clue) story()?.replaceWith(storyEl({ text: p.text, clue: p.clue }, true))
+  }
 
   function showFinal() {
     box.replaceChildren()
@@ -134,9 +169,9 @@ function plugPanel(p, { sheet = null, auto = false, next = null } = {}) {
       d.append(tex(lineTex(line, new Set(line.order), Infinity)))
       box.append(d)
     }
-    const gr = distGraph(p.leaf, val, TXT)
+    const gr = graph()
     if (gr) box.append(gr.el)
-    if (sheet && p.clue) story()?.replaceWith(storyEl({ text: p.text, clue: p.clue }, true))
+    endStory()
   }
   let run = 0
   async function play() {
@@ -212,13 +247,13 @@ function plugPanel(p, { sheet = null, auto = false, next = null } = {}) {
       await wait(550)
     }
     // last, the picture: the distribution with these numbers, and the part asked about
-    const gr = alive() && distGraph(p.leaf, val, TXT)
+    const gr = alive() && graph()
     if (gr) {
       box.append(gr.el)
       gr.el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
       await gr.play(alive)
     }
-    if (alive() && sheet && p.clue) story()?.replaceWith(storyEl({ text: p.text, clue: p.clue }, true))
+    if (alive()) endStory()
   }
   replay.addEventListener('click', () => {
     if (reduced()) showFinal()

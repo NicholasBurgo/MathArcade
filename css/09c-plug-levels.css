@@ -1,0 +1,3 @@
+/* css/09c-plug-levels.css · the section levels' plug panels (js/24c-plug-levels.js) */
+/* a wrong pick, named: which slip it was */
+.plug-sub.plug-slip { color: var(--ink); font-weight: 600; border-left: 3px solid var(--red); padding: 2px 0 2px 8px; }

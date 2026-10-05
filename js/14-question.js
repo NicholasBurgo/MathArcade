@@ -49,7 +49,9 @@ function showQuestion() {
     window.scrollTo({ top: 0 })
     return
   }
-  if (p.leaf && p.vars) {
+  // a story to name (World 0): every distribution; a number (a plug level's story too)
+  // or a formula: the long list from choicesFor
+  if (p.leaf && p.vars && typeof p.answer !== 'number') {
     pickQuestion(p, sheet)
     view.append(sheet)
     window.scrollTo({ top: 0 })
@@ -59,11 +61,11 @@ function showQuestion() {
   const box = pickBox({
     placeholder: 'Choose an answer…',
     label: 'Answers',
-    cls: 'answers',
+    cls: 'answers' + (choicesAllNumbers(opts) ? ' nums' : ''),
     items: opts.map((o, i) => ({ key: i, row: () => optNodes(o), shown: () => optNodes(o) })),
     onCheck: (i, ui) => answer(i, opts, sheet, ui),
   })
-  box.correctIndex = opts.findIndex(o => o.correct)
+  box.correctIndex = opts.findIndex(o => o.correct && !o.also)
   sheet.append(box)
   view.append(sheet)
   window.scrollTo({ top: 0 })
@@ -114,10 +116,11 @@ function howTo(p, level, peeked) {
       const box = h('div', 'reveal-box')
       box.append(h('h3', '', 'Answer'))
       if (ex.options) {
-        const o = ex.options['abcdefgh'.indexOf(ex.answer)]
+        const o = ex.options[CHOICE_LETTERS.indexOf(ex.answer)]
         box.append(typeof o === 'string' ? h('p', '', o) : tex(o.latex))
       } else box.append(tex(T2.answerDisplay(ex)))
-      box.append(h('h3', '', 'How it works'), workPanel(ex, { auto: true, level }))
+      // a section level's story (p.plug) plays World 0's animation, lighting the example's story
+      box.append(h('h3', '', 'How it works'), ex.plug ? plugPanel(ex, { auto: true, sheet: body }) : workPanel(ex, { auto: true, level }))
       body.append(box)
     }
     body.hidden = false
@@ -186,8 +189,10 @@ function gotIt(q) {
   return { acts, cont }
 }
 
-// an option as it is drawn: a name and a formula, a formula, or words
-const optNodes = o => (o.name ? [h('b', 'choice-name', o.name), tex(o.tex, false)] : o.tex ? [tex(o.tex, false)] : [h('span', 'pick-text', o.text)])
+// an option as it is drawn: a name and a formula, a formula, a number (with a real
+// minus sign), or words
+const optNodes = o =>
+  o.name ? [h('b', 'choice-name', o.name), tex(o.tex, false)] : o.tex ? [tex(o.tex, false)] : o.num != null ? [h('span', 'pick-text pick-num', o.text.replace(/^-/, '−'))] : [h('span', 'pick-text', o.text)]
 function answer(i, opts, sheet, { sel, check, wrap }) {
   if (round.locked) return
   round.locked = true
@@ -206,7 +211,8 @@ function answer(i, opts, sheet, { sel, check, wrap }) {
       showParams(p, sheet)
       return
     }
-    if (p.leaf && p.vars) {
+    // World 0's stories, and the section levels' (p.plug): the numbers fly into the formula
+    if ((p.leaf || p.plug) && p.vars) {
       showPlug(p, sheet)
       return
     }
@@ -235,12 +241,15 @@ function answer(i, opts, sheet, { sel, check, wrap }) {
   const p = q.p
   // the commonest slip on a table: the other side (1 − the answer)
   const picked = parseFloat(opts[i].text)
-  if (typeof p.answer === 'number' && p.answer > 0 && p.answer < 1 && Math.abs(picked + p.answer - 1) < 1e-4) {
+  // (a section level's story names every slip in its own panel)
+  if (!p.plug && typeof p.answer === 'number' && p.answer > 0 && p.answer < 1 && Math.abs(picked + p.answer - 1) < 1e-4) {
     why.append(h('p', 'diag', 'Your pick is 1 minus the answer: the area on the other side. A table gives the area to the LEFT (P(Z < z), or P(X ≤ x) for the binomial), so “more than” or “at least” is 1 − that.'))
   }
   // the same worked answer a right one plays: every step, the table, the graph
   const level = q.level ?? round.short
-  if (!isWorld0(level) && !p.mgf && !p.params && (p.answerLatex || p.hint)) why.append(workPanel(p, { sheet, auto: true, level }))
+  // a section level's story: World 0's animation, and which slip the pick was
+  if (p.plug) why.append(plugPanel(p, { sheet, auto: true, picked: opts[i] }))
+  else if (!isWorld0(level) && !p.mgf && !p.params && (p.answerLatex || p.hint)) why.append(workPanel(p, { sheet, auto: true, level }))
   else {
     if (p.hint?.latex) why.append(tex(p.hint.latex))
     if (p.hint?.text) why.append(h('p', '', p.hint.text))

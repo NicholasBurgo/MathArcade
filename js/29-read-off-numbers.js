@@ -126,8 +126,8 @@ function paramProblem(kind = null, leaf = pickOne(Object.keys(PARAMS))) {
     const mine = keys.map(k => [k, sc.vars[k].tex])
     right = card(LEAVES[leaf].name, mine, set)
     // one thing wrong at a time: the values, one letter, the name it is mistaken for
-    const setSlips = [...new Set(val.slips.filter(([a, b]) => a <= b).map(([a, b]) => runTex(a, b)))].filter(t => t !== set)
-    const letterSlips = keys.flatMap(k => paramSlips(leaf, sc, k).slice(0, 2).map(w => card(LEAVES[leaf].name, mine.map(([kk, t]) => [kk, kk === k ? w : t]), set)))
+    const setSlips = paramValueSlips(val).map(([a, b]) => runTex(a, b))
+    const letterSlips = keys.flatMap(k => paramSlips(leaf, sc, k).slice(0, 3).map(w => card(LEAVES[leaf].name, mine.map(([kk, t]) => [kk, kk === k ? w : t]), set)))
     const nameSlips = CONFUSED[leaf].filter(c => PARAMS[c]).slice(0, 2).map(c => card(LEAVES[c].name, mine, set))
     wrong = [...setSlips.slice(0, 2).map(x => card(LEAVES[leaf].name, mine, x)), ...letterSlips.slice(0, 2), nameSlips[0], ...setSlips.slice(2, 3).map(x => card(LEAVES[leaf].name, mine, x)), ...letterSlips.slice(2), ...nameSlips.slice(1)].filter(Boolean)
     ask = 'Name the distribution of X, give its parameters, and list the possible values of X.'
@@ -138,27 +138,71 @@ function paramProblem(kind = null, leaf = pickOne(Object.keys(PARAMS))) {
     ask = `X is ${name}. What values can X take?`
     latex = 'X = \\;?'
     right = runTex(val.lo, val.hi)
-    wrong = [...new Set(val.slips.filter(([a, b]) => a <= b).map(([a, b]) => runTex(a, b)))]
+    wrong = paramValueSlips(val).map(([a, b]) => runTex(a, b))
     hint = { text: val.why }
   } else {
     const v = sc.vars[kind]
     ask = `X is ${name}. Find ${kind}.`
     latex = `${LETTER[kind]} = \\;?`
     right = v.tex
-    wrong = paramSlips(leaf, sc, kind)
     hint = { text: `${kind} is ${MEANS[leaf][kind]}${v.from ? `: “${v.from}”` : ''}${v.note ? ` (${v.note})` : ''}.` }
   }
-  const opts = shuffleArr([right, ...[...new Set(wrong)].filter(w => w !== right).slice(0, 5)])
+  // the options: a letter's are numbers in order from smallest to largest (fractions
+  // when the answer is one); the rest are shuffled. The answer is stored first (so
+  // p.answer is 'a' wherever it is read) and shown in p.order.
+  let opts, order
+  if (kind in LETTER) {
+    const list = paramLetterChoices(leaf, sc, kind)
+    opts = [right, ...list.filter(o => !o.correct).map(o => o.tex)]
+    let w = 0
+    order = list.map(o => (o.correct ? 0 : ++w))
+  } else {
+    opts = [right, ...[...new Set(wrong)].filter(x => x !== right).slice(0, 9)]
+    order = shuffleArr(opts.map((_, i) => i))
+  }
   return {
     ask,
     text: sc.text,
     latex,
     options: opts.map(o => ({ latex: o })),
-    answer: 'abcdefgh'[opts.indexOf(right)],
+    answer: 'a',
+    order,
     hint,
     placeholder: 'a, b, c, …',
     params: { leaf, sc, at: kind },
   }
+}
+// a letter's options: the answer, the slips a hurried reader makes and values near it,
+// 10 in all, smallest first ({ tex, correct })
+const paramTexValue = t => {
+  const m = /^\\tfrac\{(\d+)\}\{(\d+)\}$/.exec(t)
+  return m ? +m[1] / +m[2] : parseFloat(t)
+}
+function paramLetterChoices(leaf, sc, kind) {
+  const v = sc.vars[kind]
+  const isFrac = /^\\tfrac/.test(v.tex)
+  // a value as a fraction, when the answer is one (1/6 among 1/3, 5/6, 1/12, …)
+  const asFrac = x => {
+    for (let d = 1; d <= 240; d++) if (Math.abs(Math.round(x * d) / d - x) < 1e-9) return fracTex(Math.round(x * d), d)
+    return fmt(x)
+  }
+  // (the numbers are exact: the tolerance only covers 4-figure printing, 1/6 as 0.1667)
+  const list = choicesForNumber({ value: v.val, tol: Math.max(1e-6, 5e-4 * Math.abs(v.val)), wrong: paramSlips(leaf, sc, kind).map(paramTexValue), words: kind === 'p' ? 'probability' : '', n: 10 })
+  return list.map(o => ({ correct: o.correct, tex: o.correct ? v.tex : isFrac ? asFrac(o.v) : o.label }))
+}
+// the sets of values a hurried reader gives: the story's own slips, then one end moved
+// by one (the off-by-one slips), up to 7
+function paramValueSlips(val) {
+  const { lo, hi } = val
+  const finite = hi !== Infinity
+  const more = [[lo + 1, hi], [lo - 1, hi], ...(finite ? [[lo, hi - 1], [lo, hi + 1], [lo, Infinity]] : [])]
+  const out = []
+  for (const [a, b] of [...val.slips, ...more]) {
+    if (a < 0 || a > b || (a === lo && b === hi) || out.some(([x, y]) => x === a && y === b)) continue
+    if (runTex(a, b) === runTex(lo, hi) || out.some(([x, y]) => runTex(x, y) === runTex(a, b))) continue
+    out.push([a, b])
+  }
+  return out.slice(0, 7)
 }
 function paramRound(n, paper = false) {
   // every distribution twice, never the same one twice in a row; two of every ten are the

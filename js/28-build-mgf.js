@@ -444,7 +444,8 @@ function buildQuestion(p, sheet) {
     n++
     light(s)
     const title = s.exist ? 'Where does it exist?' : s.use ? `Step ${n} · now use it` : n === 1 ? (isMgfBuild ? 'Step 1 · set it up: \\(e^{tx}\\) times the pdf, added up' : 'Step 1 · the first line') : `Step ${n} · the next line`
-    const opts = shuffleArr([s.right, ...shuffleArr([...new Set(s.slips)].filter(w => w !== s.right)).slice(0, 5)])
+    // every slip the line knows (up to 9), so the pick is close to writing the line
+    const opts = shuffleArr([s.right, ...shuffleArr([...new Set(s.slips)].filter(w => w !== s.right)).slice(0, 9)])
     const shown = o => [tex(`\\displaystyle ${s.exist || s.own || s.first ? '' : '= '}${o}`, false)]
     const box = pickBox({
       placeholder: 'Choose the line…',

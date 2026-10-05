@@ -1,0 +1,35 @@
+/* ---------- the dropdowns: long lists of answers (Dropdowns agent) ---------- */
+/* the box stays clear of the sticky bar when it scrolls into view */
+.pick-box { scroll-margin-top: 84px; }
+/* a long list scrolls inside itself (a finger, or the pen dragged on an option); the
+   page stays put. It still opens in place: the card would clip a floating list. */
+.pick-list { max-height: min(70vh, 42rem); overflow-y: auto; overscroll-behavior: contain; }
+/* big targets for a finger or the S Pen, and no wait for a double tap */
+.pick-toggle, .pick-opt { touch-action: manipulation; }
+.pick-opt { min-height: 52px; }
+
+/* numbers: in columns, smallest first, read down each column; the figures line up */
+.pick.nums .pick-list { max-height: none; columns: 3 8rem; column-gap: 6px; }
+.pick.nums .pick-opt {
+  display: flex; justify-content: center; align-items: center;
+  break-inside: avoid; margin: 0 0 4px; min-height: 52px;
+  border: 1.5px solid var(--rule-soft);
+}
+.pick.nums .pick-opt[aria-selected="true"] { border-color: var(--green); }
+.pick-num { font-family: var(--mono); font-weight: 600; font-size: 1.1rem; font-variant-numeric: tabular-nums; letter-spacing: 0; white-space: nowrap; }
+.pick.nums .pick-shown .pick-num { font-size: 1.2rem; }
+
+/* the quiz player: a list per number, side by side when there are several */
+.hw-picks { display: grid; gap: 4px 14px; width: 100%; max-width: 760px; }
+.hw-picks.many { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); align-items: start; }
+.hw-picks.many .pick.nums .pick-list { columns: 2 7rem; }
+.hw-picks .pick { margin-top: 4px; }
+.hw-picks .pick-label .math-i { font-size: 1rem; }
+.hw-pick-acts { margin-top: 4px; }
+.hw-typed { display: grid; gap: 8px; justify-items: start; width: 100%; }
+
+@media (max-width: 520px) {
+  .pick.nums .pick-list { columns: 2; }
+  .pick-list { max-height: 75vh; }
+  .hw-picks.many { grid-template-columns: 1fr; }
+}

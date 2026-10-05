@@ -63,24 +63,21 @@ function sliceRound(short, n) {
   }
   return out
 }
-// the choices: the answer and the usual mistakes (made-up ones fill in), or the part's own options
-function sliceChoices(c) {
+// the choices: a part's own options (all of them), or for a number the long list of
+// numbers (13-answer-choices): the answer, the part's real mistakes (wrong), the same
+// part with new numbers (another twin), values near it; smallest first
+function sliceChoices(c, p = null) {
   if (c.type === 'choice') return shuffleArr(c.options.map((o, i) => ({ correct: i === c.correct, ...(o.tex != null ? { tex: o.tex } : { text: o.text }) })))
-  // the homework's own wrong answers are real mistakes and all stay (a sign slip too);
-  // made-up ones only fill the gaps
-  const a = c.value
-  const used = new Set([fmtChoice(a)])
-  const wrong = []
-  const take = (w, real) => {
-    const l = fmtChoice(w)
-    if (wrong.length >= WRONG || !Number.isFinite(w) || used.has(l) || Math.abs(w - a) <= c.tol * 1.5 || Math.abs(parseFloat(l) - a) <= c.tol) return
-    if (!real && a >= 0 && w < 0) return
-    used.add(l)
-    wrong.push(l)
+  const twins = []
+  for (let i = 0; i < 6 && twins.length < 4 && p?.another; i++) {
+    try {
+      const s = p.another()
+      if (s?.check?.type === 'number') twins.push(s.check.value)
+    } catch {
+      break
+    }
   }
-  for (const w of c.wrong ?? []) take(w, true)
-  for (const o of buildChoices6({ answer: a, tolerance: c.tol, distractors: [] })) if (!o.correct) take(parseFloat(o.label), false)
-  return shuffleArr([{ correct: true, text: fmtChoice(a) }, ...wrong.map(text => ({ correct: false, text }))])
+  return choicesForNumber({ value: c.value, tol: c.tol, wrong: c.wrong ?? [], siblings: twins, words: [p?.ask, p?.answerTex].join(' '), printed: p?.answerTex }).map(o => ({ correct: o.correct, text: o.label, num: o.v }))
 }
 // a slice counts toward its homework part's "new numbers" (once, on its first showing);
 // one number of several only counts when it's missed
@@ -151,11 +148,11 @@ function sliceQuestion(p, sheet, q) {
   if (p.check.type === 'self' || (round.paper && p.check.type === 'choice')) sliceWrite(p, sheet, q)
   else if (round.paper) sliceTyped(p, sheet, q)
   else {
-    const opts = sliceChoices(p.check)
+    const opts = sliceChoices(p.check, p)
     const box = pickBox({
       placeholder: 'Choose an answer…',
       label: 'Answers',
-      cls: 'answers',
+      cls: 'answers' + (choicesAllNumbers(opts) ? ' nums' : ''),
       items: opts.map((o, i) => ({ key: i, row: () => optNodes(o), shown: () => optNodes(o) })),
       onCheck: (i, ui) => sliceAnswer(i, opts, sheet, ui),
     })

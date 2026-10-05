@@ -13,12 +13,6 @@ document.addEventListener('keydown', e => {
     return
   }
   if (e.key === 'Escape' && !tablesPop.hidden) closeTables()
-  if (screen !== 'question' || e.metaKey || e.ctrlKey || e.altKey) return
-  if (e.target instanceof Element && e.target.closest('input, textarea')) return
-  const k = e.key.toLowerCase()
-  const idx = '12345678'.indexOf(k) >= 0 ? '12345678'.indexOf(k) : 'abcdefgh'.indexOf(k)
-  const pick = view.querySelector('.pick.answers')
-  if (idx >= 0 && pick?.pickNth) pick.pickNth(idx)
 })
 
 // a new screen (question, card, results) starts with a clean page

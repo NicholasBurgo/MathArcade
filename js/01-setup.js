@@ -33,7 +33,8 @@ const isWorld0 = short => isTree(short) || isMgf(short) || isParam(short)
 const REVIEW_NAMES = { 'Chapter 3 review': 1, 'Chapter 4 review': 1, Everything: 1 }
 // every kind of engine question a level has
 const levelKinds = short => (isWorld0(short) || short in REVIEW_NAMES ? [] : (LEVELS[short]?.kinds ?? []).map(k => KIND[k]).filter(Boolean))
-// a round shows every kind at least once, and never fewer than ROUND questions; a mix
+// a round shows every kind at least once, and never fewer than ROUND questions (unless
+// the level sets its own size: a derivation that is the same every time); a mix
 // asks one question from each of its levels; naming the distribution is quick, so its
 // rounds run twice as long
-const roundSize = short => (short in REVIEW_NAMES ? REVIEW[short].length : isTree(short) ? ROUND * 2 : isMgf(short) ? 5 : isParam(short) ? 10 : levelKinds(short).length ? Math.max(ROUND, levelKinds(short).length) : Math.max(ROUND, Math.min(10, sliceKinds(short).length)))
+const roundSize = short => (short in REVIEW_NAMES ? REVIEW[short].length : isTree(short) ? ROUND * 2 : isMgf(short) ? 5 : isParam(short) ? 10 : levelKinds(short).length ? LEVELS[short]?.size ?? Math.max(ROUND, levelKinds(short).length) : Math.max(ROUND, Math.min(10, sliceKinds(short).length)))

@@ -121,8 +121,24 @@ function typedRight(raw, v, tol) {
   return { ok: false, x }
 }
 
-// the answer box for a part: typed numbers, a choice, or (to write out) nothing
-function hwAnswer(pt, onResult) {
+// the same part's numbers on other twins (new numbers): [[the part's numbers], …]
+function hwTwinNumbers(p, pt, want = 4) {
+  const out = []
+  for (let i = 0; i < 6 && out.length < want && p?.twin; i++) {
+    try {
+      const c = p.make(p.twin()).parts.find(x => x.label === pt.label)?.check
+      if (c?.type === 'number') out.push([c.value])
+      else if (c?.type === 'numbers') out.push(c.items.map(x => x.value))
+    } catch {
+      break
+    }
+  }
+  return out
+}
+// the answer box for a part: a number picked from a long list (one list per number, or
+// typed: the toggle), a choice, or (to write out) nothing. p is the problem: its
+// twins put the same part's answer with other numbers in the list.
+function hwAnswer(pt, onResult, p = null) {
   const c = pt.check
   const wrap = h('div', 'hw-in')
   const verdict = h('p', 'hw-verdict')
@@ -133,13 +149,55 @@ function hwAnswer(pt, onResult) {
     verdict.replaceChildren(...hwRich(text))
   }
   if (c.type === 'number' || c.type === 'numbers') {
-    const items = c.type === 'number' ? [{ label: null, value: c.value, tol: c.tol }] : c.items
-    const grid = h('div', 'hw-nums' + (items.length > 1 ? ' many' : ''))
+    const items = c.type === 'number' ? [{ label: null, value: c.value, tol: c.tol, wrong: c.wrong }] : c.items
+    const many = items.length > 1
+    // the score message, picked or typed
+    const settle = (oks, rounded) => {
+      const right = oks.every(Boolean)
+      const got = oks.filter(Boolean).length
+      const short = right && rounded
+      say(right, short ? 'Right! On the test, give 3 or 4 decimals.' : right ? 'Right!' : many ? `${got} of ${oks.length} right. Fix the red ones, or open the steps.` : 'Not quite. Try again, or open the steps.')
+      const note = onResult(right)
+      if (note) say(right, note + (short ? ' On the test, give 3 or 4 decimals.' : ''))
+      return right
+    }
+    // picked: a list per number (the answer, the part's real mistakes, the twins' answers,
+    // values near it, smallest first), one Check for all
+    const twins = hwTwinNumbers(p, pt)
+    const picked = h('div', 'hw-picks' + (many ? ' many' : ''))
+    const boxes = items.map((it, i) => {
+      const opts = choicesForNumber({ value: it.value, tol: it.tol, wrong: it.wrong ?? [], siblings: twins.map(t => t[i]), words: [pt.ask, pt.answer].join(' '), printed: pt.answer }).map(o => ({ correct: o.correct, text: o.label, num: o.v }))
+      const box = pickBox({
+        placeholder: many ? 'Pick…' : 'Choose your answer…',
+        label: 'Answers',
+        cls: 'answers nums hw-pick',
+        title: it.label ? tex(it.label, false) : 'Your answer',
+        checkButton: false,
+        items: opts.map((o, j) => ({ key: j, row: () => optNodes(o), shown: () => optNodes(o) })),
+        onChoose: () => (pick.disabled = boxes.some(b => b.box.value() === null)),
+      })
+      picked.append(box)
+      return { box, opts }
+    })
+    const pick = hwBtn('Check', 'btn', () => {
+      const oks = boxes.map(b => b.opts[b.box.value()]?.correct === true)
+      boxes.forEach((b, i) => {
+        b.box.classList.toggle('right', oks[i])
+        b.box.classList.toggle('wrong', !oks[i])
+      })
+      if (settle(oks, false)) boxes.forEach(b => b.box.lock())
+    })
+    pick.disabled = true
+    const pickRow = h('div', 'row-actions hw-pick-acts')
+    pickRow.append(pick)
+    // typed: a box per number (0.25, 1/4 or 1 − .75)
+    const typed = h('div', 'hw-typed')
+    const grid = h('div', 'hw-nums' + (many ? ' many' : ''))
     const rows = items.map(it => {
       const row = h('label', 'hw-num')
       if (it.label) row.append(tex(it.label, false))
       const inp = h('input', 'answer-input')
-      Object.assign(inp, { type: 'text', autocomplete: 'off', spellcheck: false, placeholder: items.length > 1 ? 'a number' : 'Your answer: 0.25, 1/4 or 1 − .75' })
+      Object.assign(inp, { type: 'text', autocomplete: 'off', spellcheck: false, placeholder: many ? 'a number' : 'Your answer: 0.25, 1/4 or 1 − .75' })
       inp.setAttribute('autocapitalize', 'off')
       row.append(inp)
       grid.append(row)
@@ -148,22 +206,26 @@ function hwAnswer(pt, onResult) {
     const go = hwBtn('Check', 'btn', () => {
       const res = rows.map(r => typedRight(r.inp.value, r.it.value, r.it.tol))
       if (res.some(r => r.x == null)) {
-        return say(false, items.length > 1 ? 'Put a number in every box. 12/13, 92.3% and 1 − .95^3 work too.' : 'Type a number. 12/13, 92.3% and 1 − .95^3 work too.')
+        return say(false, many ? 'Put a number in every box. 12/13, 92.3% and 1 − .95^3 work too.' : 'Type a number. 12/13, 92.3% and 1 − .95^3 work too.')
       }
       const oks = res.map(r => r.ok)
       rows.forEach((r, i) => {
         r.row.classList.toggle('ok', oks[i])
         r.row.classList.toggle('bad', !oks[i])
       })
-      const right = oks.every(Boolean)
-      const got = oks.filter(Boolean).length
-      const short = right && res.some(r => r.rounded)
-      say(right, short ? 'Right! On the test, give 3 or 4 decimals.' : right ? 'Right!' : items.length > 1 ? `${got} of ${oks.length} right. Fix the red ones, or open the steps.` : 'Not quite. Try again, or open the steps.')
-      const note = onResult(right)
-      if (note) say(right, note + (short ? ' On the test, give 3 or 4 decimals.' : ''))
+      settle(oks, res.some(r => r.rounded))
     })
     rows.forEach(r => r.inp.addEventListener('keydown', e => e.key === 'Enter' && go.click()))
-    wrap.append(grid, go, verdict)
+    typed.append(grid, go)
+    typed.hidden = true
+    // pick from the list (paper mode without the typing), or type it
+    const mode = hwBtn('Type it instead', 'tool hw-mode', () => {
+      typed.hidden = !typed.hidden
+      picked.hidden = pickRow.hidden = !typed.hidden
+      mode.textContent = typed.hidden ? 'Type it instead' : 'Pick from a list instead'
+      if (!typed.hidden) rows[0].inp.focus()
+    })
+    wrap.append(picked, pickRow, typed, mode, verdict)
   } else if (c.type === 'choice') {
     const list = h('div', 'hw-choices')
     let done = false
@@ -335,7 +397,7 @@ function hwPartEl(p, pt, twin) {
         ? `Right! But you opened the steps first, so it doesn’t count yet. ${again}`
         : `Right! Only your first answer counts, so this part stays Missed for now. ${again}`
     }
-  })
+  }, p)
   const selfMark = () => {
     const row = h('div', 'hw-selfmark')
     row.append(h('span', '', 'Did yours match?'))

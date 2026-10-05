@@ -6,7 +6,11 @@
 const PICK_ORDER = ['binomial', 'geometric', 'negbin', 'hyper', 'poisson', 'uniform', 'exponential', 'gamma', 'chi', 'normal']
 // A dropdown answer: the options in a list (formulas drawn), the choice shown in the
 // box, then Check. Each item is { key, group?, row: () => nodes, shown: () => nodes }.
-function pickBox({ placeholder, label, items, onCheck, cls = '', title = 'Your answer' }) {
+// A long list scrolls inside itself; plain numbers (cls 'nums') sit in columns,
+// smallest first, read down each column. With checkButton false there is no Check of
+// its own: onChoose(key) says what was picked, and value() and lock() serve a Check
+// shared by several boxes. title is words or a node (a formula).
+function pickBox({ placeholder, label, items, onCheck, cls = '', title = 'Your answer', checkButton = true, onChoose = null }) {
   const wrap = h('div', 'pick' + (cls ? ' ' + cls : ''))
   const box = h('div', 'pick-box')
   const toggle = h('button', 'pick-toggle')
@@ -44,8 +48,10 @@ function pickBox({ placeholder, label, items, onCheck, cls = '', title = 'Your a
     toggle.setAttribute('aria-expanded', String(on))
     if (on) {
       document.addEventListener('pointerdown', away, true)
-      ;(chosenRow ?? rows[0]).focus({ preventScroll: true })
+      ;(chosenRow ?? rows[0])?.focus({ preventScroll: true })
       box.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' })
+      // a long list opens on the one already picked
+      if (chosenRow) list.scrollTop = Math.max(0, chosenRow.offsetTop - list.offsetTop - list.clientHeight / 2)
     } else document.removeEventListener('pointerdown', away, true)
   }
   function choose(it, row) {
@@ -55,14 +61,17 @@ function pickBox({ placeholder, label, items, onCheck, cls = '', title = 'Your a
     rows.forEach(r => r.setAttribute('aria-selected', String(r === row)))
     check.disabled = false
     open(false)
-    check.focus({ preventScroll: true })
+    onChoose?.(it.key)
+    ;(checkButton ? check : toggle).focus({ preventScroll: true })
   }
   toggle.addEventListener('click', () => open(list.hidden))
+  // arrows (and Home, End) move through the options in order, Escape closes
   list.addEventListener('keydown', e => {
     const i = rows.indexOf(document.activeElement)
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const to = { ArrowDown: i + 1, ArrowRight: i + 1, ArrowUp: i - 1, ArrowLeft: i - 1, Home: 0, End: rows.length - 1 }[e.key]
+    if (to !== undefined) {
       e.preventDefault()
-      rows[Math.min(rows.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)))].focus()
+      rows[Math.min(rows.length - 1, Math.max(0, to))]?.focus()
     } else if (e.key === 'Escape') {
       open(false)
       toggle.focus()
@@ -71,10 +80,19 @@ function pickBox({ placeholder, label, items, onCheck, cls = '', title = 'Your a
   check.addEventListener('click', () => {
     if (chosen !== null) onCheck(chosen, { sel: toggle, check, wrap })
   })
-  wrap.append(h('div', 'pick-label', title), box, check)
-  // 1–8 or a–h on a keyboard picks that option
+  const head = h('div', 'pick-label', typeof title === 'string' ? title : null)
+  if (typeof title !== 'string') head.append(title)
+  wrap.append(head, box)
+  if (checkButton) wrap.append(check)
+  // a key on the keyboard (1–8, a–h) picks that option; learn mode's Show me too
   wrap.pickNth = i => {
     if (!toggle.disabled) rows[i]?.click()
+  }
+  wrap.value = () => chosen
+  wrap.lock = () => {
+    open(false)
+    toggle.disabled = true
+    check.disabled = true
   }
   return wrap
 }
@@ -98,9 +116,27 @@ function pickQuestion(p, sheet) {
   box.correctIndex = PICK_ORDER.indexOf(p.leaf)
   sheet.append(box)
 }
+// The parameters to pick once an MGF's distribution is named: the right ones, the
+// slips the story knows, and the same distribution's parameters read off other MGFs
+// (other numbers), 8 in all. A slip that says the same as the answer (γ = 4, when the
+// answer is γ = 4 with a note) is left out.
+function mgfParamChoices(p) {
+  const pp = p.mgfParams
+  const bare = t => String(t).replace(/\\ \\ \(.*$/, '').replace(/\s+/g, '')
+  const seen = new Set([bare(pp.right)])
+  const out = []
+  const take = t => {
+    if (typeof t !== 'string' || seen.has(bare(t)) || out.length >= 7) return
+    seen.add(bare(t))
+    out.push(t)
+  }
+  pp.slips.forEach(take)
+  for (let i = 0; i < 12 && out.length < 7; i++) take(treeProblem(p.leaf, true, { mgf: true }).mgfParams?.right)
+  return shuffleArr([pp.right, ...out])
+}
 function askParams(p, sheet, q) {
   const pp = p.mgfParams
-  const opts = shuffleArr([pp.right, ...[...new Set(pp.slips)].filter(w => w !== pp.right)])
+  const opts = mgfParamChoices(p)
   const box = pickBox({
     placeholder: 'Choose its parameters…',
     label: 'Parameters',

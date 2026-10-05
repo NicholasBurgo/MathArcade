@@ -51,7 +51,7 @@ function clearInk() {
   inkClear.hidden = true
   setEraseMode(false)
 }
-const onControl = e => e.target instanceof Element && e.target.closest('button, input, a, select, textarea, label, [role="button"], .tables-pop, .calc, .overlay')
+const onControl = e => e.target instanceof Element && e.target.closest('button, input, a, select, textarea, label, [role="button"], [role="listbox"], .tables-pop, .calc, .overlay')
 const sideButton = e => (e.buttons & 34) !== 0 || e.button === 2 || e.button === 5
 // where the pen is on the page: the screen spot plus how far the page is scrolled
 const onPage = e => ({ x: e.clientX + window.scrollX, y: e.clientY + window.scrollY })

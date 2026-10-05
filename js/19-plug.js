@@ -1,8 +1,11 @@
 // js/19-plug.js · plug it in: the story's numbers go into the formula
 // Loaded in order by index.html as a classic script: top-level names are shared with the other js/ files.
 // ---------- plug it in: the story's numbers go into the formula ----------
-const SYM = { n: 'n', p: 'p', q: 'q', x: 'x', r: 'r', N: 'N', k: 'k', t: 't', s: 's', ra: 'r', A: 'A', B: 'B', lam: '\\lambda', mu: '\\mu', sig: '\\sigma', al: '\\alpha', be: '\\beta', ga: '\\gamma' }
-const CHIP_SYM = { lam: 'λ', mu: 'μ', sig: 'σ', al: 'α', be: 'β', ga: 'γ', ra: 'right area' }
+const SYM = { n: 'n', p: 'p', q: 'q', x: 'x', r: 'r', N: 'N', k: 'k', t: 't', s: 's', ra: 'r', A: 'A', B: 'B', lam: '\\lambda', mu: '\\mu', sig: '\\sigma', al: '\\alpha', be: '\\beta', ga: '\\gamma',
+  // the section levels: the ends of a "between" (c and d for a uniform's), and a mean and
+  // a variance worked out first
+  a: 'a', b: 'b', c: 'c', d: 'd', mean: 'E[X]', var: '\\operatorname{Var}X' }
+const CHIP_SYM = { lam: 'λ', mu: 'μ', sig: 'σ', al: 'α', be: 'β', ga: 'γ', ra: 'right area', mean: 'E[X]', var: 'Var X' }
 const choose = (n, k) => {
   if (k < 0 || k > n) return 0
   let c = 1

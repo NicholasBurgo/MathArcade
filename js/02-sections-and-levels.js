@@ -5,21 +5,47 @@
 // work out (work panels, tables, graphs), and the quiz and study-guide derivation parts
 // that go with it: [problem id, part labels], or null for every part. A level plays
 // its parts only when it has no engine kinds; the challenge uses them when none of the
-// level's kinds can be typed.
+// level's kinds can be typed. size, when given, is how many questions a round asks.
+// 3.4–3.8's probabilities, means and variances, and 4.1's uniform numbers, are plug kinds
+// ('plug-<distribution>:<kind>', made in js/24c-plug-levels.js): a story, a number to find,
+// and World 0's animation for the worked answer. They replace the engine's geometric:pmf,
+// cdf and mean-var, binomial:exactly, cumulative and mean-var, negative-binomial:exactly
+// and cumulative, hypergeometric:values, exactly and tail, poisson:find-k, pmf, tail and
+// moments, and uniform:height and prob.
 // Engine kinds left out: mgf:which (picks the formula; the test has you use it),
 // mgf:identify (Build the MGF names an MGF's distribution, every chapter),
 // discrete-derive:why (reasons from three sections' derivations; each build says why as
 // it plays), continuous-cdf:discrete-pdf (a pdf from a step cdf: the guide asks it only
 // for continuous X), chi-squared:mean-var (not on the guide; the quiz keeps only 38(d)),
 // integration:steps (the same integral as integration:antiderivative, a box at a time).
+// the plug kinds join the engine's in KIND, so rounds, reviews and the challenge pick them
+// up like any other kind (each question is made when it is asked)
+const PLUG_LEVEL_KINDS = {
+  geometric: ['exactly', 'at-most', 'at-least', 'between', 'mean', 'var', 'second', 'sd'],
+  binomial: ['exactly', 'at-most', 'at-least', 'between', 'mean', 'var'],
+  negbin: ['exactly', 'at-most', 'at-least', 'mean', 'var'],
+  hyper: ['values', 'exactly', 'at-most', 'at-least', 'mean', 'var'],
+  poisson: ['k', 'exactly', 'at-most', 'at-least', 'between', 'mean-var'],
+  uniform: ['height', 'cdf', 'prob'],
+}
+for (const [leaf, asks] of Object.entries(PLUG_LEVEL_KINDS)) {
+  const t = { id: 'plug-' + leaf, name: `${leaf} probabilities and moments`, templates: [] }
+  for (const ask of asks) {
+    const tp = { id: ask, generate: () => plugLevelProblem(leaf, ask) }
+    t.templates.push(tp)
+    KIND[`${t.id}:${ask}`] = { t, tp }
+  }
+}
 const SECTION_LEVELS = {
   '3.4': {
+    // derive the pdf, then use it: P[X = x]
     'Geometric pdf': {
-      kinds: ['geometric-derive:pdf-build', 'geometric-derive:pdf-numbers', 'geometric-derive:show-pdf', 'geometric-derive:show-pdf-numbers', 'geometric:pmf'],
+      kinds: ['geometric-derive:pdf-build', 'geometric-derive:pdf-numbers', 'geometric-derive:show-pdf', 'geometric-derive:show-pdf-numbers', 'plug-geometric:exactly'],
       parts: [['3.4-24', ['a', 'b']], ['gap-geometric-pdf', null]],
     },
+    // derive F(x) = 1 − qˣ, then use it: at most, fewer than, at least, more than, between
     'Geometric cdf': {
-      kinds: ['geometric-derive:cdf-build', 'geometric-derive:cdf-numbers', 'geometric:cdf'],
+      kinds: ['geometric-derive:cdf-build', 'geometric-derive:cdf-numbers', 'plug-geometric:at-most', 'plug-geometric:at-least', 'plug-geometric:between'],
       parts: [['gap-geometric-cdf', null], ['3.4-24', ['e']]],
     },
     'Discrete pdf: find c, probabilities, mean': {
@@ -30,18 +56,22 @@ const SECTION_LEVELS = {
       kinds: ['geometric-derive:mgf-sum', 'geometric-derive:mgf-factor', 'geometric-derive:mgf-series', 'geometric-derive:mgf-result', 'geometric-derive:mgf-domain', 'geometric-derive:mgf-numbers', 'continuous-mgf:discrete-table', 'continuous-mgf:discrete-formula', 'continuous-mgf:discrete-series'],
       parts: [['3.4-24', ['c']], ['gap-geometric-mgf', ['a', 'b']]],
     },
+    // 3.4 #24(d): E[X], E[X²], σ² and σ, from the MGF or the geometric's formulas
     'Mean and variance from an MGF': {
-      kinds: ['mgf:geometric', 'mgf:finite', 'geometric:mean-var'],
+      kinds: ['mgf:geometric', 'mgf:finite', 'plug-geometric:mean', 'plug-geometric:var', 'plug-geometric:second', 'plug-geometric:sd'],
       parts: [['3.4-24', ['d']], ['gap-geometric-mgf', ['c']]],
     },
   },
   '3.5': {
+    // two derivations, the same every time: each twice
     'Binomial pdf': {
       kinds: ['discrete-derive:binom-build', 'discrete-derive:binom-sum'],
       parts: [['gap-binomial-pdf', null]],
+      size: 4,
     },
+    // n = 20 reads the table the test gives; other n add up terms
     'Binomial probabilities and mean': {
-      kinds: ['binomial:exactly', 'binomial:cumulative', 'binomial:mean-var'],
+      kinds: ['plug-binomial:exactly', 'plug-binomial:at-most', 'plug-binomial:at-least', 'plug-binomial:between', 'plug-binomial:mean', 'plug-binomial:var'],
       parts: [['3.5-42', null], ['3.5-37', ['a', 'b']]],
     },
     'Binomial table': {
@@ -50,12 +80,15 @@ const SECTION_LEVELS = {
     },
   },
   '3.6': {
+    // one derivation (new numbers each time): three times
     'Negative binomial pdf': {
       kinds: ['discrete-derive:negbin-build'],
       parts: [['gap-negbin-pdf', null]],
+      size: 3,
     },
+    // 3.6 #48: the mean r/p, and P[X = x]; and which values X can take
     'Negative binomial probabilities': {
-      kinds: ['negative-binomial:exactly', 'negative-binomial:cumulative', 'negative-binomial:possible'],
+      kinds: ['plug-negbin:exactly', 'plug-negbin:at-most', 'plug-negbin:at-least', 'plug-negbin:mean', 'plug-negbin:var', 'negative-binomial:possible'],
       parts: [['3.6-48', null], ['gap-negbin-mgf', null]],
     },
   },
@@ -64,15 +97,19 @@ const SECTION_LEVELS = {
     'Hypergeometric pdf': {
       kinds: ['discrete-derive:hyper-build', 'discrete-derive:numbers'],
       parts: [['gap-hyper-pdf', null]],
+      size: 4,
     },
+    // 3.7 #54–56: the values X can take, E[X] and Var X; and its probabilities
     'Hypergeometric values and probabilities': {
-      kinds: ['hypergeometric:values', 'hypergeometric:exactly', 'hypergeometric:tail'],
+      kinds: ['plug-hyper:values', 'plug-hyper:exactly', 'plug-hyper:at-most', 'plug-hyper:at-least', 'plug-hyper:mean', 'plug-hyper:var'],
       parts: [['3.7-54', null], ['3.7-55', null], ['3.7-56', null]],
     },
   },
   '3.8': {
+    // 3.8 #61: k = λs, P[X = x], at most, fewer than, at least, between; the mean and
+    // variance are k; and showing it is a pdf
     'Poisson probabilities': {
-      kinds: ['poisson:find-k', 'poisson:pmf', 'poisson:tail', 'poisson:moments', 'discrete-derive:poisson-sum'],
+      kinds: ['plug-poisson:k', 'plug-poisson:exactly', 'plug-poisson:at-most', 'plug-poisson:at-least', 'plug-poisson:between', 'plug-poisson:mean-var', 'discrete-derive:poisson-sum'],
       parts: [['3.8-61', null]],
     },
   },
@@ -89,8 +126,9 @@ const SECTION_LEVELS = {
       kinds: ['continuous-cdf:derive', 'continuous-cdf:value', 'continuous-cdf:interval', 'continuous-cdf:pdf', 'continuous-cdf:pdf-value'],
       parts: [['4.1-10', null], ['4.2-24', ['b']], ['gap-pdf-from-cdf', null]],
     },
+    // derive 1/(B − A), then use it: the height, F(x) = (x − A)/(B − A), P[c < X < d]
     'Uniform pdf': {
-      kinds: ['uniform:derive', 'uniform:height', 'uniform:prob'],
+      kinds: ['uniform:derive', 'plug-uniform:height', 'plug-uniform:cdf', 'plug-uniform:prob'],
       parts: [['gap-uniform-pdf', null], ['4.1-10', null]],
     },
   },
