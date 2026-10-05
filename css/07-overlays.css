@@ -69,6 +69,11 @@
 .calc-in:focus { outline: none; border-color: var(--rule); }
 .calc-out { font-family: var(--mono); font-size: 1.05rem; color: var(--ink); white-space: nowrap; }
 .calc-msg { min-height: 1.2em; margin: 2px 2px 6px; color: var(--red); font-size: 0.8rem; }
+/* the formula buttons, and what goes inside the one just tapped */
+.calc-hint { min-height: 1.2em; margin: 0 2px 6px; color: var(--gold); font-family: var(--mono); font-size: 0.78rem; }
+.calc-forms { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 8px; }
+.calc-forms button { min-height: 38px; padding: 2px; border: 1.5px solid var(--rule-soft); border-radius: 8px; background: var(--paper); color: var(--gold); font-family: var(--mono); font-size: 0.72rem; line-height: 1.1; cursor: pointer; touch-action: manipulation; }
+.calc-forms button:active { transform: translateY(1px); background: var(--rule-soft); }
 /* the keypad: seven across; = runs the width of the last row */
 .calc-keys { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
 .calc-keys button { min-height: 48px; padding: 0; border: 1.5px solid var(--rule-soft); border-radius: 8px; background: var(--paper); color: var(--ink); font-family: var(--mono); font-size: 1.05rem; cursor: pointer; touch-action: manipulation; }

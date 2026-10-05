@@ -36,6 +36,62 @@ function calcEval(src, ans, refs = []) {
     else if (i < toks.length) throw new Error('Check the brackets')
   }
   const FUN = { sqrt: Math.sqrt, ln: Math.log, log: Math.log10, exp: Math.exp, abs: Math.abs }
+  // the formulas, for speed: each takes its numbers in the order its button shows
+  const whole = (v, name) => {
+    if (!Number.isInteger(v) || v < 0) throw new Error(`${name} needs a whole number`)
+    return v
+  }
+  const chance = v => {
+    if (!(v >= 0 && v <= 1)) throw new Error('p needs to be between 0 and 1')
+    return v
+  }
+  const erf = x => {
+    // Abramowitz–Stegun 7.1.26
+    const t = 1 / (1 + 0.3275911 * Math.abs(x))
+    const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x)
+    return x >= 0 ? y : -y
+  }
+  const phi = z => 0.5 * (1 + erf(z / Math.SQRT2))
+  const binom = (n, p, x) => (whole(n, 'n'), chance(p), Number.isInteger(x) && x >= 0 && x <= n ? choose(n, x) * p ** x * (1 - p) ** (n - x) : 0)
+  const pois = (k, x) => (k > 0 && Number.isInteger(x) && x >= 0 ? (Math.exp(-k) * k ** x) / fact(x) : 0)
+  const hyper = (N, r, n, x) => {
+    ;[N, r, n].forEach((v, i) => whole(v, ['N', 'r', 'n'][i]))
+    if (r > N || n > N) throw new Error('Needs r ≤ N and n ≤ N')
+    return Number.isInteger(x) && x >= Math.max(0, n - (N - r)) && x <= Math.min(n, r) ? (choose(r, x) * choose(N - r, n - x)) / choose(N, n) : 0
+  }
+  const upTo = (f, lo, x) => {
+    let s = 0
+    for (let k = lo; k <= Math.floor(x); k++) s += f(k)
+    return s
+  }
+  const MULTI = {
+    binom: [3, binom],
+    binomcdf: [3, (n, p, x) => upTo(k => binom(n, p, k), 0, x)],
+    pois: [2, pois],
+    poiscdf: [2, (k, x) => upTo(i => pois(k, i), 0, x)],
+    geom: [2, (p, x) => (chance(p), Number.isInteger(x) && x >= 1 ? (1 - p) ** (x - 1) * p : 0)],
+    geomcdf: [2, (p, x) => (chance(p), x < 1 ? 0 : 1 - (1 - p) ** Math.floor(x))],
+    nbinom: [3, (r, p, x) => (whole(r, 'r'), chance(p), Number.isInteger(x) && x >= r ? choose(x - 1, r - 1) * p ** r * (1 - p) ** (x - r) : 0)],
+    hyper: [4, hyper],
+    hypercdf: [4, (N, r, n, x) => (hyper(N, r, n, 0), upTo(k => hyper(N, r, n, k), 0, x))],
+    expcdf: [2, (b, t) => {
+      if (!(b > 0)) throw new Error('β needs to be positive (β = 1/λ)')
+      return t <= 0 ? 0 : 1 - Math.exp(-t / b)
+    }],
+    zscore: [3, (x, mu, sig) => {
+      if (!(sig > 0)) throw new Error('σ needs to be positive (the square root of the variance)')
+      return (x - mu) / sig
+    }],
+    phi: [1, phi],
+    invnorm: [1, a => {
+      if (!(a > 0 && a < 1)) throw new Error('The area needs to be between 0 and 1')
+      return invPhi(a)
+    }],
+    gamma: [1, a => {
+      if (!(a > 0)) throw new Error('Γ(a) needs a > 0')
+      return window.HW?.gamma ? window.HW.gamma(a) : fact(a - 1)
+    }],
+  }
   function expr() {
     let v = term()
     while (isChar('+') || isChar('-')) {
@@ -110,6 +166,19 @@ function calcEval(src, ans, refs = []) {
       const k = expr()
       closeBracket()
       return choose(n, k)
+    }
+    if (MULTI[t.id]) {
+      const [arity, f] = MULTI[t.id]
+      if (!isChar('(')) throw new Error(`Write ${t.id}(…)`)
+      i++
+      const args = [expr()]
+      while (isChar(',')) {
+        i++
+        args.push(expr())
+      }
+      closeBracket()
+      if (args.length !== arity) throw new Error(`${t.id} takes ${arity} number${arity > 1 ? 's' : ''}`)
+      return f(...args)
     }
     if (FUN[t.id]) {
       // a bracket after it, or just the next number: √16, ln 2
@@ -220,6 +289,7 @@ const calcTape = []
       const v = calcEval(src, calcAns, answers())
       calcAns = v
       calcTape.push({ src, v })
+      hint.textContent = ''
       put('')
       renderTape()
     } catch (err) {
@@ -242,6 +312,35 @@ const calcTape = []
     ['1', '1'], ['2', '2'], ['3', '3'], ['−', '−', 'op'], [',', ',', 'op'], ['Ans', 'Ans', 'fn'], ['Σ all', addAll, 'fn'],
     ['0', '0'], ['.', '.'], ['+', '+', 'op'], ['=', equals, 'eq'],
   ]
+  // the formula buttons: each puts its function in and says what goes inside, in order
+  const FORMULAS = [
+    ['Binom =', 'binom(', 'binom(n, p, x) = P[X = x]'],
+    ['Binom ≤', 'binomcdf(', 'binomcdf(n, p, x) = P[X ≤ x]'],
+    ['Pois =', 'pois(', 'pois(k, x) = P[X = x], k = λs'],
+    ['Pois ≤', 'poiscdf(', 'poiscdf(k, x) = P[X ≤ x]'],
+    ['Geom =', 'geom(', 'geom(p, x) = q^(x−1)·p'],
+    ['Geom ≤', 'geomcdf(', 'geomcdf(p, x) = 1 − q^x'],
+    ['NegBin =', 'nbinom(', 'nbinom(r, p, x) = C(x−1, r−1)·p^r·q^(x−r)'],
+    ['Hyper =', 'hyper(', 'hyper(N, r, n, x) = P[X = x]'],
+    ['Hyper ≤', 'hypercdf(', 'hypercdf(N, r, n, x) = P[X ≤ x]'],
+    ['Exp ≤', 'expcdf(', 'expcdf(β, t) = P[W ≤ t] = 1 − e^(−t/β), β = 1/λ'],
+    ['z-score', 'zscore(', 'zscore(x, μ, σ) = (x − μ)/σ'],
+    ['Φ(z)', 'phi(', 'phi(z) = the area to the left of z'],
+    ['z from area', 'invnorm(', 'invnorm(area) = the z with that area to its left'],
+    ['Γ(a)', 'gamma(', 'gamma(a) = Γ(a) = (a − 1)! for whole a'],
+  ]
+  const hint = h('div', 'calc-hint')
+  const forms = h('div', 'calc-forms')
+  for (const [label, text, say] of FORMULAS) {
+    const b = h('button', '', label)
+    b.type = 'button'
+    b.title = say
+    b.addEventListener('click', () => {
+      insert(text)
+      hint.textContent = say
+    })
+    forms.append(b)
+  }
   const keys = h('div', 'calc-keys')
   for (const [label, act, cls] of KEYS) {
     const b = h('button', cls ?? '', label)
@@ -262,7 +361,7 @@ const calcTape = []
     } else if (e.key === 'Escape') showCalc(false)
   })
   renderTape()
-  calc.append(head, tape, now, msg, keys)
+  calc.append(head, tape, now, msg, hint, forms, keys)
 
   // drag it by its title bar, out of the question's way; it stays where it was left
   const place = (x, y) => {
