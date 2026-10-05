@@ -51,23 +51,31 @@
 .tp-body .note { margin: 2px 0 8px; color: var(--muted); font-size: 0.85rem; }
 .diag { margin: 6px 0; padding: 6px 10px; border-left: 3px solid var(--gold); font-weight: 600; }
 /* the calculator floats over everything but the confetti, and stays where it is dragged */
-.calc { position: fixed; z-index: 35; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: min(300px, calc(100vw - 32px)); padding: 10px; border: 2px solid var(--rule); border-radius: 14px; background: var(--sheet); box-shadow: var(--shadow); }
-.calc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -2px 0 8px; cursor: grab; touch-action: none; user-select: none; }
-.calc-head b { font-family: var(--display); font-size: 1.1rem; text-transform: uppercase; color: var(--rule); }
+.calc { position: fixed; z-index: 35; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: min(410px, calc(100vw - 24px)); padding: 10px; border: 2px solid var(--rule); border-radius: 14px; background: var(--sheet); box-shadow: var(--shadow); }
+.calc-head { display: flex; align-items: center; gap: 8px; margin: -2px 0 8px; cursor: grab; touch-action: none; user-select: none; }
+.calc-head b { font-family: var(--display); font-size: 1.1rem; text-transform: uppercase; color: var(--rule); margin-right: auto; }
+.calc-clear { border: 1.5px solid var(--rule-soft); border-radius: 999px; background: none; color: var(--muted); font-family: var(--mono); font-size: 0.75rem; padding: 3px 10px; cursor: pointer; }
 .calc-x { border: 0; background: none; color: var(--muted); font-size: 1.5rem; line-height: 1; padding: 0 6px; cursor: pointer; }
+/* the tape: every worked line, its number, its expression and its answer */
+.calc-tape { display: grid; gap: 2px; max-height: 168px; overflow-y: auto; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1.5px dashed var(--rule-soft); }
+.calc-line { display: grid; grid-template-columns: 2.2em minmax(0, 1fr) auto; align-items: center; gap: 6px; }
+.calc-n { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
+.calc-src, .calc-val { border: 0; border-radius: 6px; background: none; font-family: var(--mono); font-size: 0.95rem; padding: 4px 6px; cursor: pointer; }
+.calc-src { color: var(--muted); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calc-val { color: var(--ink); font-weight: 700; text-align: right; }
+.calc-src:hover, .calc-val:hover { background: var(--rule-soft); }
+.calc-line.now .calc-n { color: var(--rule); }
 .calc-in { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1.5px solid var(--rule-soft); border-radius: 8px; background: var(--paper); color: var(--ink); font-family: var(--mono); font-size: 1.1rem; }
 .calc-in:focus { outline: none; border-color: var(--rule); }
-.calc-out { min-height: 1.6em; margin: 4px 2px 8px; font-family: var(--mono); font-size: 1.15rem; text-align: right; color: var(--ink); overflow-wrap: anywhere; }
-.calc-out.bad { color: var(--red); font-size: 0.85rem; }
-.calc-keys { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.calc-keys button { min-height: 44px; padding: 0; border: 1.5px solid var(--rule-soft); border-radius: 8px; background: var(--paper); color: var(--ink); font-family: var(--mono); font-size: 1rem; cursor: pointer; touch-action: manipulation; }
+.calc-out { font-family: var(--mono); font-size: 1.05rem; color: var(--ink); white-space: nowrap; }
+.calc-msg { min-height: 1.2em; margin: 2px 2px 6px; color: var(--red); font-size: 0.8rem; }
+/* the keypad: seven across; = runs the width of the last row */
+.calc-keys { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.calc-keys button { min-height: 48px; padding: 0; border: 1.5px solid var(--rule-soft); border-radius: 8px; background: var(--paper); color: var(--ink); font-family: var(--mono); font-size: 1.05rem; cursor: pointer; touch-action: manipulation; }
 .calc-keys button.op { color: var(--rule); }
 .calc-keys button.fn { color: var(--gold); font-size: 0.88rem; }
-.calc-keys button.eq { background: var(--rule); border-color: var(--rule); color: var(--sheet); font-weight: 700; }
+.calc-keys button.eq { grid-column: span 4; background: var(--rule); border-color: var(--rule); color: var(--sheet); font-weight: 700; }
 .calc-keys button:active { transform: translateY(1px); background: var(--rule-soft); }
-.calc-hist { display: grid; gap: 2px; margin-top: 8px; max-height: 120px; overflow-y: auto; }
-.calc-hist button { text-align: right; border: 0; border-radius: 6px; background: none; color: var(--muted); font-family: var(--mono); font-size: 0.8rem; padding: 3px 4px; cursor: pointer; overflow-wrap: anywhere; }
-.calc-hist button:hover { background: var(--rule-soft); }
 #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 40; }
 /* S Pen ink: laid over the whole page, never in the way of a tap */
 #ink { position: absolute; top: 0; left: 0; z-index: 25; pointer-events: none; }
