@@ -152,17 +152,18 @@ function advance() {
 function finish() {
   screen = 'results'
   const r = round
-  // a quick round tops out at 2 stars; the third needs a full round with no misses
+  // a quick round tops out at 2 stars; the third needs a full round with no misses (a quiz
+  // question on its own numbers earns none: the stars are for new numbers)
   const stars = r.quick ? (r.misses === 0 ? 2 : 1) : r.misses === 0 ? 3 : r.misses <= 2 ? 2 : 1
   const prev = state.stars[r.short] || 0
-  state.stars[r.short] = Math.max(prev, stars)
+  if (!r.own) state.stars[r.short] = Math.max(prev, stars)
   state.plays[r.short] = (state.plays[r.short] || 0) + 1
   save()
   hud()
 
   view.replaceChildren()
   const sheet = h('section', 'sheet')
-  sheet.append(h('div', 'eyebrow', r.paper ? 'Level cleared · paper mode' : 'Level cleared'))
+  sheet.append(h('div', 'eyebrow', r.own ? 'Done · the quiz’s own numbers' : r.paper ? 'Level cleared · paper mode' : 'Level cleared'))
   sheet.append(h('h2', '', r.short))
   const st = h('div', 'result-stars')
   for (let i = 0; i < 3; i++) {
@@ -170,7 +171,7 @@ function finish() {
     s.style.animationDelay = i * 0.25 + 's'
     st.append(s)
   }
-  sheet.append(st)
+  if (!r.own) sheet.append(st)
   const tally = h('div', 'tally')
   const cell = (label, value) => {
     const c = h('div')
@@ -179,20 +180,24 @@ function finish() {
   }
   tally.append(cell('best streak', String(r.best)), cell('first-try misses', String(r.misses)))
   sheet.append(tally)
-  const msg = r.quick ? (stars === 2 ? 'Clean quick round. A full round with no misses gets the third star.' : 'Quick round done. Watch the animations on the ones you missed, then go again.') : stars === 3 ? 'Clean sheet. Every answer right the first time.' : stars === 2 ? 'Good run. One with no misses gets the third star.' : 'Cleared. Run it again: the questions change every time.'
-  sheet.append(h('p', 'note', msg + (stars > prev && prev ? ' New best!' : '')))
+  const msg = r.own
+    ? (r.misses === 0 ? 'Every part right the first time, on the quiz’s own numbers. Now make sure it holds with new numbers.' : 'Watch the work on the ones you missed, then try them with new numbers.')
+    : r.quick ? (stars === 2 ? 'Clean quick round. A full round with no misses gets the third star.' : 'Quick round done. Watch the animations on the ones you missed, then go again.') : stars === 3 ? 'Clean sheet. Every answer right the first time.' : stars === 2 ? 'Good run. One with no misses gets the third star.' : 'Cleared. Run it again: the questions change every time.'
+  sheet.append(h('p', 'note', msg + (!r.own && stars > prev && prev ? ' New best!' : '')))
   const acts = h('div', 'row-actions')
+  // (a quiz question's level goes on to the next quiz question, and back to their list)
+  const quizL = isQuizLevel(r.short) ? QUIZ_LEVELS[r.short] : null
   const i = ORDER.indexOf(r.short)
-  const nextShort = ORDER[(i + 1) % ORDER.length]
-  const again = h('button', stars < 3 ? 'btn' : 'btn ghost', 'Run it again')
+  const nextShort = quizL ? quizLevelAfter(r.short) : ORDER[(i + 1) % ORDER.length]
+  const again = h('button', stars < 3 || r.own ? 'btn' : 'btn ghost', 'Run it again')
   again.type = 'button'
-  again.addEventListener('click', () => startRound(r.short))
-  const nxt = h('button', stars < 3 ? 'btn ghost' : 'btn', 'Next level')
+  again.addEventListener('click', () => (r.own ? startRound(r.short, false, false, true) : startRound(r.short)))
+  const nxt = h('button', stars < 3 || r.own ? 'btn ghost' : 'btn', quizL ? 'Next quiz question' : 'Next level')
   nxt.type = 'button'
   nxt.addEventListener('click', () => openCard(nextShort))
-  const map = h('button', 'btn ghost', 'Home')
+  const map = h('button', 'btn ghost', quizL ? 'Quiz questions' : 'Home')
   map.type = 'button'
-  map.addEventListener('click', renderMap)
+  map.addEventListener('click', () => (quizL ? hwHome(quizL.p.section) : renderMap()))
   acts.append(again, nxt, map)
   sheet.append(acts)
   view.append(sheet)

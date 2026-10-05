@@ -320,6 +320,8 @@ function workGroups(p) {
     const support = math ? [...src.matchAll(/\\quad x = (?:-?\d+, )+(?:-?\d+|\\ldots)|\\begin\{array\}\{[^}]*\}\s*x &[^\\]*/g)].map(m => [m.index, m.index + m[0].length]) : []
     for (const t of math ? numberTokens(src, true, true) : numberTokens(src, false)) {
       if (support.some(([a, b]) => t.start >= a && t.start < b)) continue
+      // (a quiz walk names the story's numbers that are no parameter: a 6-foot batter, 8:00)
+      if (p.workSkip?.(field, t, src)) continue
       // (the 1 of "1 every 15 seconds" only says it is a rate)
       if (!math && /^ every\b/.test(src.slice(t.end)) && t.val === 1) continue
       const spell = t.tok.replace('−', '-')
@@ -371,7 +373,10 @@ function linkWork(p, rows, level) {
   const lastRow = rows.length - 1
   // the answer: the last step of the last row (the whole work, when it is just the answer;
   // the whole row, when it carries on an equation or says the answer in words)
-  const isAnswer = (r, j) => r === lastRow && j === rows[r].length - 1 && (rows[r].length > 1 || rows.length === 1 || /^\s*(=|\\approx)/.test(rows[r][0]) || (typeof p.answer === 'string' && rows[r][0].includes(p.answer)))
+  // (a quiz walk says where its answer is: answerAt)
+  const isAnswer = p.walk
+    ? (r, j) => !!p.walk.answerAt && r === p.walk.answerAt.r && j === p.walk.answerAt.j
+    : (r, j) => r === lastRow && j === rows[r].length - 1 && (rows[r].length > 1 || rows.length === 1 || /^\s*(=|\\approx)/.test(rows[r][0]) || (typeof p.answer === 'string' && rows[r][0].includes(p.answer)))
   const groups = workGroups(p)
   const formulaAnswer = !!p.expr?.vars?.length
   const spellOf = t => t.tok.replace('−', '-')
@@ -498,13 +503,15 @@ function linkWork(p, rows, level) {
     // the story's words; the ask's when they say something ("within 4 hours", "P(X > 1.5)"),
     // else where it sits in the math ("0.1 ≤ x" in a note says less than "in f(x)")
     const askOcc = g.occ.find(o => o.field === 'ask')
+    // (a quiz walk reads its own words: P[…] with brackets)
+    const around = p.workWords ?? wordsAround
     const askSays = askOcc && (o => {
-      const w = wordsAround(p.ask, o.start, o.end)
+      const w = around(p.ask, o.start, o.end)
       return /[A-Za-z]{2,}|\b[PFf]\(/.test(p.ask.slice(w.start, w.end))
     })(askOcc)
     const occ = g.occ.find(o => o.field === 'text') ?? (askSays ? askOcc : null) ?? g.occ.find(o => o.field === 'math') ?? askOcc
     const src = occ.field === 'text' ? p.text : occ.field === 'ask' ? p.ask : p.latex
-    const span = occ.field === 'math' ? null : wordsAround(src, occ.start, occ.end)
+    const span = occ.field === 'math' ? null : around(src, occ.start, occ.end)
     return {
       key: g.spell, tok: g.spell, val: g.val, sym: symFor(g.val), occ, occs: g.occ,
       words: span ? { field: occ.field, ...span } : null,

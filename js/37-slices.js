@@ -51,8 +51,10 @@ function makeSlice({ p, label, item }) {
   }
 }
 // n questions for a level: every kind before any repeats, and at most one in three
-// to write out and mark yourself (the rest have choices)
-function sliceRound(short, n) {
+// to write out and mark yourself (the rest have choices). A quiz question's level asks
+// its parts in the quiz's order (js/37b).
+function sliceRound(short, n, quick = false, own = false) {
+  if (LEVELS[short]?.quiz) return quizLevelRound(short, n, quick, own)
   const ks = sliceKinds(short)
   const play = shuffleArr(ks.filter(k => !k.self)), write = shuffleArr(ks.filter(k => k.self))
   const out = []
@@ -80,10 +82,15 @@ function sliceChoices(c, p = null) {
   return choicesForNumber({ value: c.value, tol: c.tol, wrong: c.wrong ?? [], siblings: twins, words: [p?.ask, p?.answerTex].join(' '), printed: p?.answerTex }).map(o => ({ correct: o.correct, text: o.label, num: o.v }))
 }
 // a slice counts toward its homework part's "new numbers" (once, on its first showing);
-// one number of several only counts when it's missed
+// one number of several only counts when it's missed (a quiz question's level: or once
+// every number of the part is right in the round)
 function sliceRecord(q, right) {
   const p = q.p
-  if (round?.learn || q.seen !== 1 || (p.item != null && right)) return
+  if (round?.learn || q.seen !== 1) return
+  if (p.item != null && right) {
+    if (p.quizLevel) quizLevelItemRight(q)
+    return
+  }
   hwRecord(p.hwId, p.label, p.twin, right, false)
 }
 // where a level's parts come from: the quiz questions and the study guide's derivations,
@@ -107,7 +114,9 @@ function sliceHead(p, el) {
   }
 }
 // the worked answer: played a step at a time after a right answer, all at once otherwise
+// (a quiz question's level plays it like the arcade's work, right or wrong: js/37b)
 function sliceSolution(p, { auto = false, next = null } = {}) {
+  if (p.quizLevel) return quizSolution(p, { next })
   const box = h('div', 'plug slice-work')
   box.append(h('h3', '', 'The steps'))
   box.append(hwWalk({ steps: p.steps, answer: p.answerTex, trap: p.trap }, { auto, all: !auto }))
@@ -141,6 +150,7 @@ function sliceHowTo(p) {
   return wrap
 }
 function sliceQuestion(p, sheet, q) {
+  if (p.quizLevel) return quizSliceQuestion(p, sheet, q)
   sliceHead(p, sheet)
   if (round.learn) sheet.append(learnBar(p, sheet))
   if (!round.paper && p.start) sheet.append(firstMove(p))

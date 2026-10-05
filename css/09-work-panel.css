@@ -22,3 +22,14 @@
 @media (prefers-reduced-motion: reduce) {
   .work-panel .plug-line.enter, .work-panel .plug-line.bump { animation: none; }
 }
+/* a quiz question's walk (js/37b): its first move, each step's move and why, a third table */
+.pvt2, .pvt3 { color: var(--pvt); fill: var(--pvt); }
+.work-rule .work-first { margin: 0 0 6px; color: var(--ink); font-size: 0.95rem; }
+.walk-say p { margin: 0; }
+.walk-say .walk-move { color: var(--ink); }
+.walk-say .walk-why { margin-top: 3px; }
+.quiz-walk .work-row > .tlook, .quiz-walk .work-row > .dgraph-wrap { margin-left: 14px; }
+.quiz-walk > .hw-trap { margin: 8px 0 0; }
+@media (max-width: 520px) {
+  .quiz-walk .work-row > .tlook, .quiz-walk .work-row > .dgraph-wrap { margin-left: 4px; }
+}

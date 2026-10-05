@@ -54,7 +54,7 @@ function quizBlock() {
   const hero = h('section', 'hero')
   const words = h('div')
   words.append(h('h1', '', 'Test 2'))
-  words.append(h('p', '', 'Work each quiz question step by step, then again with new numbers, and drill each section’s skills in the arcade below.'))
+  words.append(h('p', '', 'Each quiz question is a level: its parts from a long list of answers, with new numbers every time, and the work played out after each answer. Then take a timed practice quiz.'))
   const fig = h('figure', 'bell')
   fig.innerHTML = bellSvg(r)
   const cap = h('figcaption')
@@ -78,7 +78,8 @@ function quizBlock() {
       h('strong', '', `${first ? hwQuizName(next.p) : `${hwName(next.p)} (${next.pt.label})`} · ${next.p.title}`),
     )
     cta.append(ctaText, h('span', 'go', '→'))
-    cta.addEventListener('click', () => hwOpen(next.p.id, { twin: next.twin, focus: first ? null : next.pt.label }))
+    // (its level: new numbers, or the quiz's own numbers)
+    cta.addEventListener('click', () => openCard(quizLevelName(next.p)))
     view.append(cta)
   }
 
@@ -100,8 +101,9 @@ function quizBlock() {
     acts.append(quizMe)
     head.append(acts)
     const list = h('div', 'hw-list')
+    // each question opens its level (js/37b)
     for (const p of s.ps) {
-      const b = hwBtn('', 'hw-prob', () => hwOpen(p.id))
+      const b = hwBtn('', 'hw-prob', () => openCard(quizLevelName(p)))
       b.append(h('span', 'hw-num', hwQuizName(p)), h('span', 'hw-title', p.title), hwDots(p))
       list.append(b)
     }
@@ -199,6 +201,8 @@ function arcadeBlock() {
 }
 
 function openCard(short) {
+  // a quiz question's level has its own card (js/37b)
+  if (isQuizLevel(short)) return quizLevelCard(short)
   screen = 'card'
   cardLevel = short
   view.replaceChildren()

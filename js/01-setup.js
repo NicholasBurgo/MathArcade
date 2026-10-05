@@ -36,5 +36,5 @@ const levelKinds = short => (isWorld0(short) || short in REVIEW_NAMES ? [] : (LE
 // a round shows every kind at least once, and never fewer than ROUND questions (unless
 // the level sets its own size: a derivation that is the same every time); a mix
 // asks one question from each of its levels; naming the distribution is quick, so its
-// rounds run twice as long
-const roundSize = short => (short in REVIEW_NAMES ? REVIEW[short].length : isTree(short) ? ROUND * 2 : isMgf(short) ? 5 : isParam(short) ? 10 : levelKinds(short).length ? LEVELS[short]?.size ?? Math.max(ROUND, levelKinds(short).length) : Math.max(ROUND, Math.min(10, sliceKinds(short).length)))
+// rounds run twice as long (a quiz question's level sets its own size: every part once)
+const roundSize = short => (short in REVIEW_NAMES ? REVIEW[short].length : isTree(short) ? ROUND * 2 : isMgf(short) ? 5 : isParam(short) ? 10 : levelKinds(short).length ? LEVELS[short]?.size ?? Math.max(ROUND, levelKinds(short).length) : LEVELS[short]?.size ?? Math.max(ROUND, Math.min(10, sliceKinds(short).length)))

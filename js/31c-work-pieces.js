@@ -440,3 +440,8 @@ function lookSpot(spec, rows, taken) {
   }
   return null
 }
+// the same, for a lookup a quiz walk ties to its own step: only rows a to b are searched
+function lookSpotIn(spec, rows, [a, b], taken) {
+  const at = lookSpot(spec, rows.slice(a, b + 1), taken.filter(x => x.r >= a && x.r <= b).map(x => ({ ...x, r: x.r - a })))
+  return at ? { ...at, r: at.r + a } : null
+}

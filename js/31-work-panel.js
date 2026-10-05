@@ -72,8 +72,17 @@ const workSafe = (fn, fallback) => {
     return fallback
   }
 }
+// A quiz walk (p.walk, js/37b) brings its own reading: rows (an empty row is a step with
+// words only), a reason per row (say and why, or none), each table lookup with the rows it
+// may land in (range), each graph with the row it follows, where the answer is (answerAt)
+// and the first move (first). Its lookups that land nowhere play just before their step.
+const workWalkLooks = (w, at) => w.looks.map((lw, i) => ({ spec: lw.spec, at: at(lw) ?? { r: lw.range[0], j: 0, start: -1, end: -1, tok: '', words: true }, cls: 'pvt' + i, hooks: {} }))
 // the worked answer with nothing read into it: its rows, boxed at the end
 function workPlainPlan(p) {
+  if (p.walk) {
+    const w = p.walk
+    return { work: null, rows: w.rows, givens: [], links: [], looks: workWalkLooks(w, () => null), pieces: [], says: w.says, graph: null, graphs: w.graphs, extra: () => null, isAnswer: (r, j) => !!w.answerAt && r === w.answerAt.r && j === w.answerAt.j }
+  }
   const work = workOf(p)
   const rows = work ? workSafe(() => workRows(work), [[work]]) : []
   const says = Array.isArray(p.steps) && p.steps.length === rows.length ? p.steps : null
@@ -83,14 +92,24 @@ function workPlainPlan(p) {
 const workPlan = (p, level) => workSafe(() => workRead(p, level), null) ?? workPlainPlan(p)
 function workRead(p, level) {
   const work = workOf(p)
-  const rows = work ? workRows(work) : []
+  const rows = p.walk ? p.walk.rows : work ? workRows(work) : []
   const link = linkWork(p, rows, level)
+  // (a quiz walk adds the story's fractions: p = 1/13 is one number, not two)
+  if (p.walk?.moreGivens) workSafe(() => p.walk.moreGivens(rows, link), null)
   const { givens, links } = link
   const linkAt = (r, j, start) => links.find(l => l.r === r && l.j === j && l.start === start)
   const wrapG = g => `{\\class{${g.cls}}{${g.tok}}}`
   // table lookups, each tied to the step that uses what it reads
   const looks = []
-  for (const spec of workSafe(() => findLookups(p, level), [])) {
+  if (p.walk) {
+    // (one at a time: a spot one lookup lands in is taken for the next)
+    const spots = []
+    looks.push(...workWalkLooks(p.walk, lw => {
+      const at = workSafe(() => lookSpotIn(lw.spec, rows, lw.range, [...spots, ...links]), null)
+      if (at) spots.push(at)
+      return at
+    }))
+  } else for (const spec of workSafe(() => findLookups(p, level), [])) {
     const at = workSafe(() => lookSpot(spec, rows, [...looks.map(x => x.at).filter(Boolean), ...links]), null)
     looks.push({ spec, at, cls: 'pvt' + looks.length, hooks: {} })
   }
@@ -102,6 +121,10 @@ function workRead(p, level) {
     const hk = (g, text) => (g ? { g, text: text ?? g.tok } : null)
     if (name === 'binomial' || name === 'binomial19') {
       lk.hooks.table = hk(chipOf(name === 'binomial19' ? '19' : '20'))
+      lk.hooks.col = hk(chipOf(col))
+    } else if (p.walk && /^binomial\d+$/.test(name)) {
+      // (a quiz walk also reads the n = 10 and 15 tables)
+      lk.hooks.table = hk(chipOf(name.slice(8)))
       lk.hooks.col = hk(chipOf(col))
     } else if (name === 'chi2') {
       lk.hooks.row = hk(chipOf(row))
@@ -126,11 +149,12 @@ function workRead(p, level) {
   for (const g of givens.filter(x => x.derived && x.first)) {
     const from = g.derived
     const symTex = s => WORK_SYM_TEX[s] ?? s
-    const line = g.sym && from.sym
+    const line = g.sym && from.sym && g.sym !== from.sym
       ? { order: [], label: `How to get ${g.sym}`, tex: () => `${symTex(g.sym)} = 1 - ${symTex(from.sym)}`, steps: () => [`= 1 - ${wrapG(from)}`, `= ${wrapG(g)}`] }
       : { order: [], label: `How to get ${g.tok}`, tex: () => `1 - ${wrapG(from)} = ${wrapG(g)}` }
     pieces.push({ r: g.first.r, j: g.first.j, line, before: true, g })
   }
+  if (p.walk) return { work, rows, ...link, looks, pieces, says: p.walk.says, graph: null, graphs: p.walk.graphs }
   const says = Array.isArray(p.steps) && p.steps.length === rows.length ? p.steps : null
   return { work, rows, ...link, looks, pieces, says, graph: workSafe(() => inferGraph(p, level), null) }
 }
@@ -139,8 +163,12 @@ function workPanel(p, { sheet = null, auto = false, next = null, level = null } 
   const plan = workPlan(p, level)
   const { work, rows, givens, links, looks, pieces, says, isAnswer } = plan
   const lastRow = rows.length - 1
-  const el = h('div', 'plug work-panel')
-  el.append(h('h3', '', work ? 'Show the work' : 'Why'))
+  // a quiz walk: its graphs come after their rows, the answer can sit before the last row
+  const walk = p.walk ?? null
+  const graphsAt = r => (plan.graphs ?? []).filter(g => g.row === r)
+  const bumpAt = (r, n) => (walk ? !!walk.answerAt && r === walk.answerAt.r && n === walk.answerAt.j + 1 : r === lastRow && n === rows[r].length)
+  const el = h('div', 'plug work-panel' + (walk ? ' quiz-walk' : ''))
+  el.append(h('h3', '', work || walk ? 'Show the work' : 'Why'))
   const rule = h('div', 'plug-line work-rule')
   const chips = h('div', 'plug-chips')
   const box = h('div', 'work-rows')
@@ -148,6 +176,9 @@ function workPanel(p, { sheet = null, auto = false, next = null, level = null } 
   const why = p.hint?.text && !says ? h('p', 'plug-sub work-why', p.hint.text) : null
   el.append(rule, chips, box, tail)
   if (why) el.append(why)
+  // (a quiz walk ends on the part's trap, as the steps do)
+  const trap = walk?.trap ? hwPara('hw-trap', '**Watch out:** ' + walk.trap) : null
+  if (trap) el.append(trap)
   const acts = h('div', 'row-actions')
   const replay = h('button', 'btn ghost', 'Replay')
   replay.type = 'button'
@@ -159,11 +190,12 @@ function workPanel(p, { sheet = null, auto = false, next = null, level = null } 
   const ruleTex = lit => workColourSyms(p.hint?.latex ?? '', lit)
   // (typeset again only when its colours change: MathJax is the slow part on a tablet)
   let ruleShown = null
+  // (a quiz walk opens on its first move, in words; its hint.latex only names the chips)
   const drawRule = lit => {
-    const t = p.hint?.latex ? ruleTex(lit) : ''
+    const t = p.hint?.latex && !walk ? ruleTex(lit) : ''
     if (t === ruleShown && rule.firstChild) return
     ruleShown = t
-    rule.replaceChildren(...(t ? [tex(t)] : []))
+    rule.replaceChildren(...(walk?.first ? [hwPara('first-move work-first', walk.first)] : []), ...(t ? [tex(t)] : []))
   }
   // the chips' numbers and the table's entries coloured by position; the answer boxed
   const marksAt = (r, j) => [
@@ -249,12 +281,26 @@ function workPanel(p, { sheet = null, auto = false, next = null, level = null } 
     if (chipEls.has(g)) return chipEls.get(g)
     const shown = g.tok.replace(/^-/, '−')
     const c = h('span', 'plug-chip ' + g.cls, g.sym ? `${g.sym} = ${shown}` : shown)
-    c.append(h('small', '', g.derived ? g.where : g.words ? `“${g.where}”` : g.where))
+    // (a quiz walk leaves out words that only repeat the chip)
+    const bare = t => String(t).replace(/[\s−-]/g, '')
+    if (!(walk && (bare(g.where) === bare(g.tok) || bare(g.where) === bare(c.textContent)))) c.append(h('small', '', g.derived ? g.where : g.words ? `“${g.where}”` : g.where))
     chips.append(c)
     chipEls.set(g, c)
     return c
   }
-  const say = r => h('p', 'work-say', says[r])
+  // the reason under a row: a sentence, or (a quiz walk) the step's move and its why
+  const sayOf = r => says?.[r] ?? null
+  const sayLength = r => (typeof sayOf(r) === 'string' ? sayOf(r).length : `${sayOf(r)?.say ?? ''} ${sayOf(r)?.why ?? ''}`.length)
+  const say = r => {
+    const s = sayOf(r)
+    if (typeof s === 'string') return h('p', 'work-say', s)
+    const d = h('div', 'work-say walk-say')
+    if (s.say) d.append(hwPara('walk-move', s.say))
+    if (s.why) d.append(hwPara('walk-why', s.why))
+    return d
+  }
+  // a graph a quiz walk draws after one of its rows
+  const graphEl = g => workSafe(() => drawGraph(g), null)
   // one row: tables and side work before it (read before its first step), the row, then
   // the side work and tables its later steps need, then the reason
   const rowGroup = () => {
@@ -279,7 +325,7 @@ function workPanel(p, { sheet = null, auto = false, next = null, level = null } 
       drawFinal()
     } catch {
       // the plain rows, at least
-      box.replaceChildren(...rows.map(row => {
+      box.replaceChildren(...rows.filter(row => row.length).map(row => {
         const d = h('div', 'plug-line')
         d.append(tex(row.join('')))
         return d
@@ -298,6 +344,17 @@ function workPanel(p, { sheet = null, auto = false, next = null, level = null } 
     rows.forEach((row, r) => {
       const G = rowGroup()
       box.append(G.el)
+      // (a quiz walk's step in words only: its reason, then the table it reads)
+      if (!row.length) {
+        if (sayOf(r)) G.el.append(say(r))
+        for (const lk of looksAt(r, 0)) {
+          const tl = tableLook(lk.spec)
+          if (tl) {
+            G.el.append(tl.el)
+            tl.final()
+          }
+        }
+      }
       row.forEach((c, j) => {
         const side = j === 0 ? G.before : G.after
         for (const lk of looksAt(r, j)) {
@@ -310,8 +367,14 @@ function workPanel(p, { sheet = null, auto = false, next = null, level = null } 
         for (const pc of piecesAt(r, j, true)) side.append(pieceEl(pc.line, Infinity).wrap)
         for (const pc of piecesAt(r, j, false)) G.after.append(pieceEl(pc.line, Infinity).wrap)
       })
-      G.line.append(tex(rowTex(r, row.length)))
-      if (says) G.el.append(say(r))
+      if (row.length) {
+        G.line.append(tex(rowTex(r, row.length)))
+        if (sayOf(r)) G.el.append(say(r))
+      }
+      for (const g of graphsAt(r)) {
+        const gr = graphEl(g.spec)
+        if (gr) G.el.append(gr.el)
+      }
     })
     for (const lk of looks.filter(x => !x.at)) {
       const tl = tableLook(lk.spec)
@@ -323,6 +386,7 @@ function workPanel(p, { sheet = null, auto = false, next = null, level = null } 
     const gr = drawGraph(plan.graph)
     if (gr) tail.append(gr.el)
     if (why) why.hidden = false
+    if (trap) trap.hidden = false
     // (a panel not yet on the page lights its question once it is)
     if (host()) lightQuestion(givens)
     else setTimeout(() => el.isConnected && lightQuestion(givens), 0)
@@ -344,6 +408,7 @@ function workPanel(p, { sheet = null, auto = false, next = null, level = null } 
     box.replaceChildren()
     tail.replaceChildren()
     if (why) why.hidden = true
+    if (trap) trap.hidden = true
     lightQuestion([])
     // the rule first, with its symbols
     drawRule([])
@@ -428,11 +493,42 @@ function workPanel(p, { sheet = null, auto = false, next = null, level = null } 
       })
       await tl.play(alive, { table: hook(lk.hooks.table), row: hook(lk.hooks.row), col: hook(lk.hooks.col), hit: hook(lk.hooks.hit) })
     }
+    // the reason under a row, with time to read it
+    const playSay = async (r, into) => {
+      const s = say(r)
+      into.append(s)
+      s.animate([{ opacity: 0, transform: 'translateY(-3px)' }, { opacity: 1, transform: 'none' }], { duration: 300 })
+      await wait(Math.min(walk ? 3600 : 2600, 900 + 20 * sayLength(r)))
+    }
+    // a quiz walk's graph, right after the row it belongs to
+    const playGraphs = async (r, into) => {
+      for (const g of graphsAt(r)) {
+        if (!alive()) return
+        const gr = graphEl(g.spec)
+        if (!gr) continue
+        into.append(gr.el)
+        gr.el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+        await gr.play(alive)
+      }
+    }
     for (let r = 0; r < rows.length; r++) {
       if (!alive()) return
       const G = rowGroup()
       box.append(G.el)
       const seen = {}
+      // (a quiz walk's step in words only: its reason, then the table it reads)
+      if (!rows[r].length) {
+        if (sayOf(r)) {
+          G.el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
+          await playSay(r, G.el)
+        }
+        for (const lk of looksAt(r, 0)) {
+          if (!alive()) return
+          await playLook(lk, G.el)
+        }
+        await playGraphs(r, G.el)
+        continue
+      }
       for (let n = 1; n <= rows[r].length; n++) {
         const j = n - 1
         const side = j === 0 ? G.before : G.after
@@ -452,7 +548,7 @@ function workPanel(p, { sheet = null, auto = false, next = null, level = null } 
         if (n === 1) G.el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
         const flew = await flyNew(G.line, seen)
         if (!alive()) return
-        if (r === lastRow && n === rows[r].length) {
+        if (bumpAt(r, n)) {
           G.line.querySelector('svg g.pvres')?.classList.add('glow')
           G.line.classList.remove('enter')
           void G.line.offsetWidth
@@ -467,12 +563,8 @@ function workPanel(p, { sheet = null, auto = false, next = null, level = null } 
         }
       }
       // then why that row happened, with time to read it
-      if (says && alive()) {
-        const s = say(r)
-        G.el.append(s)
-        s.animate([{ opacity: 0, transform: 'translateY(-3px)' }, { opacity: 1, transform: 'none' }], { duration: 300 })
-        await wait(Math.min(2600, 900 + 20 * says[r].length))
-      }
+      if (sayOf(r) && alive()) await playSay(r, G.el)
+      if (alive()) await playGraphs(r, G.el)
     }
     // a lookup no step names, after the work
     for (const lk of looks.filter(x => !x.at)) {
@@ -488,6 +580,10 @@ function workPanel(p, { sheet = null, auto = false, next = null, level = null } 
     if (why && alive()) {
       why.hidden = false
       why.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 400 })
+    }
+    if (trap && alive()) {
+      trap.hidden = false
+      trap.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 400 })
     }
   }
   replay.addEventListener('click', () => {

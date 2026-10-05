@@ -112,3 +112,11 @@ i.solid { background: var(--green); border-color: var(--green); }
 .slice-source { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 14px 0 0; }
 /* room to write under every page: about one more screen of lined paper */
 #view::after { content: ''; display: block; height: 110vh; }
+/* a quiz question's level card (js/37b): its story, its parts, its dots, the older page */
+.qz-card .hw-story { margin: 8px 0 4px; }
+.qz-card .qz-card-sub { margin: 12px 0 6px; }
+.qz-card .qz-parts { gap: 6px; }
+.qz-card-dots { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; }
+.qz-card-dots .hw-dots { margin-top: 0; }
+.qz-own { margin-top: 8px; }
+.qz-old { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 14px 0 0; }

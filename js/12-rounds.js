@@ -1,9 +1,10 @@
 // js/12-rounds.js · rounds: a level's questions, learn mode
 // Loaded in order by index.html as a classic script: top-level names are shared with the other js/ files.
 // ---------- rounds: a level's questions, learn mode ----------
-// a quick round: the first questions of a round, which are one of each kind
+// a quick round: the first questions of a round, which are one of each kind. own: a quiz
+// question's level on the quiz's own numbers (js/37b)
 const QUICK_ROUND = 4
-async function startRound(short, paper = false, quick = false) {
+async function startRound(short, paper = false, quick = false, own = false) {
   view.replaceChildren(h('p', 'loading', 'Shuffling the deck…'))
   await mathBoot
   const queue = []
@@ -35,19 +36,20 @@ async function startRound(short, paper = false, quick = false) {
   }
   if (isMgf(short)) for (const p of mgfRound(roundSize(short))) queue.push({ p, seen: 0, missed: false })
   if (isParam(short)) for (const p of paramRound(roundSize(short), paper)) queue.push({ p, seen: 0, missed: false })
-  if (!isWorld0(short)) for (const p of sectionRound(short)) queue.push({ p, seen: 0, missed: false })
+  if (!isWorld0(short)) for (const p of sectionRound(short, quick, own)) queue.push({ p, seen: 0, missed: false })
   if (quick) queue.splice(QUICK_ROUND)
-  round = { short, paper, quick, queue, at: 0, combo: 0, best: 0, misses: 0, marks: [] }
+  round = { short, paper, quick, own, queue, at: 0, combo: 0, best: 0, misses: 0, marks: [] }
   showQuestion()
 }
 
 // A section level's round: its engine kinds, which play their work out; one of every
 // kind first, in a random order, then picks weighted toward the bigger topics. A level
-// with no engine kinds plays its quiz and derivation parts instead.
-function sectionRound(short) {
+// with no engine kinds plays its quiz and derivation parts instead (a quiz question's
+// level, its parts in order: quick, one from each of four parts).
+function sectionRound(short, quick = false, own = false) {
   const n = roundSize(short)
   const kinds = levelKinds(short)
-  if (!kinds.length) return sliceRound(short, n)
+  if (!kinds.length) return sliceRound(short, n, quick, own)
   const out = shuffleArr(kinds).map(({ tp }) => tp.generate())
   const topics = topicsOf(short)
   const weights = topics.map(t => t.templates.length)
@@ -127,6 +129,8 @@ function problemFor(level) {
   if (isTree(level)) return treeProblem(undefined, true)
   if (isMgf(level)) return Math.random() < 0.25 ? mgfName() : mgfBuildProblem()
   if (isParam(level)) return paramProblem()
+  // (a quiz question's level: its parts in order, round and round)
+  if (LEVELS[level]?.quiz) return quizLevelNext(level)
   const kinds = levelKinds(level)
   if (!kinds.length) return sliceRound(level, 1)[0]
   return pickOne(kinds).tp.generate()

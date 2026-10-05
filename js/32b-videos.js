@@ -77,6 +77,25 @@ const LEVEL_VIDEOS = {
   'Normal word problems': ['standardize', 'normalIntro'],
   'Build the MGF': ['mgfIntro', 'gammaMgf', 'geoMgf'],
 }
+// each quiz question's videos, by its topic (its level, js/37b, plays them)
+const QUIZ_VIDEOS = {
+  '3.4-24': ['geometric', 'mgfIntro', 'geoMgf'],
+  '3.5-37': ['binomial', 'binomNot'],
+  '3.5-42': ['binomial', 'binomNot'],
+  '3.6-48': ['negbin'],
+  '3.7-54': ['hyper'],
+  '3.7-55': ['hyper'],
+  '3.7-56': ['hyper'],
+  '3.8-61': ['poisson', 'poissonMV'],
+  '4.1-1': ['findK', 'contProb', 'contIntro'],
+  '4.1-10': ['uniform', 'contProb'],
+  '4.2-15': ['contMV'],
+  '4.2-24': ['contMV', 'contProb', 'findK'],
+  '4.3-25': ['gammaFn', 'gammaDist'],
+  '4.3-38': ['chiTable', 'chiIntro'],
+  '4.4-39': ['zAreas', 'zPercentiles'],
+  '4.4-43': ['standardize', 'zPercentiles', 'normalIntro'],
+}
 const videosFor = level => (LEVEL_VIDEOS[level] ?? []).map(k => VID[k]).filter(Boolean)
 
 // the player: the video in a 16:9 frame, its note, and the level's other videos to switch to
