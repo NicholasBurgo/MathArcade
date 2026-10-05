@@ -48,8 +48,8 @@ function pickBox({ placeholder, label, items, onCheck, cls = '', title = 'Your a
     toggle.setAttribute('aria-expanded', String(on))
     if (on) {
       document.addEventListener('pointerdown', away, true)
+      // the page stays where it is: the list opens under the toggle
       ;(chosenRow ?? rows[0])?.focus({ preventScroll: true })
-      box.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' })
       // a long list opens on the one already picked
       if (chosenRow) list.scrollTop = Math.max(0, chosenRow.offsetTop - list.offsetTop - list.clientHeight / 2)
     } else document.removeEventListener('pointerdown', away, true)
