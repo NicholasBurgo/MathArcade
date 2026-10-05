@@ -80,31 +80,27 @@ const LEVEL_VIDEOS = {
 const videosFor = level => (LEVEL_VIDEOS[level] ?? []).map(k => VID[k]).filter(Boolean)
 
 // the player: the video in a 16:9 frame, its note, and the level's other videos to switch to
-// the notes written for a level, kept while switching between its videos
-let videoNotesKept = null
 function openVideos(level, at = 0) {
   const list = videosFor(level)
   if (!list.length) return
   const v = list[Math.min(at, list.length - 1)]
-  const old = overlay.querySelector('.video-notes-ink')
-  videoNotesKept = old && videoNotesKept?.level === level ? { level, canvas: old } : { level, canvas: null }
   overlay.replaceChildren()
   const inner = h('div', 'overlay-inner video-inner')
+  // the pop-up's ink (js/08b) stays while switching between this level's videos
+  inner.dataset.inkKey = 'video:' + level
   const head = h('div', 'overlay-head')
   head.append(h('strong', '', `Video · ${level}`), hwBtn('Close', 'tool', closeOverlay))
   inner.append(head)
   const frame = h('div', 'video-frame')
   const ifr = document.createElement('iframe')
   // enablejsapi: the Play and Pause buttons below talk to the player
-  ifr.src = `https://www.youtube-nocookie.com/embed/${v.id}?rel=0&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}`
+  ifr.src = `https://www.youtube-nocookie.com/embed/${v.id}?rel=0&playsinline=1`
   ifr.title = v.title
   ifr.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
   ifr.allowFullscreen = true
   ifr.referrerPolicy = 'strict-origin-when-cross-origin'
-  const pad = videoInk(frame)
-  frame.append(ifr, pad.el)
-  const notes = videoNotes(inner, videoNotesKept.canvas)
-  inner.append(videoTools(ifr, pad, notes), frame, h('p', 'video-title', `${v.title} · ${v.who}${v.len ? ' · ' + v.len : ''}`))
+  frame.append(ifr)
+  inner.append(frame, h('p', 'video-title', `${v.title} · ${v.who}${v.len ? ' · ' + v.len : ''}`))
   if (v.note) inner.append(h('p', 'video-note', 'Heads up: ' + v.note))
   if (list.length > 1) {
     const more = h('div', 'video-list')
@@ -115,10 +111,10 @@ function openVideos(level, at = 0) {
     inner.append(h('h3', '', 'More on this'), more)
   }
   inner.append(h('p', 'paper-note', 'Needs the internet. Closing this stops the video and clears what you wrote.'))
-  // room to write: lined paper under everything, and the pen's ink over the whole pop-up
+  // room to write: lined paper under everything (the pen writes anywhere but the video)
   const paper = h('div', 'video-paper')
   paper.append(h('div', 'eyebrow', 'Notes · write anywhere on this page with the pen'))
-  inner.append(paper, notes.el)
+  inner.append(paper)
   overlay.append(inner)
   overlay.hidden = false
   overlay.scrollTop = 0
@@ -142,228 +138,8 @@ function videoCard(level) {
   const wrap = h('div', 'video-card')
   wrap.append(h('div', 'eyebrow', 'Stuck? Watch one of these'))
   const row = h('div', 'video-list')
-  list.forEach((v, i) => row.append(hwBtn(`▶ ${v.title}${v.len ? ' · ' + v.len : ''}`, 'tool', () => openVideos(level, i))))
+  list.forEach((v, i) => row.append(hwBtn(`${v.title}${v.len ? ' · ' + v.len : ''}`, 'tool', () => openVideos(level, i))))
   wrap.append(row)
   return wrap
 }
 
-// ---------- writing on the video: a clear layer over it for the pen ----------
-// A YouTube video can't be drawn into, so the pen writes on a canvas laid over it. With
-// Write on, the layer takes the pen (and the mouse); fingers do nothing there, so play
-// and pause from the buttons above. With Write off, taps go through to the video.
-// The pen's side button (or the Eraser button) erases, as on the page.
-function videoInk(frame) {
-  const el = document.createElement('canvas')
-  el.className = 'video-ink'
-  const ctx = el.getContext('2d')
-  let on = true, erasing = false, drawing = null, last = null, heldStroke = false
-  const size = () => {
-    const r = frame.getBoundingClientRect()
-    if (!r.width) return
-    const dpr = window.devicePixelRatio || 1
-    // keep what's written when the frame changes size (turning the tablet)
-    let snap = null
-    if (el.width && el.height) {
-      snap = document.createElement('canvas')
-      snap.width = el.width
-      snap.height = el.height
-      snap.getContext('2d').drawImage(el, 0, 0)
-    }
-    el.width = Math.round(r.width * dpr)
-    el.height = Math.round(r.height * dpr)
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    if (snap) ctx.drawImage(snap, 0, 0, r.width, r.height)
-  }
-  const at = e => {
-    const r = el.getBoundingClientRect()
-    return { x: e.clientX - r.left, y: e.clientY - r.top }
-  }
-  const stroke = (a, b, e) => {
-    const erase = erasing || heldStroke || sideButton(e)
-    ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over'
-    ctx.strokeStyle = penColor()
-    ctx.lineWidth = erase ? 26 : e.pressure > 0 ? 0.8 + e.pressure * 3.5 : 2.5
-    ctx.beginPath()
-    ctx.moveTo(a.x, a.y)
-    ctx.lineTo(b.x, b.y)
-    ctx.stroke()
-  }
-  el.addEventListener('pointerdown', e => {
-    // the pen and the mouse write; a finger or a palm on the video does nothing
-    if (e.pointerType === 'touch') return
-    if (!el.width) size()
-    drawing = e.pointerId
-    heldStroke = sideButton(e)
-    last = at(e)
-    try { el.setPointerCapture(e.pointerId) } catch {}
-    e.preventDefault()
-  })
-  el.addEventListener('pointermove', e => {
-    if (e.pointerId !== drawing) return
-    e.preventDefault()
-    const p = at(e)
-    stroke(last, p, e)
-    last = p
-  })
-  const up = e => {
-    if (e.pointerId !== drawing) return
-    drawing = null
-    heldStroke = false
-  }
-  el.addEventListener('pointerup', up)
-  el.addEventListener('pointercancel', up)
-  // Chrome reports the side button as a right click: no menu, and this stroke erases
-  el.addEventListener('contextmenu', e => {
-    e.preventDefault()
-    if (drawing !== null) heldStroke = true
-  })
-  const onResize = () => (el.isConnected ? size() : removeEventListener('resize', onResize))
-  addEventListener('resize', onResize)
-  requestAnimationFrame(size)
-  return {
-    el,
-    setWrite(v) {
-      on = v
-      el.classList.toggle('off', !on)
-    },
-    get write() {
-      return on
-    },
-    setErase(v) {
-      erasing = v
-    },
-    clear() {
-      ctx.clearRect(0, 0, el.width, el.height)
-    },
-  }
-}
-
-// the buttons over the video: play, pause, write on it, erase, clear
-function videoTools(ifr, pad, notes) {
-  const say = func => ifr.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args: [] }), '*')
-  // the player listens for commands once it has been greeted
-  ifr.addEventListener('load', () => ifr.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*'))
-  const row = h('div', 'video-tools')
-  const play = hwBtn('▶ Play', 'tool', () => say('playVideo'))
-  const pause = hwBtn('⏸ Pause', 'tool', () => say('pauseVideo'))
-  const write = hwBtn('', 'tool video-write', () => {
-    pad.setWrite(!pad.write)
-    show()
-  })
-  const eraser = hwBtn('Eraser', 'tool', () => {
-    const v = eraser.getAttribute('aria-pressed') !== 'true'
-    eraser.setAttribute('aria-pressed', String(v))
-    pad.setErase(v)
-    notes.setErase(v)
-  })
-  eraser.setAttribute('aria-pressed', 'false')
-  const clear = hwBtn('Clear ink', 'tool', () => {
-    pad.clear()
-    notes.clear()
-  })
-  const show = () => {
-    write.textContent = pad.write ? '✏ Write: on' : '✏ Write: off'
-    write.setAttribute('aria-pressed', String(pad.write))
-    write.title = pad.write ? 'The pen writes on the video. Turn off to tap the video itself.' : 'Taps go to the video. Turn on to write on it.'
-  }
-  show()
-  row.append(play, pause, write, eraser, clear)
-  return row
-}
-
-// ---------- notes around the video: the whole pop-up is paper for the pen ----------
-// The ink lies over the pop-up's content without catching taps, so fingers still scroll
-// and press buttons; the pen writes anywhere that isn't a button or the video (the
-// video has its own layer, Write on). Side button or Eraser erases.
-function videoNotes(inner, keep = null) {
-  const el = document.createElement('canvas')
-  el.className = 'video-notes-ink'
-  const ctx = el.getContext('2d')
-  let drawing = null, last = null, heldStroke = false, erasing = false
-  const size = () => {
-    const w = inner.clientWidth, ht = inner.scrollHeight
-    if (!w || !ht) return
-    const dpr = window.devicePixelRatio || 1
-    if (Math.abs(el.width - Math.round(w * dpr)) < 2 && Math.abs(el.height - Math.round(ht * dpr)) < 2) return
-    // keep what's written when the page changes size
-    let snap = null
-    if (el.width && el.height) {
-      snap = document.createElement('canvas')
-      snap.width = el.width
-      snap.height = el.height
-      snap.getContext('2d').drawImage(el, 0, 0)
-    }
-    el.width = Math.round(w * dpr)
-    el.height = Math.round(ht * dpr)
-    el.style.width = w + 'px'
-    el.style.height = ht + 'px'
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    if (snap) ctx.drawImage(snap, 0, 0, snap.width / dpr, snap.height / dpr)
-  }
-  const at = e => {
-    const r = el.getBoundingClientRect()
-    return { x: e.clientX - r.left, y: e.clientY - r.top }
-  }
-  // buttons, the video and its own writing layer keep their taps
-  const blocked = e => e.target instanceof Element && Boolean(e.target.closest('button, input, a, select, textarea, label, [role="button"], iframe, .video-ink'))
-  inner.addEventListener('pointerdown', e => {
-    if (e.pointerType === 'touch' || blocked(e)) return
-    if (e.pointerType === 'mouse' && e.button !== 0 && !sideButton(e)) return
-    size()
-    drawing = e.pointerId
-    heldStroke = sideButton(e)
-    last = at(e)
-    try { inner.setPointerCapture(e.pointerId) } catch {}
-    e.preventDefault()
-  })
-  inner.addEventListener('pointermove', e => {
-    if (e.pointerId !== drawing) return
-    e.preventDefault()
-    const p = at(e)
-    const erase = erasing || heldStroke || sideButton(e)
-    ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over'
-    ctx.strokeStyle = penColor()
-    ctx.lineWidth = erase ? 26 : e.pressure > 0 ? 0.6 + e.pressure * 3 : 2
-    ctx.beginPath()
-    ctx.moveTo(last.x, last.y)
-    ctx.lineTo(p.x, p.y)
-    ctx.stroke()
-    last = p
-  })
-  const up = e => {
-    if (e.pointerId !== drawing) return
-    drawing = null
-    heldStroke = false
-  }
-  inner.addEventListener('pointerup', up)
-  inner.addEventListener('pointercancel', up)
-  // the pen must write, not scroll the pop-up; fingers still scroll it
-  inner.addEventListener('touchstart', e => { if (drawing !== null) e.preventDefault() }, { passive: false })
-  inner.addEventListener('touchmove', e => { if (drawing !== null) e.preventDefault() }, { passive: false })
-  // Chrome reports the side button as a right click: no menu, and this stroke erases
-  inner.addEventListener('contextmenu', e => {
-    if (blocked(e)) return
-    e.preventDefault()
-    if (drawing !== null) heldStroke = true
-  })
-  const onResize = () => (el.isConnected ? size() : removeEventListener('resize', onResize))
-  addEventListener('resize', onResize)
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    size()
-    // the notes from the level's last video, where they were on the page
-    if (keep?.width) ctx.drawImage(keep, 0, 0, keep.width / (window.devicePixelRatio || 1), keep.height / (window.devicePixelRatio || 1))
-  }))
-  return {
-    el,
-    setErase(v) {
-      erasing = v
-    },
-    clear() {
-      ctx.clearRect(0, 0, el.width, el.height)
-    },
-  }
-}

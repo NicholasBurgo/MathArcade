@@ -50,14 +50,11 @@
 .video-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .video-list .tool.on { border-color: var(--green); }
 .video-card { margin: 14px 0 4px; }
-/* writing on the video: a clear canvas over the player, and its buttons */
-.video-ink { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
-.video-ink.off { pointer-events: none; cursor: auto; }
-/* the notes: lined paper under the video, and the pen's ink over the whole pop-up */
-.video-inner { position: relative; }
+/* the notes: lined paper under the video */
 .video-paper { min-height: 70vh; margin-top: 14px; padding-top: 6px; border-top: 1.5px dashed var(--rule-soft); background-image: repeating-linear-gradient(to bottom, transparent 0 31px, var(--rule-soft) 31px 32px); }
-.video-notes-ink { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 2; }
-.video-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 2px; }
+/* pen ink on the pop-ups (js/08b): a layer over the content that doesn't catch taps */
+.overlay-inner { position: relative; }
+.overlay-ink { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 2; }
 
 .ask { margin: 14px 0 4px; font-weight: 700; }
 .story { margin: 4px 0; max-width: 64ch; }

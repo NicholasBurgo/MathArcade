@@ -52,6 +52,12 @@ function clearInk() {
   setEraseMode(false)
 }
 const onControl = e => e.target instanceof Element && e.target.closest('button, input, a, select, textarea, label, [role="button"], [role="listbox"], .tables-pop, .calc, .overlay')
+// never ink: typing fields, the floating tables and calculator, and the pop-ups (they have their own ink)
+const inkSkip = e => e.target instanceof Element && e.target.closest('input, select, textarea, .tables-pop, .calc, .overlay')
+// a pen on a button: a quick tap presses it, a stroke writes over it
+const inkTappable = e => e.target instanceof Element && e.target.closest('button, a, label, [role="button"], [role="listbox"]')
+let inkPending = null // the pen is down on a button: { id, x, y, at }
+let inkEatClick = false // the stroke that started on a button must not press it
 const sideButton = e => (e.buttons & 34) !== 0 || e.button === 2 || e.button === 5
 // where the pen is on the page: the screen spot plus how far the page is scrolled
 const onPage = e => ({ x: e.clientX + window.scrollX, y: e.clientY + window.scrollY })
@@ -96,7 +102,12 @@ function sidePress(e) {
 }
 window.addEventListener('pointerdown', e => {
   penCheck(e)
-  if (!penLike(e) || onControl(e)) return
+  inkEatClick = false
+  if (!penLike(e) || inkSkip(e)) return
+  if (inkTappable(e)) {
+    inkPending = { id: e.pointerId, x: e.clientX, y: e.clientY, at: onPage(e) }
+    return
+  }
   const { w, h } = pageSize()
   if (Math.abs(parseFloat(ink.style.width) - w) > 1 || parseFloat(ink.style.height) < h) sizeInk(true)
   inking = true
@@ -109,6 +120,19 @@ window.addEventListener('pointerdown', e => {
 }, { passive: false })
 window.addEventListener('pointermove', e => {
   penCheck(e)
+  // the pen moved off its spot on a button: that's writing, not a tap
+  if (inkPending && e.pointerId === inkPending.id) {
+    if (Math.hypot(e.clientX - inkPending.x, e.clientY - inkPending.y) < 8) return
+    const { w, h } = pageSize()
+    if (Math.abs(parseFloat(ink.style.width) - w) > 1 || parseFloat(ink.style.height) < h) sizeInk(true)
+    inking = true
+    inkPointer = e.pointerId
+    strokeHeld = Date.now() - heldAt < 700
+    inkLast = inkPending.at
+    strokePts = [inkLast]
+    inkPending = null
+    inkEatClick = true
+  }
   // the browser cut a held-button stroke short, but the pen is down with the button still held
   if (!inking && penLike(e) && (e.buttons & 34) !== 0 && !onControl(e)) {
     inking = true
@@ -133,6 +157,7 @@ window.addEventListener('pointermove', e => {
 }, { passive: false })
 const inkUp = e => {
   penCheck(e)
+  inkPending = null
   inking = false
   strokeHeld = false
   strokePts = []
@@ -144,8 +169,15 @@ window.addEventListener('pointercancel', inkUp)
 // the pen must ink, not scroll: cancel its touch gestures; fingers still pan
 window.addEventListener('touchstart', e => { if (inking) e.preventDefault() }, { passive: false })
 window.addEventListener('touchmove', e => {
-  if (inking || ([...e.touches].some(t => t.touchType === 'stylus') && !onControl(e))) e.preventDefault()
+  if (inking || inkPending || ([...e.touches].some(t => t.touchType === 'stylus') && !inkSkip(e))) e.preventDefault()
 }, { passive: false })
+// a stroke that started on a button doesn't press it
+window.addEventListener('click', e => {
+  if (!inkEatClick) return
+  inkEatClick = false
+  e.preventDefault()
+  e.stopPropagation()
+}, true)
 // the side button as a right click: no context menu, no text selection, just erasing
 window.addEventListener('contextmenu', sidePress)
 window.addEventListener('mousedown', e => { if (e.button === 2) sidePress(e) })
