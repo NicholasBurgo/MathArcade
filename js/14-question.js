@@ -12,9 +12,9 @@ function showQuestion() {
   const prog = h('div', 'progress')
   round.queue.forEach((x, i) => {
     const mark = round.marks[i]
-    prog.append(h('i', mark === 'ok' ? 'ok' : mark === 'bad' ? 'bad' : i === round.at ? 'now' : ''))
+    prog.append(h('i', mark === 'ok' ? 'ok' : mark === 'bad' ? 'bad' : mark === 'skip' ? 'skip' : i === round.at ? 'now' : ''))
   })
-  top.append(round.learn ? h('span', 'learn-tag', 'Learn mode · doesn’t count') : prog)
+  top.append(round.learn ? h('span', 'learn-tag', 'Learn mode · doesn’t count') : prog, skipButton(q))
   sheet.append(top)
   sheet.append(h('div', 'eyebrow', round.short + (q.level ? ' · ' + q.level : '') + (round.paper ? ' · paper mode' : '') + (q.seen > 1 ? ' · second chance' : '')))
   if (p.slice) return sliceQuestion(p, sheet, q)
@@ -69,6 +69,38 @@ function showQuestion() {
   sheet.append(box)
   view.append(sheet)
   window.scrollTo({ top: 0 })
+}
+
+// Skip: the question goes to the end of the round to try again. Skipped a second time,
+// or skipped after a miss, it counts as wrong and doesn't come back. Once it's answered,
+// Skip just moves on. In learn mode nothing counts, so it just moves on.
+function skipButton(q) {
+  const b = h('button', 'btn ghost skip-btn', 'Skip')
+  b.type = 'button'
+  b.title = 'It comes back at the end. Skip it again and it counts as wrong.'
+  b.addEventListener('click', () => {
+    if (!round || screen !== 'question') return
+    if (!round.locked && !round.learn) {
+      if (!q.skipped && !q.missed) {
+        q.skipped = true
+        round.marks[round.at] = 'skip'
+        round.queue.push(q)
+      } else {
+        track(false)
+        state.answered++
+        round.combo = 0
+        if (!q.missed) {
+          q.missed = true
+          round.misses++
+        }
+        round.marks[round.at] = 'bad'
+        save()
+        hud()
+      }
+    }
+    advance()
+  })
+  return b
 }
 
 // "First move": how to start, in plain words, never the answer
