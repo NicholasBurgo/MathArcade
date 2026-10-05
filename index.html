@@ -563,6 +563,7 @@ mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); bor
 .tp-body { overflow: auto; padding: 6px 10px 12px; overscroll-behavior: contain; }
 .tp-title { margin: 4px 0 0; font-family: var(--display); font-size: 1.1rem; text-transform: uppercase; }
 .tp-body .note { margin: 2px 0 8px; color: var(--muted); font-size: 0.85rem; }
+.also-right { margin: 8px 0; padding: 6px 10px; border-left: 3px solid var(--green); color: var(--ink); font-weight: 600; }
 /* the calculator floats over everything but the confetti, and stays where it is dragged */
 .calc { position: fixed; z-index: 35; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: min(300px, calc(100vw - 32px)); padding: 10px; border: 2px solid var(--rule); border-radius: 14px; background: var(--sheet); box-shadow: var(--shadow); }
 .calc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -2px 0 8px; cursor: grab; touch-action: none; user-select: none; }
@@ -1377,7 +1378,7 @@ window.MathJax = {
     }
     if (isTree(short)) {
       // every distribution once, then repeats, never the same one twice in a row
-      const shuffled = () => Object.keys(LEAVES).sort(() => Math.random() - 0.5)
+      const shuffled = () => shuffleArr(TREE_LEAVES)
       const order = []
       while (order.length < roundSize(short)) {
         const next = shuffled()
@@ -1838,9 +1839,10 @@ window.MathJax = {
     sel.disabled = true
     check.disabled = true
     const q = round.queue[round.at]
-    if (pick === p.leaf) {
+    if (pick === p.leaf || p.alsoRight?.includes(pick)) {
       wrap.classList.add('right')
       award()
+      if (pick !== p.leaf && ALSO_NOTE[p.leaf]) sheet.append(h('p', 'also-right', ALSO_NOTE[p.leaf]))
       showPlug(p, sheet)
       return
     }
@@ -1873,7 +1875,9 @@ window.MathJax = {
     }
     if (p.leaf) {
       const box = h('div', 'reveal-box')
-      box.append(h('h3', '', 'Answer'), leafCard(p.leaf), h('h3', '', 'How the tree gets there'), h('p', '', p.hint.text), walkButton(p.leaf))
+      box.append(h('h3', '', 'Answer'), leafCard(p.leaf))
+      if (p.alsoRight?.length && ALSO_NOTE[p.leaf]) box.append(h('p', 'also-right', ALSO_NOTE[p.leaf].replace(/^Right: /, 'Also right: ')))
+      box.append(h('h3', '', 'How the tree gets there'), h('p', '', p.hint.text), walkButton(p.leaf))
       if (p.vars) box.append(plugPanel(p))
       return box
     }
@@ -2388,6 +2392,8 @@ window.MathJax = {
   const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1))
   const pickOne = arr => arr[Math.floor(Math.random() * arr.length)]
   const ord = n => n + (n === 2 ? 'nd' : n === 3 ? 'rd' : 'th')
+  // "an 8-page chapter", "an 800-page report", "an 11-page …", else "a"
+  const an = n => (n === 8 || n === 11 || n === 18 || /^8\d*$/.test(String(n)) ? 'an' : 'a')
   // stories for each leaf: the text, and the phrase that decides it
   // a number from the story: its value, the words it comes from (highlighted in
   // the story), a note on how, and how it looks in a formula (tex) and in a chip
@@ -2443,7 +2449,7 @@ window.MathJax = {
         return { text: `A help desk gets an average of ${l} calls per hour. X is the number of calls in the next ${m} minutes.`, clue: `an average of ${l} calls per hour`,
           vars: { lam: V(l, `${l} calls per hour`), s: worked({ ...frac(m, 60), from: `next ${m} minutes`, note: `${m} min = ${m}/60 hour` }, { order: [], tex: S => `${S('s')} = ${m}\\text{ min} = \\frac{${m}}{60}\\text{ hour}` }), k: V(k, null, 'k = λs, from the line above'), x: sayX(near(k, 0, 9)) } }
       },
-      () => { const l = pickOne(['0.2', '0.5', '1.5']), s = ri(4, Math.min(12, Math.floor(8 / l))), k = +(l * s).toFixed(2); return { text: `A textbook averages ${l} typos per page. X is the number of typos in a ${s}-page chapter.`, clue: `averages ${l} typos per page`,
+      () => { const l = pickOne(['0.2', '0.5', '1.5']), s = ri(4, Math.min(12, Math.floor(8 / l))), k = +(l * s).toFixed(2); return { text: `A textbook averages ${l} typos per page. X is the number of typos in ${an(s)} ${s}-page chapter.`, clue: `averages ${l} typos per page`,
         vars: { lam: V(+l, `${l} typos per page`), s: V(s, `${s}-page chapter`, 'pages'), k: V(k, null, 'k = λs, from the line above'), x: sayX(near(k, 0, 20)) } } },
       () => { const l = ri(2, 4), s = ri(2, Math.floor(8 / l)); return { text: `A road has an average of ${l} potholes per mile. X is the number of potholes in a ${s}-mile stretch.`, clue: `an average of ${l} potholes per mile`,
         vars: { lam: V(l, `${l} potholes per mile`), s: V(s, `${s}-mile stretch`, 'miles'), k: V(l * s, null, 'k = λs, from the line above'), x: sayX(near(l * s, 0, 40)) } } },
@@ -3601,7 +3607,7 @@ window.MathJax = {
       () => { const [l, m] = pickOne([[60, 2], [90, 2], [120, 2], [120, 3], [180, 2], [240, 1], [60, 5], [90, 4]]), k = (l * m) / 60; return { text: `A call center gets about ${l} calls an hour, arriving at random. X is the number of calls in a ${m}-minute span.`, clue: 'arriving at random',
         trap: 'Convert first: the rate is per hour but the window is in minutes, so s = minutes ÷ 60. Events at random times in a window: Poisson.',
         vars: { lam: V(l, `${l} calls an hour`), s: worked({ ...frac(m, 60), from: `${m}-minute span`, note: `${m} min = ${m}/60 hour` }, { order: [], tex: S => `${S('s')} = ${m}\\text{ min} = \\frac{${m}}{60}\\text{ hour}` }), k: V(k, null, 'k = λs, from the line above'), x: sayX(near(k, 0, 9)) } } },
-      () => { const e = pickOne([50, 100]), pages = pickOne(e === 50 ? [100, 150, 200, 300, 400] : [200, 300, 400, 500, 600, 800]), k = pages / e; return { text: `A ${pages}-page report averages one typo every ${e} pages. X is the number of typos in the whole report.`, clue: `one typo every ${e} pages`,
+      () => { const e = pickOne([50, 100]), pages = pickOne(e === 50 ? [100, 150, 200, 300, 400] : [200, 300, 400, 500, 600, 800]), k = pages / e; return { text: `${an(pages) === 'an' ? 'An' : 'A'} ${pages}-page report averages one typo every ${e} pages. X is the number of typos in the whole report.`, clue: `one typo every ${e} pages`,
         trap: `“One typo every ${e} pages” is a rate, λ = 1/${e} per page. There are no separate tries with a chance each, so Poisson.`,
         vars: { lam: worked({ ...frac(1, e), from: `one typo every ${e} pages`, note: `1 typo per ${e} pages` }, { order: [], tex: S => `${S('lam')} = \\frac{1\\text{ typo}}{${e}\\text{ pages}}`, steps: () => [`= \\frac{1}{${e}}\\text{ per page}`] }), s: V(pages, `${pages}-page report`, 'pages'), k: V(k, null, 'k = λs, from the line above'), x: sayX(near(k, 0, 12)) } } },
       () => { const l = pickOne([1, 1.5, 2]), m = pickOne([2, 3, 4]), k = l * m; return { text: `Accidents at a busy intersection happen at random, about ${l} per month, even though thousands of cars pass through. X is the number of accidents in the next ${m} months.`, clue: `about ${l} per month`,
@@ -3623,11 +3629,11 @@ window.MathJax = {
       () => { const l = pickOne([1, 2, 3]), t = pickOne([0.5, 1]); return { text: `Earthquakes in a region strike at random, at an average rate of ${l} per year. X is the time, in years, from now until the next one.`, clue: 'until the next one',
         trap: 'X is a time, not a count (the number of quakes in a year would be Poisson). The wait for the first event: exponential.',
         vars: { lam: V(l, `${l} per year`), t: V(t, null, `say we want P(X > ${t} year)`) } } },
-      () => { const N = pickOne([500, 1000, 2000]); return { text: `A bulb's lifetime is memoryless: at every moment it is as good as new. It burns out at an average rate of 1 per ${N} hours. X is its lifetime in hours.`, clue: 'memoryless',
-        trap: 'Memoryless (always as good as new) with a constant rate is the signature of the exponential.',
-        vars: { lam: { ...frac(1, N), from: `1 per ${N} hours`, note: 'the rate per hour' }, t: V(N / 2, null, `say we want P(X > ${N / 2} hours)`) } } },
+      () => { const l = pickOne([4, 6, 10, 12]), t = pickOne([0.25, 0.5]); return { text: `Buses arrive at a stop at random, ${l} per hour on average. X is how long you wait, in hours, for the first bus.`, clue: 'how long you wait, in hours, for the first bus',
+        trap: 'X is a time, not a count: the wait for the first event of a Poisson process is exponential, λ = the rate, β = 1/λ.',
+        vars: { lam: V(l, `${l} per hour`), t: V(t, null, `say we want P(X > ${t} hour)`) } } },
       () => { const b = pickOne([3, 4, 5, 10]); return { text: `X is gamma with α = 1 and β = ${b}.`, clue: 'α = 1', avoid: ['gamma'],
-        trap: 'A gamma with α = 1 is exponential, with λ = 1/β. Gamma isn’t offered, so name the special case.',
+        trap: 'A gamma with α = 1 is the exponential, with λ = 1/β. Name both.',
         vars: { lam: worked({ ...frac(1, b), from: `β = ${b}`, note: 'λ = 1/β' }, { order: [], tex: S => `${S('lam')} = \\frac{1}{\\beta}`, steps: () => [`= \\frac{1}{${b}}`] }), t: V(b, null, `say we want P(X > ${b})`) } } },
       () => { const l = pickOne([1.5, 2, 3]), t = pickOne([0.5, 1]); return { text: `Customers arrive at a bank at random, ${l} per minute on average. X is the time between one arrival and the next.`, clue: 'the time between one arrival and the next',
         trap: 'The time between arrivals is the wait for one event: exponential. (Waiting for several would be gamma.)',
@@ -3662,9 +3668,6 @@ window.MathJax = {
         trap: `(1 − 2t)^(−γ/2) is the chi-squared MGF: γ/2 = ${a}, so γ = ${2 * a}.`,
         read: { kind: 'MGF', tex: c => `m_X(t) = (1 - 2t)^{-${c('ga', a)}}`, notes: [['ga', `the number times t is 2, so it is chi-squared; the power is γ/2 = ${a}, so γ = ${2 * a}`]], shape: '(1 − 2t)^(−γ/2) is the chi-squared MGF (a gamma with β = 2)' },
         vars: { ga: worked(V(2 * a, null, `the power is −γ/2 = −${a}`), { answer: true, order: [], tex: S => `${S('ga')} = 2(${a})`, steps: () => [`= ${2 * a}`] }) } } },
-      () => { const g = ri(5, 25), ra = pickOne([0.05, 0.1, 0.025]); return { text: `A test statistic X follows a χ² curve with γ = ${g}. Find c so that P(X > c) = ${ra}.`, clue: 'a χ² curve', avoid: ['gamma'],
-        trap: 'The χ² table goes by degrees of freedom γ, and its columns are LEFT areas: a right area r is column 1 − r.',
-        vars: { ga: V(g, `γ = ${g}`), ra: V(ra, `P(X > c) = ${ra}`) } } },
     ],
     normal: [
       () => { const mu = ri(2, 8), sig = ri(2, 6), half = (sig * sig) / 2; return { text: 'X has the moment generating function shown.', clue: 'moment generating function',
@@ -3675,9 +3678,6 @@ window.MathJax = {
       () => { const mu = pickOne([16.1, 16.2]), x = +(mu + 0.2 * pickOne([-2, -1, 1, 1.5, 2])).toFixed(2); return { text: `The weights of “1-pound” bags of sugar are bell-shaped around a mean of ${mu} oz, with a standard deviation of 0.2 oz. X is a random bag's weight.`, clue: 'bell-shaped',
         trap: '“Bell-shaped around a mean, with a standard deviation” is the normal.',
         vars: { mu: V(mu, `mean of ${mu} oz`), sig: V(0.2, 'standard deviation of 0.2 oz'), x: V(x, null, 'say X is this weight') } } },
-      () => { const mu = pickOne([1000, 1050, 1100]); return { text: `SAT scores follow a normal curve with mean ${mu} and variance 40,000. X is a random student's score.`, clue: 'a normal curve',
-        trap: 'The variance is given, not σ: take the square root first, σ = √40,000 = 200.',
-        vars: { mu: V(mu, `mean ${mu}`), sig: worked(V(200, 'variance 40,000', 'σ = √variance'), { order: [], tex: S => `${S('sig')} = \\sqrt{40{,}000}`, steps: () => ['= 200'] }), x: V(mu + pickOne([-300, -150, 100, 250]), null, 'say X is this score') } } },
     ],
   }
 
@@ -4830,7 +4830,9 @@ window.MathJax = {
   // a story, four distribution names, and the tree path as the explanation
   // the distributions with a test-style "X has this MGF" story (Build the MGF asks those)
   const MGF_LEAVES = ['geometric', 'exponential', 'gamma', 'chi', 'normal']
-  function treeProblem(leaf = pickOne(Object.keys(LEAVES)), hard = false, { mgf = false } = {}) {
+  // the ones a test makes you name from a story; it always names a chi-squared or a normal
+  const TREE_LEAVES = ['binomial', 'geometric', 'negbin', 'hyper', 'poisson', 'exponential', 'uniform', 'gamma']
+  function treeProblem(leaf = pickOne(TREE_LEAVES), hard = false, { mgf = false } = {}) {
     // Level 1 is stories; naming a distribution from its MGF belongs to Build the MGF
     let sc
     do sc = pickOne((hard ? HARD : STORIES)[leaf])()
@@ -4853,8 +4855,15 @@ window.MathJax = {
       hint: { text: `${path.map(x => x.b.a).join(' → ')}. ${path[path.length - 1].b.why}` },
       clue: sc.clue,
       leaf,
+      // the names that are just as right (a gamma with β = 2 is a chi-squared)
+      alsoRight: sc.avoid ?? [],
       vars: sc.vars,
     }
+  }
+  // what to say when the other right name is picked
+  const ALSO_NOTE = {
+    chi: 'Right: it is a gamma with β = 2, and a gamma with β = 2 is also the chi-squared with γ = 2α. On the test, name both.',
+    exponential: 'Right: it is a gamma with α = 1, and a gamma with α = 1 is also the exponential with λ = 1/β. On the test, name both.',
   }
 
   // ---------- show the work: World 1's worked answers, step by step ----------
