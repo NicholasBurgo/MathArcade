@@ -48,6 +48,8 @@ a right answer plays an animation that works the problem out.
   dropdown list, as in World 0. Each world ends with a review level. World 1's cards work
   every kind of table lookup on the printed tables (left, right and between areas, backwards
   from an area, cumulative binomial rows, chi-squared columns), each played step by step.
+- **First move** — how to start the question, in plain words, never the answer. Every
+  worked answer also gives the reason for each row under it, as it plays.
 - **How do I do this?** — on every question in Worlds 1–4 and Build the MGF: a question
   of the same kind with new numbers, its answer and its work played, without giving away
   yours. A kind that is the same every time (a letters-only derivation) shows this very

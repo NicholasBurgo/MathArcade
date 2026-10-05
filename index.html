@@ -610,6 +610,8 @@ mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); bor
 .mx sup, .mx sub { font-size: 0.72em; line-height: 0; }
 .howto { margin: 6px 0 10px; }
 .howto-body { margin-top: 8px; padding: 10px 12px; border: 1.5px dashed var(--rule); border-radius: 10px; }
+.work-say { margin: 0 0 8px 14px; padding-left: 10px; border-left: 2px solid var(--rule); color: var(--muted); font-size: 0.92rem; line-height: 1.35; }
+.first-move { margin: 8px 0 0; padding: 8px 12px; border-left: 3px solid var(--gold); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -1644,7 +1646,8 @@ window.MathJax = {
     qMath.classList.add('q-math')
     sheet.append(qMath)
     if (round.learn) sheet.append(learnBar(p, sheet))
-    else if (!round.paper && p.another) {
+    if (!round.paper && p.start) sheet.append(firstMove(p))
+    if (!round.learn && !round.paper && p.another) {
       // a kind that is the same every time: its example is this answer, so peeking is a miss
       const peeked = () => {
         if (!q.missed) {
@@ -1688,6 +1691,21 @@ window.MathJax = {
     window.scrollTo({ top: 0 })
   }
 
+  // "First move": how to start, in plain words, never the answer
+  function firstMove(p) {
+    const wrap = h('div', 'howto')
+    const btn = h('button', 'btn ghost', 'First move')
+    btn.type = 'button'
+    const body = h('p', 'first-move', p.start)
+    body.hidden = true
+    btn.addEventListener('click', () => {
+      body.hidden = !body.hidden
+      btn.textContent = body.hidden ? 'First move' : 'Hide the first move'
+      if (!body.hidden) body.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250 })
+    })
+    wrap.append(btn, body)
+    return wrap
+  }
   // "How do I do this?": the same kind of question with new numbers, worked and
   // played, so the method is shown without giving this one's answer away
   function howTo(p, level, peeked) {
@@ -4615,6 +4633,9 @@ window.MathJax = {
   // always whole. Every step right first time counts as right.
   const mgfBuildProblem = (make = pickOne(MGF_BUILDS), b = make()) => ({
     another: () => mgfBuildProblem(make),
+    start: /\\begin\{array\}|x = [01], [12], [23]/.test(b.pdf)
+      ? 'Multiply each f(x) by e^(tx), then add them all up: X takes separate values, so it is a sum Σ.'
+      : 'Multiply f(x) by e^(tx), then integrate over where f(x) isn’t 0. Then simplify.',
     ask: `Find ${b.exist ? 'the MGF \\(m_X(t) = E\\big[e^{tX}\\big]\\) of this pdf, and say for which \\(t\\) it exists' : '\\(m_X(t) = E\\big[e^{tX}\\big]\\) for this pdf'}${b.use ? ', then use it for E[X] and Var X' : ''}.`,
     latex: b.pdf,
     buildIt: true,
@@ -5291,7 +5312,8 @@ window.MathJax = {
       return m ? m[0].length : 0
     })
     return rows
-      .map(r => trimSpace(r.replace(/^:/, '').replace(/^\\quad/, '')))
+      // (a row split off before \quad keeps no trailing comma)
+      .map(r => trimSpace(r.replace(/^:/, '').replace(/^\\quad/, '')).replace(/(?:\s|\\[;,!])*,(?:\s|\\[;,!])*$/, ''))
       .filter(Boolean)
       .map(r => splitTop(r, (src, i) => (src[i] === '=' ? 1 : (/^\\approx(?![a-zA-Z])|^\\to(?![a-zA-Z])/.exec(src.slice(i)) ?? [''])[0].length)))
   }
@@ -5463,6 +5485,10 @@ window.MathJax = {
     // the question's numbers, and which of them the work uses (a colour each)
     const rows = work ? workRows(work) : []
     const lastRow = rows.length - 1
+    // a plain-words reason for each row, when the question has one per row
+    const says = Array.isArray(p.steps) && p.steps.length === rows.length ? p.steps : null
+    if (says && why) why.remove()
+    const say = i => h('p', 'work-say', says[i])
     const { used, links, isAnswer } = linkWork(p, rows, level)
     // colour only the linked spots, by position
     const wrapChunk = (r, j, c) => {
@@ -5514,10 +5540,10 @@ window.MathJax = {
     function showFinal() {
       if (why) why.hidden = false
       used.forEach(chipFor)
-      box.replaceChildren(...rows.map((r, i) => {
+      box.replaceChildren(...rows.flatMap((r, i) => {
         const d = h('div', 'plug-line')
         d.append(tex(rowTex(i, r.length)))
-        return d
+        return says ? [d, say(i)] : [d]
       }))
       lookBox.replaceChildren()
       for (const spec of looks) {
@@ -5584,6 +5610,13 @@ window.MathJax = {
             sfx.right(2)
           } else tone(semis(523.25, 5 + n * 2), 0, 0.08, 'sine', 0.07)
           await wait(landing.length ? 250 : 600)
+        }
+        // then why that row happened, with time to read it
+        if (says && alive()) {
+          const s = say(r)
+          box.append(s)
+          s.animate([{ opacity: 0, transform: 'translateY(-3px)' }, { opacity: 1, transform: 'none' }], { duration: 300 })
+          await wait(Math.min(2600, 900 + 20 * says[r].length))
         }
       }
       // how the table gives the numbers the work used
