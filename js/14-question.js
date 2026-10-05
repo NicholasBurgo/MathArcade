@@ -5,9 +5,12 @@ function showQuestion() {
   screen = 'question'
   const q = round.queue[round.at]
   q.seen++
+  if (q.p.buildIt && !round.paper) q.p = buildAsOne(q.p)
   const p = q.p
   view.replaceChildren()
   const sheet = h('section', 'sheet')
+  // once the question is drawn: Check, Hint, How do I do this? and Skip on one row
+  queueMicrotask(() => questionActions(sheet))
   const top = h('div', 'qtop')
   const prog = h('div', 'progress')
   round.queue.forEach((x, i) => {
@@ -69,6 +72,26 @@ function showQuestion() {
   sheet.append(box)
   view.append(sheet)
   window.scrollTo({ top: 0 })
+}
+
+// Check first (learn mode's Show me presses the box's first button), then Hint, How do I
+// do this? and Skip, all on one row under the answer; what Hint and How do I do this? open
+// goes under the row. A question without one Check keeps its own layout.
+function questionActions(sheet) {
+  if (!sheet.isConnected) return
+  const check = [...sheet.querySelectorAll('button')].find(b => b.textContent.trim() === 'Check' && !b.closest('.why, .plug, .mgf, .q-acts'))
+  if (!check) return
+  const row = h('div', 'q-acts')
+  check.before(row)
+  row.append(check)
+  const helps = [...sheet.querySelectorAll(':scope > .howto')]
+  for (const w of helps) {
+    const btn = w.querySelector(':scope > button')
+    if (btn) row.append(btn)
+  }
+  const skip = sheet.querySelector('.skip-btn')
+  if (skip) row.append(skip)
+  row.after(...helps)
 }
 
 // Skip: the question goes to the end of the round to try again. Skipped a second time,
@@ -143,7 +166,7 @@ function howTo(p, level, peeked) {
     if (ex.text) body.append(h('p', 'story', ex.text))
     if (ex.latex) body.append(tex(ex.latex))
     const b = ex.build ?? ex.mgf?.build
-    if (ex.buildIt && b) body.append(mgfPlayer(b, { auto: true }))
+    if ((ex.buildIt || ex.oneBuild) && b) body.append(mgfPlayer(b, { auto: true }))
     else {
       const box = h('div', 'reveal-box')
       box.append(h('h3', '', 'Answer'))
@@ -289,7 +312,7 @@ function answer(i, opts, sheet, { sel, check, wrap }) {
   if (p.clue) sheet.querySelector('.story')?.replaceWith(storyEl({ text: p.text, clue: p.clue }, true))
   if (p.trap) why.append(h('p', 'trap', 'The trap: ' + p.trap))
   if (p.leaf) why.append(leafCard(p.leaf))
-  if (p.mgf) why.append(mgfPlayer(p.mgf.build, { at: p.mgf.at }))
+  if (p.mgf) why.append(mgfPlayer(p.mgf.build, { at: p.mgf.at, auto: Boolean(p.oneBuild) }))
   if (p.params) why.append(paramCard(p.params, { host: sheet }))
   const { acts, cont } = gotIt(q)
   why.append(acts)

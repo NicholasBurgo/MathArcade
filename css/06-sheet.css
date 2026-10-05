@@ -36,6 +36,11 @@
 .progress i.now { border-color: var(--rule); }
 .progress i.skip { border-style: dashed; border-color: var(--graphite); }
 .skip-btn { margin-left: auto; padding: 6px 14px; min-height: 0; font-size: 0.85rem; }
+/* Check, Hint, How do I do this? and Skip on one row */
+.q-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; width: 100%; }
+.q-acts .btn { margin: 0; }
+.q-acts .skip-btn { margin-left: auto; padding: 10px 18px; font-size: inherit; }
+.pick > .howto { width: 100%; }
 
 .ask { margin: 14px 0 4px; font-weight: 700; }
 .story { margin: 4px 0; max-width: 64ch; }
