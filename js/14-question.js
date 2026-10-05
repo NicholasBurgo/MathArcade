@@ -89,6 +89,9 @@ function questionActions(sheet) {
     const btn = w.querySelector(':scope > button')
     if (btn) row.append(btn)
   }
+  const q = round?.queue[round.at]
+  const video = videoButton(q?.level ?? round?.short)
+  if (video) row.append(video)
   const skip = sheet.querySelector('.skip-btn')
   if (skip) row.append(skip)
   row.after(...helps)

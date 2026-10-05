@@ -235,10 +235,17 @@ function openCard(short) {
       sheet.append(tg)
     }
   }
+  const vids = videoCard(short)
+  if (vids) sheet.append(vids)
   const acts = h('div', 'row-actions')
   const go = h('button', 'btn', `Start · ${roundSize(short)} questions`)
   go.type = 'button'
   go.addEventListener('click', () => startRound(short))
+  // four questions, one of each kind first: about ten minutes
+  const quick = h('button', 'btn')
+  quick.type = 'button'
+  quick.append(document.createTextNode(`Quick round · ${Math.min(QUICK_ROUND, roundSize(short))} questions`))
+  quick.addEventListener('click', () => startRound(short, false, true))
   // the real test is written: same questions, no choices
   const paper = h('button', 'btn ghost')
   paper.type = 'button'
@@ -252,7 +259,7 @@ function openCard(short) {
   learn.type = 'button'
   learn.append(document.createTextNode('Learn mode'), h('span', 'mode', 'try it or Show me · doesn’t count'))
   learn.addEventListener('click', () => startLearn(short))
-  acts.append(go, learn, paper, back)
+  acts.append(go, quick, learn, paper, back)
   sheet.append(acts)
   view.append(sheet)
   go.focus()

@@ -152,7 +152,8 @@ function advance() {
 function finish() {
   screen = 'results'
   const r = round
-  const stars = r.misses === 0 ? 3 : r.misses <= 2 ? 2 : 1
+  // a quick round tops out at 2 stars; the third needs a full round with no misses
+  const stars = r.quick ? (r.misses === 0 ? 2 : 1) : r.misses === 0 ? 3 : r.misses <= 2 ? 2 : 1
   const prev = state.stars[r.short] || 0
   state.stars[r.short] = Math.max(prev, stars)
   state.plays[r.short] = (state.plays[r.short] || 0) + 1
@@ -178,7 +179,7 @@ function finish() {
   }
   tally.append(cell('best streak', String(r.best)), cell('first-try misses', String(r.misses)))
   sheet.append(tally)
-  const msg = stars === 3 ? 'Clean sheet. Every answer right the first time.' : stars === 2 ? 'Good run. One with no misses gets the third star.' : 'Cleared. Run it again: the questions change every time.'
+  const msg = r.quick ? (stars === 2 ? 'Clean quick round. A full round with no misses gets the third star.' : 'Quick round done. Watch the animations on the ones you missed, then go again.') : stars === 3 ? 'Clean sheet. Every answer right the first time.' : stars === 2 ? 'Good run. One with no misses gets the third star.' : 'Cleared. Run it again: the questions change every time.'
   sheet.append(h('p', 'note', msg + (stars > prev && prev ? ' New best!' : '')))
   const acts = h('div', 'row-actions')
   const i = ORDER.indexOf(r.short)

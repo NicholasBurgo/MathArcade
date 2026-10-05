@@ -1,7 +1,9 @@
 // js/12-rounds.js · rounds: a level's questions, learn mode
 // Loaded in order by index.html as a classic script: top-level names are shared with the other js/ files.
 // ---------- rounds: a level's questions, learn mode ----------
-async function startRound(short, paper = false) {
+// a quick round: the first questions of a round, which are one of each kind
+const QUICK_ROUND = 4
+async function startRound(short, paper = false, quick = false) {
   view.replaceChildren(h('p', 'loading', 'Shuffling the deck…'))
   await mathBoot
   const queue = []
@@ -15,7 +17,8 @@ async function startRound(short, paper = false) {
       order.push(...next)
     }
     for (const level of order.slice(0, roundSize(short))) queue.push({ p: problemFor(level), level, seen: 0, missed: false })
-    round = { short, paper, queue, at: 0, combo: 0, best: 0, misses: 0, marks: [] }
+    if (quick) queue.splice(QUICK_ROUND)
+    round = { short, paper, quick, queue, at: 0, combo: 0, best: 0, misses: 0, marks: [] }
     showQuestion()
     return
   }
@@ -33,7 +36,8 @@ async function startRound(short, paper = false) {
   if (isMgf(short)) for (const p of mgfRound(roundSize(short))) queue.push({ p, seen: 0, missed: false })
   if (isParam(short)) for (const p of paramRound(roundSize(short), paper)) queue.push({ p, seen: 0, missed: false })
   if (!isWorld0(short)) for (const p of sectionRound(short)) queue.push({ p, seen: 0, missed: false })
-  round = { short, paper, queue, at: 0, combo: 0, best: 0, misses: 0, marks: [] }
+  if (quick) queue.splice(QUICK_ROUND)
+  round = { short, paper, quick, queue, at: 0, combo: 0, best: 0, misses: 0, marks: [] }
   showQuestion()
 }
 
