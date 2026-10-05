@@ -1388,7 +1388,7 @@ window.MathJax = {
       for (const leaf of order.slice(0, roundSize(short))) queue.push({ p: treeProblem(leaf, true), seen: 0, missed: false })
     }
     if (isMgf(short)) for (const p of mgfRound(roundSize(short))) queue.push({ p, seen: 0, missed: false })
-    if (isParam(short)) for (const p of paramRound(roundSize(short))) queue.push({ p, seen: 0, missed: false })
+    if (isParam(short)) for (const p of paramRound(roundSize(short), paper)) queue.push({ p, seen: 0, missed: false })
     const topics = isWorld0(short) ? [] : topicsOf(short)
     const weights = topics.map(t => t.templates.length)
     const total = weights.reduce((a, b) => a + b, 0)
@@ -2077,7 +2077,7 @@ window.MathJax = {
     const items = BOSS_ORDER.map(short => {
       if (isTree(short)) return { short, p: treeProblem(undefined, true), raw: '', paper: false, result: null }
       if (isMgf(short)) return { short, p: mgfBuildProblem(), raw: '', paper: false, result: null }
-      if (isParam(short)) return { short, p: paramProblem(), raw: '', paper: false, result: null }
+      if (isParam(short)) return { short, p: paramProblem('all'), raw: '', paper: false, result: null }
       const topics = topicsOf(short)
       // a question that can be answered without its options, when the level has one
       let p
@@ -3602,6 +3602,9 @@ window.MathJax = {
       () => ({ text: 'A lottery draws 6 different numbers from 1 to 40. You bought a ticket with 6 different numbers on it. X is how many of your numbers are drawn.', clue: 'draws 6 different numbers',
         trap: 'Your 6 numbers are the “successes” hidden among the 40, and the draw takes 6 with no repeats: hypergeometric.',
         vars: { N: V(40, 'from 1 to 40'), r: V(6, 'a ticket with 6 different numbers', 'your numbers are the successes'), n: V(6, 'draws 6 different numbers'), x: sayX(ri(1, 2)) } }),
+      () => { const [N, r, n] = pickOne([[15, 6, 12], [10, 6, 7], [12, 8, 7], [9, 5, 6]]), lo = n - (N - r); return { text: `A class of ${N} students has ${r} seniors. For a survey, ${n} students are chosen at random, without replacement. X is the number of seniors chosen.`, clue: 'without replacement',
+        trap: `Chosen without replacement from one class: hypergeometric. And with only ${N - r} non-seniors, at least ${lo} of the ${n} must be seniors.`,
+        vars: { N: V(N, `class of ${N} students`), r: V(r, `has ${r} seniors`), n: V(n, `${n} students are chosen`), x: sayX(lo + 1) } } },
     ],
     poisson: [
       () => { const [l, m] = pickOne([[60, 2], [90, 2], [120, 2], [120, 3], [180, 2], [240, 1], [60, 5], [90, 4]]), k = (l * m) / 60; return { text: `A call center gets about ${l} calls an hour, arriving at random. X is the number of calls in a ${m}-minute span.`, clue: 'arriving at random',
@@ -4631,15 +4634,75 @@ window.MathJax = {
   }
 
   // One question: a story (easy or test-style) for a distribution, and one thing to read off it.
+  const gcdI = (a, b) => (b ? gcdI(b, a % b) : a)
+  const fracTex = (a, b) => {
+    const g = gcdI(a, b)
+    return b / g === 1 ? String(a / g) : `\\tfrac{${a / g}}{${b / g}}`
+  }
+  // the wrong values a hurried reader gives for one letter: the story's other numbers,
+  // the other letters, the usual slip for that letter, then nearby values
+  function paramSlips(leaf, sc, kind) {
+    const v = sc.vars[kind]
+    // a fraction (1/6 from a die) gets fraction slips: its complement, half, double, square
+    const fm = /^\\tfrac\{(\d+)\}\{(\d+)\}$/.exec(v.tex)
+    if (kind === 'p' && fm) {
+      const [a, b] = [+fm[1], +fm[2]]
+      return [...new Set([fracTex(b - a, b), fracTex(a, 2 * b), fracTex(2 * a, b), fracTex(a * a, b * b)])].filter(t => t !== v.tex && t !== '1')
+    }
+    const nums = [...sc.text.matchAll(/(\d+(?:\.\d+)?)(%?)/g)].flatMap(m => (m[2] ? [+m[1], +m[1] / 100] : [+m[1]]))
+    const others = Object.entries(sc.vars).filter(([k]) => k !== kind && k !== 'x' && k !== 'q').map(([, o]) => o.val)
+    // k with the window left in its own units: 4 per hour for 30 minutes read as 4 × 30
+    const sNums = (sc.vars.s?.from ?? '').match(/\d+(?:\.\d+)?/g)?.map(Number) ?? []
+    const slips =
+      kind === 'p' ? [1 - v.val]
+      : kind === 'k' ? [...sNums.map(x => x * sc.vars.lam.val), sc.vars.lam.val, sc.vars.s.val, sc.vars.lam.val / sc.vars.s.val]
+      : kind === 'N' ? [sc.vars.N.val - sc.vars.r.val]
+      : []
+    const near = kind === 'p' ? [v.val * 2, v.val / 2, v.val + 0.1, v.val - 0.05] : [v.val + 1, v.val - 1, v.val * 2]
+    const seen = new Set([fmt(v.val)])
+    const out = []
+    for (const c of [...slips, ...others, ...nums, ...near]) {
+      if (!Number.isFinite(c) || c <= 0 || (kind === 'p' && c >= 1)) continue
+      const f = fmt(c)
+      if (seen.has(f)) continue
+      seen.add(f)
+      out.push(f)
+    }
+    return out
+  }
+
+  // One question: a story (easy or test-style) for a distribution, and what to read off
+  // it. 'all' is the whole question as the test asks it (HW 6): name the distribution,
+  // give its parameters, and list the values X can take. The others name the distribution
+  // and ask one letter, or the values.
   function paramProblem(kind = null, leaf = pickOne(Object.keys(PARAMS))) {
+    kind ??= pickOne([...PARAMS[leaf], 'values', 'all'])
     let sc
-    do sc = pickOne([...STORIES[leaf], ...HARD[leaf]])()
-    while (sc.latex)
-    kind ??= pickOne([...PARAMS[leaf], 'values'])
+    // half the hypergeometric "values" questions use the class whose lowest value is not 0
+    if (leaf === 'hyper' && kind !== 'N' && kind !== 'r' && kind !== 'n' && Math.random() < 0.5) sc = HARD.hyper[HARD.hyper.length - 1]()
+    else {
+      do sc = pickOne([...STORIES[leaf], ...HARD[leaf]])()
+      while (sc.latex)
+    }
     // "X is binomial", but "X is Poisson"
     const name = leaf === 'poisson' ? 'Poisson' : LEAVES[leaf].name.toLowerCase()
     let ask, latex, right, wrong, hint
-    if (kind === 'values') {
+    if (kind === 'all') {
+      const val = valuesOf(leaf, sc.vars)
+      const keys = PARAMS[leaf]
+      const set = runTex(val.lo, val.hi)
+      const card = (nm, vals, xs) => `\\text{${nm}},\\ ${vals.map(([k, t]) => `${LETTER[k]} = ${t}`).join(',\\ ')};\\ x = ${xs}`
+      const mine = keys.map(k => [k, sc.vars[k].tex])
+      right = card(LEAVES[leaf].name, mine, set)
+      // one thing wrong at a time: the values, one letter, the name it is mistaken for
+      const setSlips = [...new Set(val.slips.filter(([a, b]) => a <= b).map(([a, b]) => runTex(a, b)))].filter(t => t !== set)
+      const letterSlips = keys.flatMap(k => paramSlips(leaf, sc, k).slice(0, 2).map(w => card(LEAVES[leaf].name, mine.map(([kk, t]) => [kk, kk === k ? w : t]), set)))
+      const nameSlips = CONFUSED[leaf].filter(c => PARAMS[c]).slice(0, 2).map(c => card(LEAVES[c].name, mine, set))
+      wrong = [...setSlips.slice(0, 2).map(x => card(LEAVES[leaf].name, mine, x)), ...letterSlips.slice(0, 2), nameSlips[0], ...setSlips.slice(2, 3).map(x => card(LEAVES[leaf].name, mine, x)), ...letterSlips.slice(2), ...nameSlips.slice(1)].filter(Boolean)
+      ask = 'Name the distribution of X, give its parameters, and list the possible values of X.'
+      latex = 'X \\sim \\,?'
+      hint = { text: `${LEAVES[leaf].name}: ${keys.map(k => `${k} is ${MEANS[leaf][k]}`).join('; ')}. ${val.why}` }
+    } else if (kind === 'values') {
       const val = valuesOf(leaf, sc.vars)
       ask = `X is ${name}. What values can X take?`
       latex = 'X = \\;?'
@@ -4648,33 +4711,13 @@ window.MathJax = {
       hint = { text: val.why }
     } else {
       const v = sc.vars[kind]
-      ask = `X is ${name}. What is ${kind}, ${MEANS[leaf][kind]}?`
+      ask = `X is ${name}. Find ${kind}.`
       latex = `${LETTER[kind]} = \\;?`
       right = v.tex
-      // the story's other numbers, the other letters, and the usual slips for this one
-      const nums = [...sc.text.matchAll(/(\d+(?:\.\d+)?)(%?)/g)].flatMap(m => (m[2] ? [+m[1], +m[1] / 100] : [+m[1]]))
-      const others = Object.entries(sc.vars).filter(([k]) => k !== kind && k !== 'x' && k !== 'q').map(([, o]) => o.val)
-      // k with the window left in its own units: 4 per hour for 30 minutes read as 4 × 30
-      const sNums = (sc.vars.s?.from ?? '').match(/\d+(?:\.\d+)?/g)?.map(Number) ?? []
-      const slips =
-        kind === 'p' ? [1 - v.val]
-        : kind === 'k' ? [...sNums.map(x => x * sc.vars.lam.val), sc.vars.lam.val, sc.vars.s.val, sc.vars.lam.val / sc.vars.s.val]
-        : kind === 'N' ? [sc.vars.N.val - sc.vars.r.val]
-        : []
-      // and nearby values, so there are always a few to choose from
-      const near = kind === 'p' ? [v.val * 2, v.val / 2, v.val + 0.1, v.val - 0.05] : [v.val + 1, v.val - 1, v.val * 2]
-      const seen = new Set([fmt(v.val)])
-      wrong = []
-      for (const c of [...slips, ...others, ...nums, ...near]) {
-        if (!Number.isFinite(c) || c <= 0 || (kind === 'p' && c >= 1)) continue
-        const f = fmt(c)
-        if (seen.has(f)) continue
-        seen.add(f)
-        wrong.push(f)
-      }
+      wrong = paramSlips(leaf, sc, kind)
       hint = { text: `${kind} is ${MEANS[leaf][kind]}${v.from ? `: “${v.from}”` : ''}${v.note ? ` (${v.note})` : ''}.` }
     }
-    const opts = shuffleArr([right, ...wrong.filter(w => w !== right).slice(0, 5)])
+    const opts = shuffleArr([right, ...[...new Set(wrong)].filter(w => w !== right).slice(0, 5)])
     return {
       ask,
       text: sc.text,
@@ -4686,15 +4729,16 @@ window.MathJax = {
       params: { leaf, sc, at: kind },
     }
   }
-  function paramRound(n) {
-    // every distribution twice, never the same one twice in a row, a mix of what is asked
+  function paramRound(n, paper = false) {
+    // every distribution twice, never the same one twice in a row; two of every ten are the
+    // whole test question (on paper, all of them), a third of the rest the values
     const leaves = []
     while (leaves.length < n) {
       const next = shuffleArr(Object.keys(PARAMS))
       if (next[0] === leaves[leaves.length - 1]) next.push(next.shift())
       leaves.push(...next)
     }
-    return leaves.slice(0, n).map((leaf, i) => paramProblem(i % 3 === 2 ? 'values' : pickOne(PARAMS[leaf]), leaf))
+    return leaves.slice(0, n).map((leaf, i) => paramProblem(paper || i % 5 === 4 ? 'all' : i % 3 === 2 ? 'values' : pickOne(PARAMS[leaf]), leaf))
   }
 
   // The story read off, row by row: each letter, the words it comes from, what it
