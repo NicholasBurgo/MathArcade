@@ -59,6 +59,10 @@ a right answer plays an animation that works the problem out.
   it and the levels that drill it (tap one to practise). A level counts its best round
   (stars), your last 12 first tries on it, and its question on the last practice test; the
   map's readiness curve is the same number across all topics.
+- **Tables** — the printed tables in a pop-up like the calculator: the question stays there
+  to write on and answer. It opens on the table for the level you are in (the n = 19
+  binomial table when the question's n is 19); tap a cell to light its row and column, drag
+  it by its title bar.
 - **Calc** — a pop-up calculator from the header: + − × ÷, powers, x!, C(n, k), √, ln, eˣ,
   π, e and Ans, with 2(3) read as times. Drag it by its title bar out of the way; it stays
   there, and it floats over the tables so you can look up and work at once.

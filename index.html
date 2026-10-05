@@ -554,6 +554,15 @@ mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); bor
 .learn-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 10px 0; padding: 8px 12px; border: 1.5px dashed var(--gold); border-radius: 10px; }
 .learn-note { flex: 1 1 220px; color: var(--muted); font-size: 0.92rem; }
 .learn-tag { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold); }
+/* the tables float too, under the calculator, and scroll inside */
+.tables-pop { position: fixed; z-index: 34; top: calc(64px + env(safe-area-inset-top, 0px)); right: 16px; width: min(640px, calc(100vw - 32px)); max-height: min(72vh, 680px); display: flex; flex-direction: column; border: 2px solid var(--rule); border-radius: 14px; background: var(--sheet); box-shadow: var(--shadow); }
+.tables-pop[hidden] { display: none; }
+.tp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 10px; border-bottom: 1.5px solid var(--rule-soft); cursor: grab; touch-action: none; user-select: none; }
+.tp-head b { font-family: var(--display); font-size: 1.1rem; text-transform: uppercase; color: var(--rule); }
+.tp-tabs { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+.tp-body { overflow: auto; padding: 6px 10px 12px; overscroll-behavior: contain; }
+.tp-title { margin: 4px 0 0; font-family: var(--display); font-size: 1.1rem; text-transform: uppercase; }
+.tp-body .note { margin: 2px 0 8px; color: var(--muted); font-size: 0.85rem; }
 /* the calculator floats over everything but the confetti, and stays where it is dragged */
 .calc { position: fixed; z-index: 35; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: min(300px, calc(100vw - 32px)); padding: 10px; border: 2px solid var(--rule); border-radius: 14px; background: var(--sheet); box-shadow: var(--shadow); }
 .calc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -2px 0 8px; cursor: grab; touch-action: none; user-select: none; }
@@ -604,7 +613,7 @@ mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); bor
     <div class="tools">
       <button class="tool" id="open-calc" type="button" aria-pressed="false">Calc</button>
       <button class="tool" id="open-ready" type="button">Ready</button>
-      <button class="tool" id="open-tables" type="button">Tables</button>
+      <button class="tool" id="open-tables" type="button" aria-pressed="false">Tables</button>
       <button class="tool" id="open-sheet" type="button">Formulas</button>
       <button class="tool" id="sound" type="button" aria-pressed="true">Sound</button>
     </div>
@@ -613,6 +622,7 @@ mark.pvmark { background: color-mix(in srgb, currentColor 16%, transparent); bor
 </div>
 <div class="overlay" id="overlay" hidden></div>
 <div class="calc" id="calc" role="dialog" aria-label="Calculator" hidden></div>
+<div class="tables-pop" id="tables-pop" role="dialog" aria-label="Tables" hidden></div>
 <canvas id="fx" aria-hidden="true"></canvas>
 <canvas id="ink" aria-hidden="true"></canvas>
 <div class="ink-tools" id="ink-tools" hidden>
@@ -1023,7 +1033,7 @@ window.MathJax = {
     inkClear.hidden = true
     setEraseMode(false)
   }
-  const onControl = e => e.target instanceof Element && e.target.closest('button, input, a, select, textarea, label, [role="button"]')
+  const onControl = e => e.target instanceof Element && e.target.closest('button, input, a, select, textarea, label, [role="button"], .tables-pop, .calc, .overlay')
   const sideButton = e => (e.buttons & 34) !== 0 || e.button === 2 || e.button === 5
   // where the pen is on the page: the screen spot plus how far the page is scrolled
   const onPage = e => ({ x: e.clientX + window.scrollX, y: e.clientY + window.scrollY })
@@ -1116,7 +1126,7 @@ window.MathJax = {
   // the pen must ink, not scroll: cancel its touch gestures; fingers still pan
   window.addEventListener('touchstart', e => { if (inking) e.preventDefault() }, { passive: false })
   window.addEventListener('touchmove', e => {
-    if (inking || [...e.touches].some(t => t.touchType === 'stylus')) e.preventDefault()
+    if (inking || ([...e.touches].some(t => t.touchType === 'stylus') && !onControl(e))) e.preventDefault()
   }, { passive: false })
   // the side button as a right click: no context menu, no text selection, just erasing
   window.addEventListener('contextmenu', sidePress)
@@ -1288,6 +1298,7 @@ window.MathJax = {
 
   function openCard(short) {
     screen = 'card'
+    cardLevel = short
     view.replaceChildren()
     const sheet = h('section', 'sheet')
     const wi = WORLDS.findIndex(w => w.levels.includes(short))
@@ -5378,31 +5389,57 @@ window.MathJax = {
   const overlay = document.getElementById('overlay')
   const TAB_NAMES = { binomial19: 'Binomial n = 19', binomial: 'Binomial n = 20', normal: 'Normal z', chi2: 'Chi-squared' }
   let tables = null
+  // the table for what is on screen: a table level's own (the n = 19 binomial table when
+  // the question's n is 19), else the first
+  let cardLevel = null
+  function tableHere() {
+    const q = screen === 'question' && round ? round.queue[round.at] : null
+    const level = q ? q.level ?? round.short : screen === 'card' ? cardLevel : null
+    if (level === 'Binomial table') return /\b19\b/.test(`${q?.p.text ?? ''} ${q?.p.latex ?? ''}`) ? 'binomial19' : 'binomial'
+    if (level === 'Chi-squared table') return 'chi2'
+    if (level === 'Normal table' || level === 'Normal word problems') return 'normal'
+    return unit.tables[0]
+  }
   function closeOverlay() {
     overlay.hidden = true
     overlay.replaceChildren()
     document.body.style.overflow = ''
   }
+  // The printed tables, in a panel that floats over the page, so the question stays
+  // there to write on and press. Drag it by its title bar; it stays where it is left.
+  const tablesPop = document.getElementById('tables-pop')
+  const tablesBtn = document.getElementById('open-tables')
+  const TABLES_POS = 'math3800-arcade.tables'
+  const placeTables = (x, y) => {
+    const r = tablesPop.getBoundingClientRect()
+    x = Math.max(4, Math.min(innerWidth - r.width - 4, x))
+    y = Math.max(4, Math.min(innerHeight - Math.min(r.height, 120) - 4, y))
+    Object.assign(tablesPop.style, { left: x + 'px', top: y + 'px', right: 'auto' })
+  }
+  function closeTables() {
+    tablesPop.hidden = true
+    tablesBtn.setAttribute('aria-pressed', 'false')
+  }
   function openTables(which = unit.tables[0]) {
     tables ??= unit.printedTables()
-    overlay.replaceChildren()
-    const inner = h('div', 'overlay-inner')
-    const head = h('div', 'overlay-head')
+    tablesPop.replaceChildren()
+    const head = h('div', 'tp-head')
+    const tabs = h('div', 'tp-tabs')
     for (const name of unit.tables) {
       const b = h('button', 'tool', TAB_NAMES[name] ?? name)
       b.type = 'button'
       b.setAttribute('aria-pressed', String(name === which))
       b.addEventListener('click', () => openTables(name))
-      head.append(b)
+      tabs.append(b)
     }
-    const close = h('button', 'tool', 'Close')
+    const close = h('button', 'calc-x', '×')
     close.type = 'button'
-    close.addEventListener('click', closeOverlay)
-    head.append(close)
-    inner.append(head)
+    close.setAttribute('aria-label', 'Close the tables')
+    close.addEventListener('click', closeTables)
+    head.append(h('b', '', 'Tables'), tabs, close)
     const t = tables[which]
-    inner.append(h('h3', '', t.title), h('p', 'note', t.note))
-    const wrap = h('div', 'table-wrap')
+    const body = h('div', 'tp-body')
+    body.append(h('p', 'tp-title', t.title), h('p', 'note', t.note))
     const table = h('table', 'ptable')
     const thead = h('thead')
     const hr = h('tr')
@@ -5431,11 +5468,34 @@ window.MathJax = {
       td.classList.remove('line')
       td.classList.add('here')
     })
-    wrap.append(table)
-    inner.append(wrap)
-    overlay.append(inner)
-    overlay.hidden = false
-    document.body.style.overflow = 'hidden'
+    body.append(table)
+    tablesPop.append(head, body)
+    tablesPop.hidden = false
+    tablesBtn.setAttribute('aria-pressed', 'true')
+    try {
+      const at = JSON.parse(localStorage.getItem(TABLES_POS))
+      if (at) placeTables(at.x, at.y)
+    } catch {}
+    // drag by the title bar (not its buttons)
+    let drag = null
+    head.addEventListener('pointerdown', e => {
+      if (e.target.closest('button')) return
+      const r = tablesPop.getBoundingClientRect()
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }
+      try { head.setPointerCapture(e.pointerId) } catch {}
+      e.preventDefault()
+    })
+    head.addEventListener('pointermove', e => {
+      if (drag) placeTables(e.clientX - drag.dx, e.clientY - drag.dy)
+    })
+    const drop = () => {
+      if (!drag) return
+      drag = null
+      const r = tablesPop.getBoundingClientRect()
+      try { localStorage.setItem(TABLES_POS, JSON.stringify({ x: r.left, y: r.top })) } catch {}
+    }
+    head.addEventListener('pointerup', drop)
+    head.addEventListener('pointercancel', drop)
   }
   async function openSheet() {
     await mathBoot
@@ -5518,7 +5578,12 @@ window.MathJax = {
     closeOverlay()
     renderMap()
   })
-  document.getElementById('open-tables').addEventListener('click', () => openTables())
+  document.getElementById('open-tables').addEventListener('click', () => (tablesPop.hidden ? openTables(tableHere()) : closeTables()))
+  addEventListener('resize', () => {
+    if (tablesPop.hidden || !tablesPop.style.left) return
+    const r = tablesPop.getBoundingClientRect()
+    placeTables(r.left, r.top)
+  })
   document.getElementById('open-sheet').addEventListener('click', openSheet)
   document.getElementById('open-ready').addEventListener('click', openReady)
 
@@ -5803,6 +5868,7 @@ window.MathJax = {
       if (e.key === 'Escape') closeOverlay()
       return
     }
+    if (e.key === 'Escape' && !tablesPop.hidden) closeTables()
     if (screen !== 'question' || e.metaKey || e.ctrlKey || e.altKey) return
     if (e.target instanceof Element && e.target.closest('input, textarea')) return
     const k = e.key.toLowerCase()
