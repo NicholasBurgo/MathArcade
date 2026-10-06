@@ -65,21 +65,19 @@ function quizBlock() {
   hero.append(words, fig)
   view.append(hero)
 
-  // next up: the first quiz part not yet right on the quiz's numbers, then on new numbers;
-  // a question already started opens at that part
+  // next up: the first quiz question with a part not yet right on the quiz's numbers, then
+  // on new numbers: its level's round on those numbers (js/37b)
   const next = hwNext()
   if (next) {
-    const first = hwBuilt(next.p).parts[0] === next.pt
     const cta = h('button', 'cta')
     cta.type = 'button'
     const ctaText = h('span')
     ctaText.append(
-      h('small', '', next.twin ? 'Next up · new numbers' : 'Next up · the quiz’s numbers'),
-      h('strong', '', `${first ? hwQuizName(next.p) : `${hwName(next.p)} (${next.pt.label})`} · ${next.p.title}`),
+      h('small', '', next.twin ? 'Next up · new numbers' : `Next up · ${quizOwnLabel(quizLevelName(next.p)).replace(/^The/, 'the')}`),
+      h('strong', '', `${hwQuizName(next.p)} · ${next.p.title}`),
     )
     cta.append(ctaText, h('span', 'go', '→'))
-    // (its level: new numbers, or the quiz's own numbers)
-    cta.addEventListener('click', () => openCard(quizLevelName(next.p)))
+    cta.addEventListener('click', () => startRound(quizLevelName(next.p), false, false, !next.twin))
     view.append(cta)
   }
 

@@ -534,7 +534,7 @@ function linkWork(p, rows, level) {
       .filter(t => !t.power || g.occ.some(o => o.power))
       .filter(t => !t.ans || !small)
       // (a quiz walk can hold a number to the places its role is plain)
-      .filter(t => !p.workSpot || p.workSpot(g, t))
+      .filter(t => !p.workSpot || p.workSpot(g, t, sym))
     // (μ = 1 lined up with the rule's μ in (x − μ)/σ is the story's μ)
     // (said once only: a 0, 1 or 2 said twice may be two things)
     if (tiny) spots = g.occ.length > 1 && !spots.some(t => t.def) ? [] : spots.filter(t => t.def || (t.sym && t.sym === sym))

@@ -99,13 +99,15 @@ function quizLevelSlice(short, kind) {
     // the same part with new numbers; the quiz's letters get the same part with numbers
     another: () => quizLevelSlice(short, mode === 'own' && p.twin ? { ...kind, mode: 'twin' } : kind),
   }
-  // a part to write out, asked as one question on its key line, with its real slips
+  // a part to write out, asked as one question on its key line, with its real slips (paper
+  // mode writes it out, so it keeps the quiz's ask: quizAsk)
   if (c.type === 'self') {
     const one = quizLevelTry(() => quizOneLine(s), null)
-    if (one) Object.assign(s, { ask: one.ask, check: one.check, oneLine: one })
+    if (one) Object.assign(s, { check: one.check, oneLine: one })
   }
   return s
 }
+const quizAsk = p => (p.oneLine && !round?.paper ? p.oneLine.ask : p.ask)
 
 // a round: every question in the quiz's order; a quick one, one question from each of four
 // parts (in order); a short level fills up with more new numbers. own: every part once, on
@@ -197,7 +199,7 @@ function quizWalkWords(text, start, end) {
 // the story's fractions as chips (p = 1/13), each flying to the work's \frac{1}{13}, and
 // 1 minus one (q = 12/13) worked on the side where the work uses it
 function quizWalkFractions(text, rows, link) {
-  const fr = [...String(text).matchAll(/(?<![\d.\/])(\d+)\/(\d+)(?![\d.\/])/g)].map(m => ({ a: +m[1], b: +m[2], start: m.index, end: m.index + m[0].length }))
+  const fr = [...String(text).matchAll(/(?<![\d.\/])(\d+)\/(\d+)(?![\d\/]|\.\d)/g)].map(m => ({ a: +m[1], b: +m[2], start: m.index, end: m.index + m[0].length }))
   const once = fr.filter(f => fr.filter(g => g.a === f.a && g.b === f.b).length === 1 && f.a < f.b)
   const taken = (r, j, a, b) => link.links.some(l => l.r === r && l.j === j && l.start < b && l.end > a)
   const spotsOf = (a, b) => {
@@ -246,7 +248,7 @@ function quizHead(p, el) {
     m.classList.add('q-math')
     el.append(m)
   }
-  el.append(hwPara('ask', quizPlain(p.ask)))
+  el.append(hwPara('ask', quizPlain(quizAsk(p))))
   if (p.itemLabel) {
     const l = h('p', 'slice-item')
     l.append('Find ', tex(p.itemLabel, false), '.')
@@ -379,19 +381,34 @@ function quizWalk(p) {
     .filter(m => /=/.test(m) && /\\[dt]?frac|\^/.test(m) && !/[PF]\[|[PF]\(/.test(m) && numberTokens(m, true).every(t => Number.isInteger(t.val) && Math.abs(t.val) <= 2))
   // (a story that lists every part's integral: its numbers are other parts')
   const latex = st.latex && !/\\text\{\([a-z]\)\}/.test(st.latex) ? st.latex : null
+  // the story's whole numbers that are the difference of two of its numbers (N − r = r when
+  // r is half of N): a spot with that value may be either
+  const ints = [st.text, quizPlain(p.ask)].flatMap(src => numberTokens(src, false).filter(t => !quizWalkSkip('text', t, src)).map(t => t.val)).filter(v => Number.isInteger(v) && v > 0)
+  const ambiguous = new Set(ints.filter(v => ints.some(x => x !== v && ints.some(y => x - y === v))))
   return {
     text: st.text,
-    ask: quizPlain(p.ask),
+    ask: quizPlain(quizAsk(p)),
     latex,
     steps: quizWalkNames(p, rows),
     hint: rules.length ? { latex: rules.slice(0, 2).join(' \\quad ') } : null,
     workSkip: quizWalkSkip,
     workWords: quizWalkWords,
-    // (a number from the question's math, f(x) = x/18, only where its role is plain: a limit,
-    // the bottom of a fraction, a named value; never a bare 18 the work reaches another way)
-    workSpot: (g, t) => g.occ.some(o => o.field !== 'math') || t.def || t.limit || t.call || t.bottom || !!t.sym,
+    workSpot: (g, t, sym) => quizWalkSpot(rows, ambiguous, g, t, sym),
     walk: { rows, says, looks, graphs, answerAt, first: p.start ? `**First move:** ${p.start}` : null, trap: p.trap ?? null, moreGivens: (rs, link) => quizWalkFractions(st.text, rs, link) },
   }
+}
+// Where a story's number may fly in the work. Never into 4.54 × 10^(−5) (that 10 is
+// notation), nor into a run of values like "10, 9, 8" (counts, not the parameter). A number
+// from the question's math (f(x) = x/18) only where its role is plain: a limit, the bottom of
+// a fraction, a named value, never a bare 18 the work reaches another way. A number that is
+// also the difference of two others only where its own letter is plain.
+function quizWalkSpot(rows, ambiguous, g, t, sym) {
+  const c = rows[t.r]?.[t.j] ?? ''
+  const before = c.slice(0, t.start), after = c.slice(t.end)
+  if (/\\times\s*$/.test(before) && /^\s*\^/.test(after)) return false
+  if (/^\s*,\s*-?\d+\s*,/.test(after) || /\d\s*,\s*-?\d+\s*,\s*$/.test(before) || (/\d\s*,\s*$/.test(before) && /^\s*,\s*-?\d/.test(after))) return false
+  if (ambiguous.has(Math.abs(g.val))) return !!(t.def || (t.sym && t.sym === sym))
+  return g.occ.some(o => o.field !== 'math') || !!(t.def || t.limit || t.call || t.bottom || t.sym)
 }
 // The names of the work's numbers, as "n = 10" sayings (workPanel names the chips with them):
 // a row in letters, then the same left side in numbers (E[X] = np, then E[X] = 10(0.2)), and
@@ -407,7 +424,9 @@ function quizWalkNames(p, rows) {
       if (sym && !/^[xtwXe]$/.test(sym)) got.push({ sym, num: x.num })
     }
   }
-  for (const st of p.steps) for (const x of workSayings(quizPlain(`${st.say} ${st.why ?? ''}`))) if (!/^[xtwX]$/.test(x.sym)) got.push(x)
+  // (never inside P[…] or P(…): "P[X² = 22.3] = 0" names nothing)
+  const said = st => quizPlain(`${st.say} ${st.why ?? ''}`).replace(/\b[PF]\[[^[\]]*\]|\b[PF]\([^()]*\)/g, ' ')
+  for (const st of p.steps) for (const x of workSayings(said(st))) if (!/^[xtwXZ]²?$/.test(x.sym) && !/²/.test(x.sym)) got.push(x)
   const bySym = new Map(), byNum = new Map()
   for (const x of got) {
     ;(bySym.get(x.sym) ?? bySym.set(x.sym, new Set()).get(x.sym)).add(+x.num)
@@ -572,8 +591,8 @@ function quizOneLine(s) {
 const QUIZ_SET_WHY = (pick, right) => {
   const out = []
   if (pick[0] < 0) out.push('starts below 0: a count can’t be negative.')
-  else if (pick[0] < right[0]) out.push('starts too low: there aren’t enough failures to fill the draw, so at least n − (N − r) of the draws are successes.')
-  else if (pick[0] > right[0]) out.push('starts too high: there are enough failures to fill the draw, so X can be as low as max(0, n − (N − r)).')
+  else if (pick[0] < right[0]) out.push('starts too low: the N − r failures can fill only N − r of the n draws, so at least n − (N − r) of the draws are successes.')
+  else if (pick[0] > right[0]) out.push(right[0] === 0 ? 'starts too high: there are enough failures to fill the whole draw, so X can be 0.' : 'starts too high: the smallest X is n − (N − r), the draws the N − r failures can’t fill.')
   if (pick[pick.length - 1] > right[right.length - 1]) out.push('runs too high: X can’t be more than n (the number drawn) or r (the successes there are).')
   else if (pick[pick.length - 1] < right[right.length - 1]) out.push('stops too soon: X runs all the way up to min(n, r).')
   return out.length ? out.join(' And it ') : null
@@ -678,9 +697,10 @@ const quizSpellings = v => {
     out.add(String(+s))
     if (/^-?0\./.test(s)) out.add(s.replace(/^(-?)0\./, '$1.'))
   }
-  return [...out]
+  // (one digit, like the 1 of α − 1, says nothing)
+  return [...out].filter(s => s.replace(/\D/g, '').replace(/^0+/, '').length >= 2)
 }
-const quizSays = (text, v) => quizSpellings(v).some(s => new RegExp(`(^|[^\\d.])${s.replace('.', '\\.').replace('-', '[-−]')}(?![\\d]|\\.\\d)`).test(text))
+const quizSays = (text, v) => quizSpellings(v).some(s => new RegExp(`(^|[^\\d./])${s.replace('.', '\\.').replace('-', '[-−]')}(?![\\d/]|\\.\\d)`).test(text))
 function quizSlipNote(p, picked, opts) {
   const lab = picked.text ?? ''
   if (p.check.type !== 'number' || picked.num == null) {
@@ -689,12 +709,16 @@ function quizSlipNote(p, picked, opts) {
     if (picked.from === 'twin-slip') return 'Your pick has another story’s numbers, and a slip besides.'
     return picked.from === 'own' && p.trap ? 'Your pick is one of the slips this part sets up. The trap here is below.' : null
   }
-  // (a value is the pick when it rounds to it: 12.49 is σ = 12.4899…, never E[X] = 13)
+  // (a pick is a value only when it is that value's own option: the very number a real slip
+  // or another story's answer gave it, or, for a value the work reaches, the same label, as
+  // the list would write it: 12 is never σ = 12.49)
   const v = picked.num, a = p.check.value
-  const places = /^-?\d*\.(\d+)$/.exec(lab)?.[1].length ?? 0
-  const near = x => Math.abs(x - v) <= Math.max(1e-9 * Math.abs(x), 0.6 * 10 ** -places)
+  const label = choiceLabeler(choicePlaces(p.answerTex, a, Math.max(p.check.tol ?? 1e-6, 1e-9)))
+  const isPick = x => Math.abs(x - v) <= 1e-12 * Math.max(1, Math.abs(x))
+  const labelled = x => label(x) === lab
   const shown = lab.replace(/^-/, '−')
-  if (a > 0 && a < 1 && Math.abs(v + a - 1) < 1e-4) return `Your pick, ${shown}, is 1 minus the answer: the other side. Check whether the question wants the area to the left (at most, less than) or to the right (at least, more than).`
+  const prob = /\bP\[|\bP\(|probabilit|chance/i.test(`${p.ask} ${p.answerTex}`)
+  if (prob && a > 0 && a < 1 && Math.abs(v + a - 1) < 1e-4) return `Your pick, ${shown}, is 1 minus the answer: the probability of the opposite event. Check which side the question asks for.`
   // a value the work reaches on the way: what it is the value of (the row's left side, or
   // what follows a ⇒ or a \quad: "σ² = … ⇒ E[X²] = 325" makes 325 E[X²])
   const w = quizLevelTry(() => quizWalk(p), null)
@@ -706,18 +730,18 @@ function quizSlipNote(p, picked, opts) {
         if (turn && j > 1) subject = turn[1]
         const x = quizChunkValue(row[j])
         // (never the answer itself, said again on the way)
-        if (x == null || !near(x) || Math.abs(x - a) <= Math.max(p.check.tol, 1e-9)) continue
+        if (x == null || !labelled(x) || Math.abs(x - a) <= Math.max(p.check.tol, 1e-9)) continue
         const lhs = subject.replace(/^(?:\\[;,!: ]|\s)+|(?:\\[;,!: ]|\s)+$/g, '')
         if (!lhs || !/[a-zA-Z]/.test(lhs) || /=/.test(lhs)) continue
         return `Your pick, ${shown}, is \\(${lhs}\\), a step on the way in the work below, not what this question asks for.`
       }
     }
   }
-  if ((p.check.wrong ?? []).some(near)) {
+  if ((p.check.wrong ?? []).some(isPick)) {
     if (p.trap && quizSays(quizZero(p.trap), v)) return `Your pick, ${shown}, is the slip this part is known for. ${p.trap}`
     return `Your pick, ${shown}, is one of the usual slips on this part.${p.trap ? ' The trap here is below.' : ''}`
   }
-  if ((opts?.siblings ?? []).some(near)) return `Your pick, ${shown}, is this part’s answer for another story’s numbers. Use this story’s numbers.`
+  if ((opts?.siblings ?? []).some(isPick)) return `Your pick, ${shown}, is this part’s answer for another story’s numbers. Use this story’s numbers.`
   return null
 }
 
@@ -726,7 +750,22 @@ function quizSliceQuestion(p, sheet, q) {
   quizHead(p, sheet)
   if (round.learn) sheet.append(learnBar(p, sheet))
   if (!round.paper && p.start) sheet.append(firstMove(p))
-  if (!round.learn && !round.paper && p.another) sheet.append(quizHowTo(p))
+  // (the quiz's letters: the example with numbers shows this answer's form, so looking is a
+  // miss and the question comes back, as the arcade does with a question that is the same
+  // every time)
+  const peeked = () => {
+    // (once it is answered, looking costs nothing)
+    if (round.locked) return
+    if (!q.missed) {
+      q.missed = true
+      round.misses++
+    }
+    if (q.seen < 3 && q.requeuedAt !== q.seen) {
+      q.requeuedAt = q.seen
+      round.queue.push(q)
+    }
+  }
+  if (!round.learn && !round.paper && p.another) sheet.append(quizHowTo(p, quizLetters(p) ? peeked : null))
   const opts = !round.paper && quizPickOptions(p)
   if (!opts) {
     // paper mode (a number typed, a line written out) or a part with no fair list
@@ -786,7 +825,8 @@ function quizSliceAnswer(i, opts, sheet, { sel, check, wrap }) {
   why.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
 }
 // "How do I do this?": the same part with new numbers, answered, and its work played
-function quizHowTo(p) {
+const quizLetters = p => !p.twin && Boolean(QUIZ_LEVELS[p.quizLevel]?.p.hw?.letters)
+function quizHowTo(p, peeked = null) {
   const wrap = h('div', 'howto')
   const body = h('div', 'howto-body')
   body.hidden = true
@@ -799,7 +839,8 @@ function quizHowTo(p) {
     }
     const ex = quizLevelTry(() => p.another(), null)
     if (!ex) return
-    body.replaceChildren(h('div', 'eyebrow', p.twin ? 'Same kind, new numbers · doesn’t count' : 'The same question with numbers · doesn’t count'))
+    body.replaceChildren(h('div', 'eyebrow', peeked && !round?.locked ? 'The same question with numbers · its answer shows this one’s form · counts as a miss, it comes back later' : quizLetters(p) ? 'The same question with numbers · doesn’t count' : 'Same kind, new numbers · doesn’t count'))
+    if (peeked) peeked()
     quizHead(ex, body)
     const box = h('div', 'reveal-box')
     const c = ex.check
