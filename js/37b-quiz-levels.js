@@ -689,19 +689,26 @@ function quizSlipNote(p, picked, opts) {
     if (picked.from === 'twin-slip') return 'Your pick has another story’s numbers, and a slip besides.'
     return picked.from === 'own' && p.trap ? 'Your pick is one of the slips this part sets up. The trap here is below.' : null
   }
-  const v = picked.num, a = p.check.value, tol = p.check.tol
-  const near = x => Math.abs(x - v) <= Math.max(tol, 1e-9 * Math.abs(x))
+  // (a value is the pick when it rounds to it: 12.49 is σ = 12.4899…, never E[X] = 13)
+  const v = picked.num, a = p.check.value
+  const places = /^-?\d*\.(\d+)$/.exec(lab)?.[1].length ?? 0
+  const near = x => Math.abs(x - v) <= Math.max(1e-9 * Math.abs(x), 0.6 * 10 ** -places)
   const shown = lab.replace(/^-/, '−')
   if (a > 0 && a < 1 && Math.abs(v + a - 1) < 1e-4) return `Your pick, ${shown}, is 1 minus the answer: the other side. Check whether the question wants the area to the left (at most, less than) or to the right (at least, more than).`
-  // a value the work reaches on the way
+  // a value the work reaches on the way: what it is the value of (the row's left side, or
+  // what follows a ⇒ or a \quad: "σ² = … ⇒ E[X²] = 325" makes 325 E[X²])
   const w = quizLevelTry(() => quizWalk(p), null)
   if (w) {
     for (const row of w.walk.rows) {
+      let subject = row[0]
       for (let j = 1; j < row.length; j++) {
+        const turn = /(?:\\Rightarrow|\\iff|\\quad|,)\s*((?:(?!\\Rightarrow|\\iff|\\quad|,)[\s\S])*)$/.exec(row[j - 1])
+        if (turn && j > 1) subject = turn[1]
         const x = quizChunkValue(row[j])
-        if (x == null || !near(x) || near(a)) continue
-        const lhs = row[0].replace(/\\(?:Rightarrow|iff)[\s\S]*$/, '').trim()
-        if (!lhs || !/[a-zA-Z]/.test(lhs)) continue
+        // (never the answer itself, said again on the way)
+        if (x == null || !near(x) || Math.abs(x - a) <= Math.max(p.check.tol, 1e-9)) continue
+        const lhs = subject.replace(/^(?:\\[;,!: ]|\s)+|(?:\\[;,!: ]|\s)+$/g, '')
+        if (!lhs || !/[a-zA-Z]/.test(lhs) || /=/.test(lhs)) continue
         return `Your pick, ${shown}, is \\(${lhs}\\), a step on the way in the work below, not what this question asks for.`
       }
     }
@@ -821,6 +828,8 @@ function quizLevelCard(short) {
   screen = 'card'
   cardLevel = short
   quizLevelLearnAt.delete(short)
+  // (opened before MathJax is ready: drawn again once it is, so the math isn't raw TeX)
+  if (!mathReady) mathBoot.then(() => { if (screen === 'card' && cardLevel === short && mathReady) quizLevelCard(short) })
   view.replaceChildren()
   const sheet = h('section', 'sheet qz-card')
   const sec = (HWX.SECTIONS ?? []).find(s => s.id === p.section)
@@ -839,7 +848,7 @@ function quizLevelCard(short) {
   sheet.append(h('div', 'eyebrow qz-card-sub', built.parts.length === 1 ? 'What it asks' : `The ${built.parts.length} parts it asks`), ul)
   const kinds = quizLevelKinds(short)
   const letters = kinds.some(k => k.mode === 'own') && p.twin
-  sheet.append(h('p', 'paper-note', `Every question is one part of it, from a long list of answers, with a new story and new numbers each time${letters ? ' (and the part written in letters, in the quiz’s own words)' : ''}. Right or wrong, the work then plays out: the story’s numbers fly in, each step with its reason, the table and the graph. A part counts toward Ready when you get it right on new numbers, and again on the quiz’s own numbers.`))
+  sheet.append(h('p', 'paper-note', `Every question is one part of it, from a long list of answers, with a new story and new numbers each time${letters ? ' (and the part written in letters, in the quiz’s own words)' : ''}. Right or wrong, the work then plays out: the story’s numbers fly in, each step comes with its reason, and the tables and graphs are drawn. A part is half ready when you get it right on new numbers, and fully ready when you also get it right as the quiz writes it.`))
   const dots = h('div', 'qz-card-dots')
   dots.append(h('span', 'skill-tag', 'Ready'), hwDots(p))
   sheet.append(dots)
