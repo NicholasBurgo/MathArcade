@@ -178,7 +178,7 @@ function quizWalkSkip(field, t, src) {
   if (field === 'math') return false
   const after = src.slice(t.end), before = src.slice(0, t.start)
   if (field === 'text' && (/^-[A-Za-z]/.test(after) || /^:\d/.test(after) || /\d:$/.test(before) || /(?:Exercise|Table|Section|App\.|next) $/.test(before))) return true
-  if (/^\/[\d(]/.test(after) || /\/\(?$/.test(before)) return true
+  if (/^\/[\d(]/.test(after) || /\d\/\(?$/.test(before)) return true
   const esc = t.tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   return field === 'text' && new RegExp(`(?:^|[\\s(])\\S{1,2} = ${esc}(?![\\d.])`).test(src) && !/(?:^|[\s(])\S{1,2} = $/.test(before)
 }
