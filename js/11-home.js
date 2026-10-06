@@ -81,6 +81,15 @@ function quizBlock() {
     view.append(cta)
   }
 
+  // all the quiz questions mixed, with nothing that names them (js/37b)
+  const mix = h('button', 'cta')
+  mix.type = 'button'
+  const mixText = h('span')
+  mixText.append(h('small', '', 'Mixed like the test · new numbers'), h('strong', '', `Shuffled quiz · all ${REVIEW[SHUFFLED_QUIZ].length} questions`))
+  mix.append(mixText, h('span', 'go', '→'))
+  mix.addEventListener('click', () => openCard(SHUFFLED_QUIZ))
+  view.append(mix)
+
   // the quiz questions, section by section: one dot per part
   const quiz = h('section', 'world')
   quiz.id = 'quiz-questions'
@@ -205,7 +214,7 @@ function openCard(short) {
   cardLevel = short
   view.replaceChildren()
   const sheet = h('section', 'sheet')
-  sheet.append(h('div', 'eyebrow', `${placeOf(short)} · The idea`))
+  sheet.append(h('div', 'eyebrow', `${isShuffledQuiz(short) ? 'Quiz questions' : placeOf(short)} · The idea`))
   sheet.append(h('h2', '', short))
   const ul = h('ul', 'points')
   if (isTree(short)) {
@@ -223,7 +232,9 @@ function openCard(short) {
     sheet.append(h('p', 'paper-note', 'Every MGF comes from one recipe: multiply the pdf by eᵗˣ, add it up, then simplify with a few moves. Each question hands you a pdf, and you build its MGF one line at a time. Watch one built first, below; and given an MGF, read off which distribution it is.'), mgfCard())
   } else {
     if (isReview(short)) {
-      ul.append(h('li', '', short === 'Everything'
+      if (isShuffledQuiz(short)) {
+        for (const line of [`${roundSize(short)} questions, one from each quiz question, in a random order, each with new numbers.`, 'Nothing on top says the section or the distribution: name it yourself, like on the test.', 'A missed question comes back later with new numbers. Each run asks every question’s next part, so a few runs cover them all.']) ul.append(h('li', '', line))
+      } else ul.append(h('li', '', short === 'Everything'
         ? `${roundSize(short)} questions, one from every level, the fundamentals included, in a random order. The fundamentals’ questions use the distribution list.`
         : `${roundSize(short)} questions, one from every level of ${short.replace(' review', '')}, in a random order:`))
       if (short !== 'Everything') for (const w of WORLDS.filter(w => w.sec && w.levels.some(k => REVIEW[short].includes(k)))) ul.append(h('li', '', `${w.sec}: ${w.levels.join(' · ')}`))

@@ -241,7 +241,8 @@ function quizWalkFractions(text, rows, link) {
 // the question as the level shows it: where it comes from, the story, its math, the ask
 function quizHead(p, el) {
   const st = quizStory(p.text)
-  el.append(h('div', 'slice-from', p.from))
+  // the shuffled quiz doesn't say where a question comes from
+  el.append(h('div', 'slice-from', isShuffledQuiz(round?.short) ? 'New numbers' : p.from))
   if (st.text) el.append(hwPara('story', st.text))
   if (st.latex) {
     const m = tex(st.latex)
@@ -920,3 +921,12 @@ function quizLevelCard(short) {
   go.focus()
   window.scrollTo({ top: 0 })
 }
+
+// ---------- the shuffled quiz: every quiz question, mixed, nothing on top that names it ----------
+// One question from each of the 16 quiz questions, in a random order, with new numbers. No
+// section, question number or "Like 3.5 #37" shows: name the distribution yourself, as on
+// the test. Each run asks every question's next part, so runs go round all the parts.
+const SHUFFLED_QUIZ = 'Shuffled quiz'
+REVIEW[SHUFFLED_QUIZ] = Object.keys(QUIZ_LEVELS)
+REVIEW_NAMES[SHUFFLED_QUIZ] = 1
+const isShuffledQuiz = short => short === SHUFFLED_QUIZ

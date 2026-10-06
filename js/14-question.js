@@ -21,7 +21,7 @@ function showQuestion() {
   })
   top.append(round.learn ? h('span', 'learn-tag', 'Learn mode · doesn’t count') : prog, skipButton(q))
   sheet.append(top)
-  sheet.append(h('div', 'eyebrow', round.short + (q.level ? ' · ' + q.level : '') + (round.paper ? ' · paper mode' : '') + (q.seen > 1 ? ' · second chance' : '')))
+  sheet.append(h('div', 'eyebrow', round.short + (q.level && !isShuffledQuiz(round.short) ? ' · ' + q.level : '') + (round.paper ? ' · paper mode' : '') + (q.seen > 1 ? ' · second chance' : '')))
   if (p.slice) return sliceQuestion(p, sheet, q)
   if (p.ask) sheet.append(h('p', 'ask', p.ask))
   if (p.text) sheet.append(h('p', 'story', p.text))
