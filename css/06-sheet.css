@@ -60,7 +60,8 @@
 .story { margin: 4px 0; max-width: 64ch; }
 .math-d { overflow-x: auto; overflow-y: hidden; padding: 6px 0; text-align: center; }
 .math-d mjx-container { margin: 0 !important; }
-.math-d mjx-container svg { max-width: none; }
+/* a line too long for its box shrinks to fit instead of running off the side */
+.math-d mjx-container svg { max-width: 100%; height: auto; }
 .pick { display: grid; gap: 10px; margin-top: 14px; max-width: 640px; justify-items: start; }
 .pick-label { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .pick-box { position: relative; width: 100%; }
@@ -240,7 +241,7 @@
 .tlook { margin: 10px 0 4px; }
 .tlook-scroll { overflow-x: auto; overflow-y: hidden; margin-top: 4px; border: 1px solid var(--rule-soft); border-radius: 8px; background: var(--sheet); }
 .tlook-table { border-collapse: collapse; font-family: var(--mono); font-size: 0.82rem; white-space: nowrap; }
-.tlook-table th, .tlook-table td { padding: 4px 8px; text-align: right; border-bottom: 1px solid var(--rule-soft); transition: background 0.2s, color 0.2s; }
+.tlook-table th, .tlook-table td { padding: 4px 6px; text-align: right; border-bottom: 1px solid var(--rule-soft); transition: background 0.2s, color 0.2s; }
 .tlook-table th { color: var(--muted); font-weight: 600; }
 .tlook-table th.corner { text-align: left; }
 .tlook-table tr.gap td { text-align: left; color: var(--muted); border: 0; padding: 0 8px; }

@@ -33,6 +33,21 @@ const placeTables = (x, y) => {
   y = Math.max(4, Math.min(innerHeight - Math.min(r.height, 120) - 4, y))
   Object.assign(tablesPop.style, { left: x + 'px', top: y + 'px', right: 'auto' })
 }
+// the printed table fits the pop-up's width, so it never slides sideways
+function fitPtable() {
+  const body = tablesPop.querySelector('.tp-body'), table = body?.querySelector('.ptable')
+  if (!table || tablesPop.hidden) return
+  const cs = getComputedStyle(body)
+  fitTable(table, body, body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight))
+}
+// turning the tablet: fit the table again and bring the pop-up back on screen
+addEventListener('resize', () => {
+  if (tablesPop.hidden) return
+  fitPtable()
+  if (!tablesPop.style.left) return
+  const r = tablesPop.getBoundingClientRect()
+  placeTables(r.left, r.top)
+})
 function closeTables() {
   tablesPop.hidden = true
   tablesBtn.setAttribute('aria-pressed', 'false')
@@ -89,6 +104,7 @@ function openTables(which = unit.tables[0], at = null) {
   tablesPop.append(head, body)
   tablesPop.hidden = false
   tablesBtn.setAttribute('aria-pressed', 'true')
+  fitPtable()
   try {
     const pos = JSON.parse(localStorage.getItem(TABLES_POS))
     if (pos) placeTables(pos.x, pos.y)

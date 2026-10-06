@@ -29,6 +29,22 @@ const normEntry = z => {
   const { row, col } = zCell(z)
   return cellOf('normal', row, col)
 }
+// A table too wide for its box shrinks to fit (never below 60%) instead of running past the
+// edge. Small text doesn't shrink evenly, so it measures again after each try. Once it
+// fits, the box doesn't scroll sideways at all (no scrollbar for a half pixel).
+function fitTable(table, box, avail) {
+  table.style.zoom = ''
+  box.style.overflowX = ''
+  if (!(avail > 0)) return
+  let z = 1
+  for (let i = 0; i < 4; i++) {
+    const w = table.getBoundingClientRect().width
+    if (w <= avail || z <= 0.6) break
+    z = Math.max(0.6, Math.floor(z * (avail / w) * 1000) / 1000)
+    table.style.zoom = String(z)
+  }
+  if (table.getBoundingClientRect().width <= avail + 0.5) box.style.overflowX = 'hidden'
+}
 // a window of one printed table: the row lights up, then the column, and they meet
 // at the entry; reverse (an area to find) lights the entry first, then its edges.
 // play(alive, fx): fx.table, fx.row, fx.col and fx.hit (each given the element) run as
@@ -93,9 +109,21 @@ function tableLook({ name, row, col, target = null, halfway = null }) {
   const caption = h('p', 'tlook-cap', cap)
   const label = h('div', 'piece-label', 'Reading the table · ' + t.title)
   wrap.append(label, scroller, caption)
+  // the window fits the screen: as soon as it is shown, and again when the tablet turns
+  const fit = () => {
+    if (wrap.isConnected) fitTable(table, scroller, scroller.clientWidth)
+  }
   const centre = () => {
+    fit()
     if (hit) scroller.scrollLeft = Math.max(0, hit.offsetLeft - scroller.clientWidth / 2 + hit.offsetWidth / 2)
   }
+  let fitWidth = -1
+  new ResizeObserver(() => {
+    const w = scroller.clientWidth
+    if (!wrap.isConnected || !w || Math.abs(w - fitWidth) < 1) return
+    fitWidth = w
+    centre()
+  }).observe(scroller)
   function final() {
     rowHead?.classList.add('on-row')
     rowCells.forEach(c => c.classList.add('on-row'))
