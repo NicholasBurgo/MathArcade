@@ -536,7 +536,7 @@ function quizOneLine(s) {
   if (cdf) {
     const slips = quizCdfSlips(s.answerTex)
     return {
-      ask: `${s.ask} Which is \\(F(x)\\)?`,
+      ask: s.ask,
       check: { type: 'choice', options: [{ tex: s.answerTex }, ...slips.map(x => ({ tex: x.tex }))], correct: 0 },
       whys: slips.map(x => x.why),
     }
